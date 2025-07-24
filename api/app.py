@@ -18,7 +18,7 @@ print("Data loaded successfully.")
 
 app = FastAPI()
 
-frontend_domain = os.getenv("FRONTEND_DOMAIN", "scripture-search.eglenn.app")
+frontend_domain = os.getenv("FRONTEND_DOMAIN", "https://scripture-search.eglenn.app")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[frontend_domain],

@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+faiss-cpu==1.7.4
+sentence-transformers==3.3.0
+numpy<2.0.0
+torch==2.5.1
+transformers==4.46.2

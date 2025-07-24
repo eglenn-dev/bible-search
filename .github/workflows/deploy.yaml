@@ -44,6 +44,8 @@ jobs:
             - name: Build
               # This step now runs in the 'client/' directory
               run: npm run build
+              env:
+                  VITE_API_DOMAIN: ${{ secrets.VITE_API_DOMAIN }}
               working-directory: ./client
             - name: Setup Pages
               uses: actions/configure-pages@v5

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 import faiss
 import numpy as np
 import json
@@ -51,7 +52,7 @@ def find_similar_verses(query_verse: str, k: int = 5):
 
 @app.get("/")
 def read_root():
-    return {"message": "Bible Verse Similarity API. Use the /similar/ endpoint."}
+    return RedirectResponse(url=f"http://{frontend_domain}")
 
 if __name__ == "__main__":
     import uvicorn

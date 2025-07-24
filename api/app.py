@@ -18,10 +18,16 @@ print("Data loaded successfully.")
 
 app = FastAPI()
 
-frontend_domain = os.getenv("FRONTEND_DOMAIN", "https://scripture-search.eglenn.app")
+allowed_origins = [
+    "https://bible.eglenn.dev",
+    "https://api.bible.eglenn.dev",
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_domain],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET"],
     allow_headers=["*"],
@@ -52,7 +58,7 @@ def find_similar_verses(query_verse: str, k: int = 5):
 
 @app.get("/")
 def read_root():
-    return RedirectResponse(url=f"http://{frontend_domain}")
+    return { "message": "Online!" }
 
 if __name__ == "__main__":
     import uvicorn

@@ -35,7 +35,9 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
         setLoading(true);
         setError("");
         const response = await fetch(
-            `${import.meta.env.VITE_API_DOMAIN}/similar/?query_verse=${query}`
+            `${
+                import.meta.env.VITE_API_DOMAIN
+            }/similar/?query_verse=${query}&k=10`
         );
         if (!response.ok) {
             setError("Failed to fetch results.");
@@ -69,7 +71,7 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
                         autoFocus
                         ref={inputRef}
                         onChange={setQueryHandler}
-                        placeholder="Enter your search query..."
+                        placeholder="Enter words or phrases to search"
                         className="pl-12 pr-4 py-6 text-lg border-slate-200 focus:border-slate-400 focus:ring-slate-400 rounded-xl"
                     />
                 </div>

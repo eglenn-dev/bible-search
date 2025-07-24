@@ -12,10 +12,21 @@ export default function App() {
                 <div className="w-full max-w-2xl space-y-8">
                     <div className="text-center space-y-4">
                         <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
-                            Gospel Search
+                            Bible Search
                         </h1>
                         <p className="text-slate-600 text-lg">
-                            Find what you are looking for in the scriptures
+                            Discover new verses and explore the Bible with ease.
+                        </p>
+                        <p className="text-slate-500 text-sm">
+                            Developed by{" "}
+                            <a
+                                href="https://ethanglenn.dev"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-slate-700 hover:text-slate-900 font-semibold"
+                            >
+                                Ethan Glenn
+                            </a>
                         </p>
                     </div>
                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
@@ -24,7 +35,7 @@ export default function App() {
                     {results.length === 0 ? (
                         <div className="text-center">
                             <p className="text-slate-500 text-sm">
-                                Press Enter or click Search to begin
+                                Enter your query above to find similar verses.
                             </p>
                         </div>
                     ) : (

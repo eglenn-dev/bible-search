@@ -64,6 +64,12 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
 
     return (
         <>
+            <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold">Natural Language Search</h2>
+                <p className="text-slate-600">
+                    Search using key words or phrases
+                </p>
+            </div>
             {error && (
                 <div className="text-red-500 text-center mb-4">{error}</div>
             )}
@@ -84,7 +90,7 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
                 <Button
                     type="submit"
                     size="lg"
-                    className="w-full py-6 text-lg font-semibold rounded-xl bg-slate-900 hover:bg-slate-800 transition-colors"
+                    className="w-full py-6 text-lg font-semibold rounded-xl bg-zinc-900 hover:bg-zinc-700 transition-colors"
                     disabled={loading}
                 >
                     {loading ? "Searching..." : "Search"}
@@ -92,21 +98,21 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
             </form>
             <div className="flex flex-col items-center justify-center mt-4">
                 <h3 className="text-md mb-2 font-semibold">Example Queries</h3>
-                <div className="flex flex-wrap gap-2 text-sm text-slate-500">
+                <div className="flex flex-wrap gap-2 text-sm text-zinc-500">
                     <span
-                        className="bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
+                        className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
                         onClick={() => exampleQuery("God is love")}
                     >
                         God is love
                     </span>
                     <span
-                        className="bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
+                        className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
                         onClick={() => exampleQuery("The Lord is my shepherd")}
                     >
                         The Lord is my shepherd
                     </span>
                     <span
-                        className="bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
+                        className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
                         onClick={() =>
                             exampleQuery(
                                 "Faith is the substance of things hoped for"

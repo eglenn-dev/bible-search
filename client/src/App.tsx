@@ -1,10 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Result } from "./lib/types";
 import SearchBox from "./components/search-box";
+import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
+import { Button } from "./components/ui/button";
 
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
+    const [queryType, setQueryType] = useState<"natural" | "scripture">(
+        "natural"
+    );
+
+    useEffect(() => {
+        setResults([]);
+    }, [queryType]);
 
     return (
         <>
@@ -32,14 +41,43 @@ export default function App() {
                                 target="_blank"
                                 href="https://ethanglenn.dev/blog/bible-search"
                                 rel="noopener noreferrer"
+                                className="text-slate-700 hover:text-slate-900 font-semibold"
                             >
                                 How it works
                             </a>
                             .
                         </p>
                     </div>
+                    <div>
+                        <div className="flex justify-center space-x-4 mb-6">
+                            <Button
+                                className={`${
+                                    queryType === "natural"
+                                        ? "bg-zinc-300"
+                                        : "bg-zinc-100"
+                                } text-black hover:bg-zinc-300`}
+                                onClick={() => setQueryType("natural")}
+                            >
+                                Natural Language
+                            </Button>
+                            <Button
+                                className={`${
+                                    queryType === "scripture"
+                                        ? "bg-zinc-300"
+                                        : "bg-zinc-100"
+                                } text-black hover:bg-zinc-300`}
+                                onClick={() => setQueryType("scripture")}
+                            >
+                                Scripture Reference
+                            </Button>
+                        </div>
+                    </div>
                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
-                        <SearchBox setResults={setResults} />
+                        {queryType === "natural" ? (
+                            <SearchBox setResults={setResults} />
+                        ) : (
+                            <ScriptureBox setResults={setResults} />
+                        )}
                     </div>
                     {results.length === 0 ? (
                         <div className="text-center">

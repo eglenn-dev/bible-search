@@ -57,6 +57,11 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
         setQuery(encodeURIComponent(event.target.value));
     };
 
+    const exampleQuery = (query: string) => {
+        setQuery(encodeURIComponent(query));
+        inputRef.current?.focus();
+    };
+
     return (
         <>
             {error && (
@@ -70,6 +75,7 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
                         name="search-query"
                         autoFocus
                         ref={inputRef}
+                        value={decodeURIComponent(query)}
                         onChange={setQueryHandler}
                         placeholder="Enter words or phrases to search"
                         className="pl-12 pr-4 py-6 text-lg border-slate-200 focus:border-slate-400 focus:ring-slate-400 rounded-xl"
@@ -84,6 +90,33 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
                     {loading ? "Searching..." : "Search"}
                 </Button>
             </form>
+            <div className="flex flex-col items-center justify-center mt-4">
+                <h3 className="text-md mb-2 font-semibold">Example Queries</h3>
+                <div className="flex flex-wrap gap-2 text-sm text-slate-500">
+                    <span
+                        className="bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
+                        onClick={() => exampleQuery("God is love")}
+                    >
+                        God is love
+                    </span>
+                    <span
+                        className="bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
+                        onClick={() => exampleQuery("The Lord is my shepherd")}
+                    >
+                        The Lord is my shepherd
+                    </span>
+                    <span
+                        className="bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
+                        onClick={() =>
+                            exampleQuery(
+                                "Faith is the substance of things hoped for"
+                            )
+                        }
+                    >
+                        Faith is the substance of things hoped for
+                    </span>
+                </div>
+            </div>
         </>
     );
 }

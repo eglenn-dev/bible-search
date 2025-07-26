@@ -27,6 +27,15 @@ export default function App() {
                             >
                                 Ethan Glenn
                             </a>
+                            {". "}
+                            <a
+                                target="_blank"
+                                href="https://ethanglenn.dev/blog/bible-search"
+                                rel="noopener noreferrer"
+                            >
+                                How it works
+                            </a>
+                            .
                         </p>
                     </div>
                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">

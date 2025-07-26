@@ -4,6 +4,7 @@ import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
 import { Button } from "./components/ui/button";
+import Footer from "./components/footer";
 
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
@@ -16,8 +17,8 @@ export default function App() {
     }, [queryType]);
 
     return (
-        <>
-            <div className="min-h-screen w-[99vw] bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+            <main className="flex-grow w-[99vw] flex items-center justify-center p-4">
                 <div className="w-full max-w-2xl space-y-8">
                     <div className="text-center space-y-4">
                         <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
@@ -36,7 +37,7 @@ export default function App() {
                             >
                                 Ethan Glenn
                             </a>
-                            {". "}
+                            .{" "}
                             <a
                                 target="_blank"
                                 href="https://ethanglenn.dev/blog/bible-search"
@@ -89,7 +90,8 @@ export default function App() {
                         <RenderResults results={results} />
                     )}
                 </div>
-            </div>
-        </>
+            </main>
+            <Footer />
+        </div>
     );
 }

@@ -5,9 +5,11 @@ import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
 import { Button } from "./components/ui/button";
 import Footer from "./components/footer";
+import Landing from "./components/landing";
 
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
+    const [backendRunning, setBackendRunning] = useState<boolean>(false);
     const [queryType, setQueryType] = useState<"natural" | "scripture">(
         "natural"
     );
@@ -15,6 +17,9 @@ export default function App() {
     useEffect(() => {
         setResults([]);
     }, [queryType]);
+
+    if (!backendRunning)
+        return <Landing setBackendRunning={setBackendRunning} />;
 
     return (
         <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">

@@ -30,7 +30,9 @@ export default function Landing({ setBackendRunning }: LandingProps) {
             } catch (error) {
                 console.error("Error checking backend status:", error);
                 setBackendRunning(false);
-                setError("Failed to connect to the backend.");
+                setError(
+                    "Failed to connect to the backend. Please wait a few minutes and try again."
+                );
             }
         };
         checkBackendStatus();

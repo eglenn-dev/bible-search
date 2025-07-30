@@ -26,23 +26,28 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
         if (loading) return;
         setLoading(true);
         setError("");
-        const response = await fetch(
-            `${
-                import.meta.env.VITE_API_DOMAIN
-            }/similar/?query_verse=${inputVerse}&k=10`
-        );
-        if (!response.ok) {
-            setError("Failed to fetch results.");
+        try {
+            const response = await fetch(
+                `${
+                    import.meta.env.VITE_API_DOMAIN
+                }/similar/?query_verse=${inputVerse}&k=10`
+            );
+            if (!response.ok) {
+                setError("Failed to fetch results.");
+                setLoading(false);
+                return;
+            }
+            const data = await response.json();
+            const similarVerses =
+                data.similar_verses.sort(
+                    (a: Result, b: Result) => a.distance - b.distance
+                ) || [];
+            setResults(similarVerses);
             setLoading(false);
-            return;
+        } catch (error) {
+            console.error("Error fetching similar verses:", error);
+            setError("Failed to fetch similar verses.");
         }
-        const data = await response.json();
-        const similarVerses =
-            data.similar_verses.sort(
-                (a: Result, b: Result) => a.distance - b.distance
-            ) || [];
-        setResults(similarVerses);
-        setLoading(false);
     };
 
     useEffect(() => {

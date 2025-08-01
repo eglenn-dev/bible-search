@@ -6,17 +6,46 @@ import RenderResults from "./components/render-results";
 import { Button } from "./components/ui/button";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
+import { useSearchParams } from "react-router-dom";
 
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [query, setQuery] = useState<string>("");
     const [queryType, setQueryType] = useState<"natural" | "scripture">(
         "natural"
     );
 
     useEffect(() => {
+        setQuery("");
+        if (queryType === "scripture") {
+            setSearchParams((prev) => {
+                const newParams = new URLSearchParams(prev);
+                newParams.delete("q");
+                return newParams;
+            });
+        }
+    }, [queryType, setSearchParams]);
+
+    useEffect(() => {
+        if (queryType === "natural") {
+            const urlQuery = searchParams.get("q") || "";
+            setQuery(urlQuery);
+        }
+    }, [searchParams, queryType]);
+
+    useEffect(() => {
         setResults([]);
     }, [queryType]);
+
+    const setQueryParam = (content: string) => {
+        setSearchParams((prev) => {
+            const newParams = new URLSearchParams(prev);
+            newParams.set("q", content);
+            return newParams;
+        });
+    };
 
     if (!backendRunning)
         return <Landing setBackendRunning={setBackendRunning} />;
@@ -80,7 +109,11 @@ export default function App() {
                     </div>
                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
                         {queryType === "natural" ? (
-                            <SearchBox setResults={setResults} />
+                            <SearchBox
+                                parentQuery={query}
+                                setParams={setQueryParam}
+                                setResults={setResults}
+                            />
                         ) : (
                             <ScriptureBox setResults={setResults} />
                         )}

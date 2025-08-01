@@ -6,14 +6,24 @@ import type { Result } from "@/lib/types";
 import { useRef, useEffect } from "react";
 
 interface SearchBoxProps {
+    parentQuery: string;
+    setParams: (content: string) => void;
     setResults: (results: Result[]) => void;
 }
 
-export default function SearchBox({ setResults }: SearchBoxProps) {
+export default function SearchBox({
+    parentQuery,
+    setParams,
+    setResults,
+}: SearchBoxProps) {
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        setQuery(parentQuery);
+    }, [parentQuery]);
 
     useEffect(() => {
         const handleKeyDown = () => {
@@ -38,7 +48,7 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
             const response = await fetch(
                 `${
                     import.meta.env.VITE_API_DOMAIN
-                }/similar/?query_verse=${query}&k=10`
+                }/similar/?query_verse=${encodeURIComponent(query)}&k=10`
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");
@@ -59,11 +69,14 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
     };
 
     const setQueryHandler = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setQuery(encodeURIComponent(event.target.value));
+        const newQuery = event.target.value;
+        setQuery(newQuery);
+        setParams(newQuery);
     };
 
     const exampleQuery = (query: string) => {
-        setQuery(encodeURIComponent(query));
+        setQuery(query);
+        setParams(query);
         inputRef.current?.focus();
     };
 
@@ -86,7 +99,7 @@ export default function SearchBox({ setResults }: SearchBoxProps) {
                         name="search-query"
                         autoFocus
                         ref={inputRef}
-                        value={decodeURIComponent(query)}
+                        value={query}
                         onChange={setQueryHandler}
                         placeholder="Enter words or phrases to search"
                         className="pl-12 pr-4 py-6 text-lg border-slate-200 focus:border-slate-400 focus:ring-slate-400 rounded-xl"

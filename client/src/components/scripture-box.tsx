@@ -17,6 +17,10 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
     const [inputVerse, setInputVerse] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
 
+    useEffect(() => {
+        setQuery("");
+    }, []);
+
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!query) {
@@ -30,7 +34,7 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
             const response = await fetch(
                 `${
                     import.meta.env.VITE_API_DOMAIN
-                }/similar/?query_verse=${inputVerse}&k=10`
+                }/similar/?query_verse=${encodeURIComponent(inputVerse)}&k=10`
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");
@@ -54,12 +58,12 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
         try {
             const verse = BibleVerses.find((v) => v.reference === query);
             if (verse) {
-                setInputVerse(encodeURIComponent(verse.text));
+                setInputVerse(verse.text);
             } else {
                 setInputVerse("");
             }
         } catch (error) {
-            console.error("Error decoding query:", error);
+            console.error("Error finding verse:", error);
             setInputVerse("");
         }
     }, [query]);
@@ -84,8 +88,11 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
                         name="search-query"
                         autoFocus
                         ref={inputRef}
-                        value={decodeURIComponent(query)}
-                        onChange={(e) => setQuery(e.target.value)}
+                        value={query}
+                        onChange={(e) => {
+                            const newQuery = e.target.value;
+                            setQuery(newQuery);
+                        }}
                         placeholder="Genesis 1:1, John 3:16, etc."
                         className="pl-12 pr-4 py-6 text-lg border-slate-200 focus:border-slate-400 focus:ring-slate-400 rounded-xl"
                     />
@@ -102,9 +109,7 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
             {inputVerse && (
                 <div className="mt-4 text-center">
                     <p className="text-slate-600">
-                        <span className="font-semibold">
-                            {decodeURIComponent(inputVerse)}
-                        </span>
+                        <span className="font-semibold">{inputVerse}</span>
                     </p>
                 </div>
             )}
@@ -113,19 +118,25 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
                 <div className="flex flex-wrap gap-2 text-sm text-zinc-500">
                     <span
                         className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
-                        onClick={() => setQuery("Genesis 1:1")}
+                        onClick={() => {
+                            setQuery("Genesis 1:1");
+                        }}
                     >
                         Genesis 1:1
                     </span>
                     <span
                         className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
-                        onClick={() => setQuery("John 3:16")}
+                        onClick={() => {
+                            setQuery("John 3:16");
+                        }}
                     >
                         John 3:16
                     </span>
                     <span
                         className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
-                        onClick={() => setQuery("Matthew 28:19")}
+                        onClick={() => {
+                            setQuery("Matthew 28:19");
+                        }}
                     >
                         Matthew 28:19
                     </span>

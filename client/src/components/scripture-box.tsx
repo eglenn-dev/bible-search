@@ -101,9 +101,13 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
                     type="submit"
                     size="lg"
                     className="w-full py-6 text-lg font-semibold rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
-                    disabled={loading}
+                    disabled={loading || !inputVerse}
                 >
-                    {loading ? "Searching..." : "Search"}
+                    {loading
+                        ? "Searching..."
+                        : inputVerse
+                        ? "Search"
+                        : "Enter valid verse"}
                 </Button>
             </form>
             {inputVerse && (

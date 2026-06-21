@@ -75,16 +75,23 @@ Atlas builds the index **asynchronously**; new documents are indexed automatical
 
 | File | Responsibility |
 |---|---|
-| `app.py` | FastAPI app + routes. Loads the query-encoder model at startup. |
+| `app.py` | The FastAPI REST app (`api`), the FastMCP server, per-IP rate limiting, and the composite ASGI app (`app`) that serves both. The query-encoder model loads lazily on first search. |
 | `db.py` | Atlas access layer: client singleton, `vector_search()`, `find_by_reference()`, `embedding_to_list()`, `VALID_SOURCES`, config. |
+| `export_openapi.py` | Writes the committed `openapi.json`. |
 
-Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (required), `MONGODB_DB` (`gospel_library`), `MONGODB_COLLECTION` (`documents`), `VECTOR_INDEX_NAME` (`vector_index`), optional `ALLOWED_ORIGINS`.
+`app.py` composes two things into one ASGI app served by `uvicorn app:app`:
+- **`api`** — the FastAPI app with the REST routes + CORS + slowapi rate limiting.
+- **`mcp`** — `FastMCP.from_fastapi(api)`, served at `/mcp` over Streamable HTTP. A Starlette parent mounts the MCP route + the REST app as catch-all and runs the MCP session-manager lifespan. See [mcp.md](./mcp.md) and [api.md](./api.md).
+
+Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (required), `MONGODB_DB` (`gospel_library`), `MONGODB_COLLECTION` (`documents`), `VECTOR_INDEX_NAME` (`vector_index`), optional `ALLOWED_ORIGINS`, optional `RATE_LIMIT` (default `100/minute`).
 
 ### Endpoints
 
 - **`GET /`** — health check; also pings Atlas. Returns `{"message": "Online!"}` or 503.
 - **`GET /search?query=<text>&k=10&sources=<csv>`** — encodes the query, runs `$vectorSearch`. `sources` is an optional comma-separated subset (`bible,conference,…`); omit for all. Returns `{ query, results: [...] }`.
 - **`GET /search/by-reference?reference=<ref>&k=10&sources=<csv>`** — looks up a document by exact `reference`, **reuses its stored embedding** (no re-encode), and drops the self-match. Powers the "Scripture Reference" mode.
+- **`/docs`, `/redoc`, `/openapi.json`** — Swagger UI, ReDoc, and the OpenAPI spec.
+- **`/mcp`** — the MCP server (Streamable HTTP) for AI agents.
 
 `db.vector_search()` builds the aggregation: a `$vectorSearch` stage (`numCandidates = clamp(limit*20, 150, 10000)`, optional `filter: { source: { $in: [...] } }`) followed by a `$project` that returns `source, reference, text, title, url, metadata` and `score: { $meta: "vectorSearchScore" }`. Only sources in `VALID_SOURCES` are honored as filters.
 

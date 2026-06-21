@@ -10,14 +10,16 @@ This `docs/` directory explains what the project is, how it works, and how to ex
 |---|---|
 | [architecture.md](./architecture.md) | **How it works** — system overview, data model, embeddings, Atlas Vector Search, the API, the frontend, and the ingestion pipeline. |
 | [api.md](./api.md) | **OpenAPI spec & Swagger UI** — interactive docs, the committed `openapi.json`, mocking with Prism, and the endpoint reference. |
+| [mcp.md](./mcp.md) | **MCP server for AI agents** — the hosted `/mcp` connector (auto-generated from the OpenAPI spec), how to add it to Claude or other platforms. |
 | [data-sources.md](./data-sources.md) | The six corpora currently indexed, their document schemas, counts, and how deep-links are built. |
 | [adding-a-source.md](./adding-a-source.md) | **Step-by-step guide to add a new source** later (backend + ingestion + frontend). |
 | [project-history.md](./project-history.md) | **What we did** — the migration from in-memory FAISS to MongoDB Atlas, the move to `uv`, the UI refresh, adding the Standard Works, and the gotchas we hit along the way. |
 
 ## TL;DR
 
-- **Backend:** Python / FastAPI (`api/`). Loads `paraphrase-MiniLM-L3-v2` only to encode *queries*; all text + embeddings live in MongoDB Atlas.
+- **Backend:** Python / FastAPI (`api/`). Loads `paraphrase-MiniLM-L3-v2` only to encode *queries*; all text + embeddings live in MongoDB Atlas. Per-IP rate limited (slowapi).
 - **Database:** MongoDB Atlas (free M0) with **Atlas Vector Search**. One collection, `gospel_library.documents`, ~93k documents across six sources, ~193 MB.
+- **MCP:** the same deployment hosts a remote **MCP server at `/mcp`** (Streamable HTTP, tools auto-generated from the OpenAPI spec via FastMCP) — see [mcp.md](./mcp.md).
 - **Frontend:** React + Vite + Tailwind (`client/`). Unified search box, source filter chips, source-tagged result cards. "Classic & scholarly" theme.
 - **Package manager:** [`uv`](https://docs.astral.sh/uv/) for the Python side.
 

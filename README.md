@@ -15,6 +15,7 @@
 Full docs live in [`docs/`](./docs/README.md):
 - [Architecture](./docs/architecture.md) — how it works (data model, embeddings, vector search, API, frontend, ingestion).
 - [API & Swagger](./docs/api.md) — OpenAPI spec, interactive Swagger UI (`/docs`), and mocking.
+- [MCP server](./docs/mcp.md) — the hosted `/mcp` connector for AI agents (auto-generated from the OpenAPI spec).
 - [Data sources](./docs/data-sources.md) — the six corpora, schemas, and deep-link logic.
 - [Adding a source](./docs/adding-a-source.md) — step-by-step guide to extend it.
 - [Project history](./docs/project-history.md) — what changed and why, plus gotchas.
@@ -51,6 +52,13 @@ The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cos
   - `GET /search?query=<text>&k=10&sources=bible,conference,handbook`
   - `GET /search/by-reference?reference=John%203:16&k=10&sources=...` — reuses a verse's stored embedding
   - `GET /` — health check (also pings Atlas)
+  - `/docs` — Swagger UI; `/openapi.json` — OpenAPI spec
+  - `/mcp` — remote **MCP server** for AI agents (Streamable HTTP, tools auto-generated from the spec via FastMCP)
+- Per-IP **rate limiting** via slowapi (`RATE_LIMIT`, default `100/minute`).
+
+### MCP server
+
+The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search` / `search_by_reference` as tools. Add the URL (e.g. `https://api.bible.eglenn.dev/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
 
 ### Frontend Client (`client/`)
 

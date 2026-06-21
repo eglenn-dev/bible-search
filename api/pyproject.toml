@@ -4,8 +4,11 @@ version = "0.1.0"
 description = "Semantic search API over the Bible, General Conference, and the General Handbook."
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "fastapi==0.115.0",
-    "uvicorn[standard]==0.32.0",
+    # Web stack: relaxed to ranges so FastMCP can co-resolve a compatible set.
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "fastmcp>=2.8",        # hosts the MCP server (Streamable HTTP, auto-generated from this app)
+    "slowapi>=0.1.9",      # per-IP rate limiting
     "pymongo==4.10.1",  # includes dnspython, so mongodb+srv:// Atlas URIs work
     "sentence-transformers==3.3.0",
     "numpy<2.0.0",
@@ -13,7 +16,7 @@ dependencies = [
     "transformers==4.46.2",
     "beautifulsoup4==4.12.3",
     "requests==2.32.3",
-    "python-dotenv==1.0.1",
+    "python-dotenv>=1.0.1",
 ]
 
 # This is an application, not an installable package — uv manages only the deps.

@@ -5,6 +5,15 @@ from typing import Any, Literal, Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.routing import Mount
+
+from fastmcp import FastMCP
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 import db
 
@@ -71,7 +80,7 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
-# --- App -----------------------------------------------------------------
+# --- REST API ------------------------------------------------------------
 
 DESCRIPTION = """
 Semantic search across the LDS **Standard Works** (Bible, Book of Mormon,
@@ -84,6 +93,7 @@ Search. Every result links back to the passage on churchofjesuschrist.org.
 - **Interactive docs (Swagger UI):** [`/docs`](/docs)
 - **ReDoc:** [`/redoc`](/redoc)
 - **OpenAPI spec:** [`/openapi.json`](/openapi.json)
+- **MCP server (for AI agents):** `/mcp` (Streamable HTTP)
 """
 
 tags_metadata = [
@@ -91,7 +101,7 @@ tags_metadata = [
     {"name": "Health", "description": "Service and database status."},
 ]
 
-app = FastAPI(
+api = FastAPI(
     title="Gospel Library Search API",
     version="1.0.0",
     description=DESCRIPTION,
@@ -116,7 +126,7 @@ allowed_origins = (
     else _default_origins
 )
 
-app.add_middleware(
+api.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
@@ -150,10 +160,11 @@ def _parse_sources(sources: str | None) -> list[str] | None:
     return [s.strip().lower() for s in sources.split(",") if s.strip()]
 
 
-@app.get(
+@api.get(
     "/search",
     response_model=SearchResponse,
     tags=["Search"],
+    operation_id="search",
     summary="Semantic search across all corpora",
     responses={400: {"model": ErrorResponse, "description": "Empty query."}},
 )
@@ -182,10 +193,11 @@ def search(
     return {"query": query, "results": results}
 
 
-@app.get(
+@api.get(
     "/search/by-reference",
     response_model=SearchResponse,
     tags=["Search"],
+    operation_id="search_by_reference",
     summary="Find passages similar to a known verse",
     responses={404: {"model": ErrorResponse, "description": "Unknown reference."}},
 )
@@ -220,10 +232,11 @@ def search_by_reference(
     return {"query": doc["reference"], "results": hits}
 
 
-@app.get(
+@api.get(
     "/",
     response_model=HealthResponse,
     tags=["Health"],
+    operation_id="health",
     summary="Health check",
     responses={503: {"model": ErrorResponse, "description": "Database unavailable."}},
 )
@@ -234,6 +247,43 @@ def read_root():
         return {"message": "Online!"}
     except Exception as exc:  # surface DB connectivity issues in the health check
         raise HTTPException(status_code=503, detail=f"Database unavailable: {exc}")
+
+
+# --- Per-IP rate limiting (slowapi) --------------------------------------
+def _client_ip(request: Request) -> str:
+    """Prefer X-Forwarded-For (set by deployment proxies) over the socket peer."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return get_remote_address(request)
+
+
+RATE_LIMIT = os.getenv("RATE_LIMIT", "100/minute")
+limiter = Limiter(key_func=_client_ip, default_limits=[RATE_LIMIT])
+# Applied to the REST app (JSON responses; safe for BaseHTTPMiddleware). MCP
+# tool calls invoke /search in-process, so they pass through this limiter too.
+# The /mcp transport itself is left unwrapped so its streaming isn't buffered.
+api.state.limiter = limiter
+api.add_middleware(SlowAPIMiddleware)
+api.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# --- MCP server (auto-generated from the REST API) -----------------------
+# FastMCP introspects the FastAPI app and turns each operation into an MCP
+# tool. Tool calls are handled in-process (ASGI), so the MCP server needs no
+# separate deployment — it's served at /mcp by the same process over the
+# Streamable HTTP transport.
+mcp = FastMCP.from_fastapi(api, name="Gospel Library Search")
+mcp_app = mcp.http_app(path="/mcp")  # Streamable HTTP, served at exactly /mcp
+
+
+# --- Composite ASGI app: MCP (/mcp) + REST (everything else) --------------
+# One process serves both. We reuse the MCP route + its session-manager
+# lifespan, and add the REST app as the catch-all for all other paths.
+app = Starlette(
+    routes=[*mcp_app.routes, Mount("/", app=api)],
+    lifespan=mcp_app.lifespan,
+)
 
 
 if __name__ == "__main__":

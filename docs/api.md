@@ -11,6 +11,7 @@ Start the API (`cd api && uv run uvicorn app:app --port 10000`), then:
 | <http://localhost:10000/docs> | **Swagger UI** — browse endpoints and run live requests ("Try it out"). |
 | <http://localhost:10000/redoc> | **ReDoc** — clean, read-only reference. |
 | <http://localhost:10000/openapi.json> | The raw **OpenAPI 3.1** spec. |
+| <http://localhost:10000/mcp> | **MCP server** for AI agents (Streamable HTTP) — tools auto-generated from this same spec. See [mcp.md](./mcp.md). |
 
 ### Trying requests in Swagger UI
 1. Open `/docs`.

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Gospel Library Search API",
-    "description": "\nSemantic search across the LDS **Standard Works** (Bible, Book of Mormon,\nDoctrine and Covenants, Pearl of Great Price), **General Conference** addresses\n(1971\u2013present), and the **General Handbook**.\n\nQueries are matched by meaning using sentence embeddings + MongoDB Atlas Vector\nSearch. Every result links back to the passage on churchofjesuschrist.org.\n\n- **Interactive docs (Swagger UI):** [`/docs`](/docs)\n- **ReDoc:** [`/redoc`](/redoc)\n- **OpenAPI spec:** [`/openapi.json`](/openapi.json)\n",
+    "description": "\nSemantic search across the LDS **Standard Works** (Bible, Book of Mormon,\nDoctrine and Covenants, Pearl of Great Price), **General Conference** addresses\n(1971\u2013present), and the **General Handbook**.\n\nQueries are matched by meaning using sentence embeddings + MongoDB Atlas Vector\nSearch. Every result links back to the passage on churchofjesuschrist.org.\n\n- **Interactive docs (Swagger UI):** [`/docs`](/docs)\n- **ReDoc:** [`/redoc`](/redoc)\n- **OpenAPI spec:** [`/openapi.json`](/openapi.json)\n- **MCP server (for AI agents):** `/mcp` (Streamable HTTP)\n",
     "contact": {
       "name": "Ethan Glenn",
       "url": "https://ethanglenn.dev/"
@@ -27,7 +27,7 @@
         ],
         "summary": "Semantic search across all corpora",
         "description": "Encode the query and return the most semantically similar passages.",
-        "operationId": "search_search_get",
+        "operationId": "search",
         "parameters": [
           {
             "name": "query",
@@ -120,7 +120,7 @@
         ],
         "summary": "Find passages similar to a known verse",
         "description": "Look up a verse by reference and return similar passages.\n\nReuses the verse's **stored** embedding (no re-encoding) and excludes the\nverse itself from the results.",
-        "operationId": "search_by_reference_search_by_reference_get",
+        "operationId": "search_by_reference",
         "parameters": [
           {
             "name": "reference",
@@ -213,7 +213,7 @@
         ],
         "summary": "Health check",
         "description": "Return service status and confirm the database is reachable.",
-        "operationId": "read_root__get",
+        "operationId": "health",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -406,6 +406,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

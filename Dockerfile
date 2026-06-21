@@ -33,6 +33,9 @@ COPY api/ .
 # Expose the port the app runs on
 EXPOSE 10000
 
+# Serves the REST API, Swagger UI (/docs), and the MCP endpoint (/mcp).
+# --proxy-headers so the real client IP (X-Forwarded-For) reaches rate limiting.
 # MONGODB_URI must be supplied at runtime, e.g.:
 #   docker run -e MONGODB_URI="mongodb+srv://..." -p 10000:10000 gospel-library-search
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "10000", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]

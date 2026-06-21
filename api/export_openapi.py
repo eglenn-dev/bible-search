@@ -12,11 +12,11 @@ run in CI or offline.
 import json
 import os
 
-from app import app
+from app import api
 
 
 def main() -> None:
-    spec = app.openapi()
+    spec = api.openapi()
     out_path = os.path.join(os.path.dirname(__file__), "openapi.json")
     with open(out_path, "w") as f:
         json.dump(spec, f, indent=2)

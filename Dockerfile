@@ -24,8 +24,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Put the project virtualenv on PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Pre-download the query-encoding model at build time
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-MiniLM-L3-v2')"
+# Pre-cache the ONNX model + tokenizer at build time (no torch needed)
+RUN python -c "from huggingface_hub import hf_hub_download; hf_hub_download('sentence-transformers/paraphrase-MiniLM-L3-v2', 'onnx/model.onnx'); from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('sentence-transformers/paraphrase-MiniLM-L3-v2')"
+# Everything is cached now — run fully offline so cold starts don't fetch
+ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 
 # Copy the application code
 COPY api/ .

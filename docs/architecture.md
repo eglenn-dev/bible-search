@@ -25,11 +25,12 @@ The defining choice: **embeddings live in the database, not in process memory.**
 
 ## The embedding model
 
-- **Model:** `sentence-transformers` `paraphrase-MiniLM-L3-v2` → **384-dimensional** vectors, ~60 MB, runs fine on CPU.
-- Used in two places with the **same** model (so query and document vectors live in one space):
-  - **Ingestion** (`api/ingest/common.py::embed_texts`) — embeds every document's `text`.
-  - **Query time** (`api/app.py::_encode`) — embeds the user's query string.
-- All vectors are **L2-normalized** (`normalize_embeddings=True`) so cosine similarity is well-behaved and scores land in a clean 0–1 range.
+- **Model:** `paraphrase-MiniLM-L3-v2` → **384-dimensional** vectors, runs on CPU.
+- **Runtime: ONNX, not torch.** `api/encoder.py` runs the model's ONNX export with **onnxruntime** + a Hugging Face tokenizer and does tokenize → inference → masked mean-pool → L2-normalize itself. This produces embeddings **identical** to the torch/sentence-transformers model (verified cosine ≈ 1.0), so existing Atlas vectors stay compatible — while dropping ~470 MB of dependencies (torch, scipy, scikit-learn, sympy). The whole runtime venv is ~290 MB, so the API fits a 512 MB host.
+- One encoder, used in two places (so query and document vectors share one space):
+  - **Ingestion** (`api/ingest/common.py::embed_texts` → `encoder.encode_batch`) — embeds each document's `text`.
+  - **Query time** (`api/app.py::_encode` → `encoder.encode`) — embeds the user's query string.
+- Vectors are **L2-normalized** so cosine similarity is well-behaved and scores land in a clean 0–1 range.
 
 > Changing the model means re-embedding **everything** (you can't mix vector spaces). Keep dimensions/model consistent across all sources.
 

@@ -1,5 +1,4 @@
 import os
-from functools import lru_cache
 from typing import Any, Literal, Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -16,6 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 import db
+import encoder
 
 # --- Schemas -------------------------------------------------------------
 
@@ -135,23 +135,9 @@ api.add_middleware(
 )
 
 
-@lru_cache(maxsize=1)
-def get_model():
-    """Lazily load the query-encoding model on first use.
-
-    Loading lazily keeps startup fast and lets the OpenAPI spec be generated
-    (and the app imported in tests) without pulling the model into memory.
-    """
-    from sentence_transformers import SentenceTransformer
-
-    print("Loading embedding model (paraphrase-MiniLM-L3-v2)...")
-    return SentenceTransformer("paraphrase-MiniLM-L3-v2")
-
-
 def _encode(text: str) -> list[float]:
-    """Encode a query string to a normalized 384-dim vector."""
-    vector = get_model().encode([text], normalize_embeddings=True)[0]
-    return vector.tolist()
+    """Encode a query string to a normalized 384-dim vector (ONNX; loads lazily)."""
+    return encoder.encode(text)
 
 
 def _parse_sources(sources: str | None) -> list[str] | None:

@@ -46,7 +46,7 @@ The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cos
 
 ### Backend API (`api/`)
 
-- **Sentence Transformers** (`paraphrase-MiniLM-L3-v2`): encodes the user's **query** to a normalized 384-dim vector. (The corpora are embedded once, at ingest time.)
+- **ONNX runtime** (`paraphrase-MiniLM-L3-v2` via onnxruntime + a HF tokenizer — no torch): encodes the user's **query** to a normalized 384-dim vector. (The corpora are embedded once, at ingest time.) Keeps the image small enough for a 512 MB host.
 - **MongoDB Atlas Vector Search**: a `$vectorSearch` aggregation finds the nearest passages, optionally filtered by `source`.
 - **FastAPI** exposes:
   - `GET /search?query=<text>&k=10&sources=bible,conference,handbook`
@@ -122,4 +122,16 @@ docker build -t gospel-library-search .
 docker run -e MONGODB_URI="mongodb+srv://..." -p 10000:10000 gospel-library-search
 ```
 
-The image is API-only and bakes in the embedding model; the frontend is built and deployed separately.
+The image is API-only and bakes in the ONNX model + tokenizer; the frontend is built and deployed separately.
+
+### Deploying
+
+The runtime uses **onnxruntime** (no torch), so the image is small and runs in **~150–250 MB RAM** — it fits a **512 MB free tier** (Render free, Fly.io, etc.) as well as **GCP Cloud Run** (scale-to-zero). The first request lazily loads the ONNX model (a few seconds).
+
+Required at runtime:
+- `MONGODB_URI` — the Atlas connection string.
+- Optional: `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`.
+
+**Atlas network access:** serverless/free hosts use dynamic outbound IPs, so a single-IP allowlist won't work. Set Atlas → Network Access to `0.0.0.0/0` and rely on the DB credentials (the corpora are public content), or configure a static egress IP.
+
+The frontend builds to static files (deployed to GitHub Pages by `.github/workflows/deploy.yaml`) and needs `VITE_API_DOMAIN` pointing at the deployed API.

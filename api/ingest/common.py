@@ -6,35 +6,23 @@ Run ingestion modules from the ``api/`` directory, e.g.::
     python -m ingest.run --source all
 """
 
-from functools import lru_cache
 from typing import Any, Iterable
 
 from bson.binary import Binary, BinaryVectorDtype
 from pymongo import ReplaceOne
 from pymongo.operations import SearchIndexModel
-from sentence_transformers import SentenceTransformer
 
 import db
+import encoder
 
 EMBED_DIM = 384
 EMBED_BATCH = 256
 UPSERT_BATCH = 500
 
 
-@lru_cache(maxsize=1)
-def _model() -> SentenceTransformer:
-    print("Loading embedding model (paraphrase-MiniLM-L3-v2)...")
-    return SentenceTransformer("paraphrase-MiniLM-L3-v2")
-
-
 def embed_texts(texts: list[str]) -> list[Binary]:
-    """Encode texts to normalized 384-dim BSON float32 binData vectors."""
-    vectors = _model().encode(
-        texts,
-        batch_size=EMBED_BATCH,
-        normalize_embeddings=True,
-        show_progress_bar=True,
-    )
+    """Encode texts to normalized 384-dim BSON float32 binData vectors (ONNX)."""
+    vectors = encoder.encode_batch(texts, batch_size=EMBED_BATCH)
     return [
         Binary.from_vector([float(x) for x in vec], BinaryVectorDtype.FLOAT32)
         for vec in vectors

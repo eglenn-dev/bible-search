@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
+import { BookOpen } from "lucide-react";
 
 interface LandingProps {
     setBackendRunning: (running: boolean) => void;
@@ -39,23 +40,29 @@ export default function Landing({ setBackendRunning }: LandingProps) {
     }, [setBackendRunning]);
 
     return (
-        <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-            <div className="flex-grow w-[99vw] flex items-center justify-center p-4">
+        <div className="flex flex-col min-h-screen">
+            <div className="flex-grow w-full flex items-center justify-center p-4">
                 <div className="w-full max-w-2xl space-y-8">
                     <div className="text-center space-y-4">
-                        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
-                            Bible Search
+                        <div className="flex items-center justify-center gap-3 text-primary">
+                            <span className="h-px w-10 bg-border" />
+                            <BookOpen className="h-6 w-6" strokeWidth={1.5} />
+                            <span className="h-px w-10 bg-border" />
+                        </div>
+                        <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground tracking-tight">
+                            Gospel Library Search
                         </h1>
-                        <p className="text-slate-600 text-lg">
-                            Discover new verses and explore the Bible with ease.
+                        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                            Search the Bible, General Conference, and the General
+                            Handbook by meaning — not just words.
                         </p>
-                        <p className="text-slate-500 text-sm">
+                        <p className="text-muted-foreground/80 text-sm">
                             Developed by{" "}
                             <a
                                 href="https://ethanglenn.dev"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-slate-700 hover:text-slate-900 font-semibold"
+                                className="text-primary hover:underline font-semibold"
                             >
                                 Ethan Glenn
                             </a>
@@ -64,7 +71,7 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                                 target="_blank"
                                 href="https://ethanglenn.dev/blog/bible-search"
                                 rel="noopener noreferrer"
-                                className="text-slate-700 hover:text-slate-900 font-semibold"
+                                className="text-primary hover:underline font-semibold"
                             >
                                 How it works
                             </a>
@@ -73,7 +80,7 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                     </div>
                     {error ? (
                         <div className="flex flex-col items-center">
-                            <div className="text-red-500 text-center mb-2">
+                            <div className="text-destructive text-center mb-2">
                                 {error}
                             </div>
                             <Button
@@ -85,12 +92,12 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                         </div>
                     ) : (
                         <div className="flex flex-col justify-center">
-                            <div className="text-slate-600 text-sm mx-auto mb-4">
-                                Attempting to connect to backend. This may take
-                                a minute.
+                            <div className="text-muted-foreground text-sm mx-auto mb-4">
+                                Connecting to the search service. This may take a
+                                minute on first load.
                             </div>
                             <div className="flex items-center justify-center">
-                                <span className="inline-block w-6 h-6 border-4 border-slate-400 border-t-slate-700 rounded-full animate-spin"></span>
+                                <span className="inline-block w-6 h-6 border-4 border-border border-t-primary rounded-full animate-spin"></span>
                             </div>
                         </div>
                     )}

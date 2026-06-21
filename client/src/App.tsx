@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import type { Result } from "./lib/types";
+import type { Result, Source } from "./lib/types";
 import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
-import { Button } from "./components/ui/button";
+import SourcesFilter from "./components/sources-filter";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
+import { cn } from "./lib/utils";
+import { BookOpen } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 export default function App() {
@@ -13,6 +15,7 @@ export default function App() {
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const [query, setQuery] = useState<string>("");
+    const [sources, setSources] = useState<Source[]>([]);
     const [queryType, setQueryType] = useState<"natural" | "scripture">(
         "natural"
     );
@@ -51,23 +54,29 @@ export default function App() {
         return <Landing setBackendRunning={setBackendRunning} />;
 
     return (
-        <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-            <main className="flex-grow w-[99vw] flex items-center justify-center p-4">
+        <div className="flex flex-col min-h-screen">
+            <main className="flex-grow w-full flex items-start justify-center p-4 pt-12 md:pt-16">
                 <div className="w-full max-w-2xl space-y-8">
-                    <div className="text-center space-y-4">
-                        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
-                            Bible Search
+                    <header className="text-center space-y-4">
+                        <div className="flex items-center justify-center gap-3 text-primary">
+                            <span className="h-px w-10 bg-border" />
+                            <BookOpen className="h-6 w-6" strokeWidth={1.5} />
+                            <span className="h-px w-10 bg-border" />
+                        </div>
+                        <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground tracking-tight">
+                            Gospel Library Search
                         </h1>
-                        <p className="text-slate-600 text-lg">
-                            Discover new verses and explore the Bible with ease.
+                        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                            Search the Bible, General Conference, and the General
+                            Handbook by meaning — not just words.
                         </p>
-                        <p className="text-slate-500 text-sm">
+                        <p className="text-muted-foreground/80 text-sm">
                             Developed by{" "}
                             <a
                                 href="https://ethanglenn.dev"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-slate-700 hover:text-slate-900 font-semibold"
+                                className="text-primary hover:underline font-semibold"
                             >
                                 Ethan Glenn
                             </a>
@@ -76,52 +85,65 @@ export default function App() {
                                 target="_blank"
                                 href="https://ethanglenn.dev/blog/bible-search"
                                 rel="noopener noreferrer"
-                                className="text-slate-700 hover:text-slate-900 font-semibold"
+                                className="text-primary hover:underline font-semibold"
                             >
                                 How it works
                             </a>
                             .
                         </p>
-                    </div>
-                    <div>
-                        <div className="flex justify-center space-x-4 mb-6">
-                            <Button
-                                className={`${
-                                    queryType === "natural"
-                                        ? "bg-zinc-300"
-                                        : "bg-zinc-100"
-                                } text-black hover:bg-zinc-300`}
-                                onClick={() => setQueryType("natural")}
-                            >
-                                Natural Language
-                            </Button>
-                            <Button
-                                className={`${
-                                    queryType === "scripture"
-                                        ? "bg-zinc-300"
-                                        : "bg-zinc-100"
-                                } text-black hover:bg-zinc-300`}
-                                onClick={() => setQueryType("scripture")}
-                            >
-                                Scripture Reference
-                            </Button>
+                    </header>
+
+                    <div className="space-y-4">
+                        <div className="flex justify-center">
+                            <div className="inline-flex rounded-full border border-border bg-card p-1 shadow-sm">
+                                {(
+                                    [
+                                        ["natural", "Natural Language"],
+                                        ["scripture", "Scripture Reference"],
+                                    ] as const
+                                ).map(([type, label]) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setQueryType(type)}
+                                        className={cn(
+                                            "rounded-full px-5 py-2 text-sm font-medium transition-colors",
+                                            queryType === type
+                                                ? "bg-primary text-primary-foreground shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
+                        <SourcesFilter
+                            selected={sources}
+                            onChange={setSources}
+                        />
                     </div>
-                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+
+                    <div className="bg-card rounded-2xl shadow-lg border border-border p-6 md:p-8">
                         {queryType === "natural" ? (
                             <SearchBox
                                 parentQuery={query}
+                                sources={sources}
                                 setParams={setQueryParam}
                                 setResults={setResults}
                             />
                         ) : (
-                            <ScriptureBox setResults={setResults} />
+                            <ScriptureBox
+                                sources={sources}
+                                setResults={setResults}
+                            />
                         )}
                     </div>
+
                     {results.length === 0 ? (
                         <div className="text-center">
-                            <p className="text-slate-500 text-sm">
-                                Enter your query above to find similar verses.
+                            <p className="text-muted-foreground text-sm">
+                                Enter a query above to search across the
+                                collections.
                             </p>
                         </div>
                     ) : (

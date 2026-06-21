@@ -1,4 +1,4 @@
-import type { Result, BibleVerse } from "@/lib/types";
+import type { Result, BibleVerse, Source } from "@/lib/types";
 import { useRef, useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -7,10 +7,13 @@ import BibleVersesData from "@/lib/bible-verses.json";
 const BibleVerses = BibleVersesData as BibleVerse[];
 
 interface ScriptureBoxProps {
+    sources: Source[];
     setResults: (results: Result[]) => void;
 }
 
-export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
+const EXAMPLE_REFERENCES = ["Genesis 1:1", "John 3:16", "Matthew 28:19"];
+
+export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps) {
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -31,10 +34,15 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
         setLoading(true);
         setError("");
         try {
+            const sourcesParam = sources.length
+                ? `&sources=${sources.join(",")}`
+                : "";
             const response = await fetch(
                 `${
                     import.meta.env.VITE_API_DOMAIN
-                }/similar/?query_verse=${encodeURIComponent(inputVerse)}&k=10`
+                }/search/by-reference?reference=${encodeURIComponent(
+                    query
+                )}&k=12${sourcesParam}`
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");
@@ -42,26 +50,19 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
                 return;
             }
             const data = await response.json();
-            const similarVerses =
-                data.similar_verses.sort(
-                    (a: Result, b: Result) => a.distance - b.distance
-                ) || [];
-            setResults(similarVerses);
+            setResults(data.results || []);
             setLoading(false);
         } catch (error) {
             console.error("Error fetching similar verses:", error);
             setError("Failed to fetch similar verses.");
+            setLoading(false);
         }
     };
 
     useEffect(() => {
         try {
             const verse = BibleVerses.find((v) => v.reference === query);
-            if (verse) {
-                setInputVerse(verse.text);
-            } else {
-                setInputVerse("");
-            }
+            setInputVerse(verse ? verse.text : "");
         } catch (error) {
             console.error("Error finding verse:", error);
             setInputVerse("");
@@ -71,79 +72,63 @@ export default function ScriptureBox({ setResults }: ScriptureBoxProps) {
     return (
         <>
             <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold">Scripture Search</h2>
-                <p className="text-slate-600 max-w-md mx-auto">
-                    Search by using a specific verse reference like "Genesis
-                    1:1" or "John 3:16", and find similar verses.
+                <h2 className="font-display text-2xl font-semibold text-foreground">
+                    Scripture Reference
+                </h2>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                    Enter a verse like “Genesis 1:1” or “John 3:16” to find
+                    related scripture and teachings.
                 </p>
             </div>
             {error && (
-                <div className="text-red-500 text-center mb-4">{error}</div>
+                <div className="text-destructive text-center mb-4">{error}</div>
             )}
             <form className="space-y-6" onSubmit={handleSubmit}>
                 <div className="relative">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground h-5 w-5" />
                     <Input
                         type="text"
                         name="search-query"
                         autoFocus
                         ref={inputRef}
                         value={query}
-                        onChange={(e) => {
-                            const newQuery = e.target.value;
-                            setQuery(newQuery);
-                        }}
+                        onChange={(e) => setQuery(e.target.value)}
                         placeholder="Genesis 1:1, John 3:16, etc."
-                        className="pl-12 pr-4 py-6 text-lg border-slate-200 focus:border-slate-400 focus:ring-slate-400 rounded-xl"
+                        className="pl-12 pr-4 py-6 text-lg rounded-xl"
                     />
                 </div>
                 <Button
                     type="submit"
                     size="lg"
-                    className="w-full py-6 text-lg font-semibold rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
+                    className="w-full py-6 text-lg font-semibold rounded-xl"
                     disabled={loading || !inputVerse}
                 >
                     {loading
                         ? "Searching..."
                         : inputVerse
                         ? "Search"
-                        : "Enter valid verse"}
+                        : "Enter a valid verse"}
                 </Button>
             </form>
             {inputVerse && (
-                <div className="mt-4 text-center">
-                    <p className="text-slate-600">
-                        <span className="font-semibold">{inputVerse}</span>
-                    </p>
+                <div className="mt-4 rounded-lg border border-border bg-secondary/50 p-4 text-center">
+                    <p className="text-foreground italic">“{inputVerse}”</p>
                 </div>
             )}
-            <div className="flex flex-col items-center justify-center mt-4">
-                <h3 className="text-md mb-2 font-semibold">Example Queries</h3>
-                <div className="flex flex-wrap gap-2 text-sm text-zinc-500">
-                    <span
-                        className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
-                        onClick={() => {
-                            setQuery("Genesis 1:1");
-                        }}
-                    >
-                        Genesis 1:1
-                    </span>
-                    <span
-                        className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
-                        onClick={() => {
-                            setQuery("John 3:16");
-                        }}
-                    >
-                        John 3:16
-                    </span>
-                    <span
-                        className="font-semibold bg-zinc-200 cursor-pointer hover:bg-zinc-300 select-none rounded-lg px-2 py-1 text-black"
-                        onClick={() => {
-                            setQuery("Matthew 28:19");
-                        }}
-                    >
-                        Matthew 28:19
-                    </span>
+            <div className="flex flex-col items-center justify-center mt-6">
+                <h3 className="text-sm mb-2 font-semibold text-muted-foreground uppercase tracking-wide">
+                    Try an example
+                </h3>
+                <div className="flex flex-wrap justify-center gap-2 text-sm">
+                    {EXAMPLE_REFERENCES.map((ref) => (
+                        <span
+                            key={ref}
+                            className="font-medium bg-secondary text-secondary-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground select-none rounded-full px-3 py-1 transition-colors"
+                            onClick={() => setQuery(ref)}
+                        >
+                            {ref}
+                        </span>
+                    ))}
                 </div>
             </div>
         </>

@@ -14,6 +14,7 @@
 
 Full docs live in [`docs/`](./docs/README.md):
 - [Architecture](./docs/architecture.md) — how it works (data model, embeddings, vector search, API, frontend, ingestion).
+- [API & Swagger](./docs/api.md) — OpenAPI spec, interactive Swagger UI (`/docs`), and mocking.
 - [Data sources](./docs/data-sources.md) — the six corpora, schemas, and deep-link logic.
 - [Adding a source](./docs/adding-a-source.md) — step-by-step guide to extend it.
 - [Project history](./docs/project-history.md) — what changed and why, plus gotchas.

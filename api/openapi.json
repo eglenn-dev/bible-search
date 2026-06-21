@@ -1,0 +1,431 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Gospel Library Search API",
+    "description": "\nSemantic search across the LDS **Standard Works** (Bible, Book of Mormon,\nDoctrine and Covenants, Pearl of Great Price), **General Conference** addresses\n(1971\u2013present), and the **General Handbook**.\n\nQueries are matched by meaning using sentence embeddings + MongoDB Atlas Vector\nSearch. Every result links back to the passage on churchofjesuschrist.org.\n\n- **Interactive docs (Swagger UI):** [`/docs`](/docs)\n- **ReDoc:** [`/redoc`](/redoc)\n- **OpenAPI spec:** [`/openapi.json`](/openapi.json)\n",
+    "contact": {
+      "name": "Ethan Glenn",
+      "url": "https://ethanglenn.dev/"
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:10000",
+      "description": "Local development"
+    },
+    {
+      "url": "https://api.bible.eglenn.dev",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Semantic search across all corpora",
+        "description": "Encode the query and return the most semantically similar passages.",
+        "operationId": "search_search_get",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Free-text query to search across all corpora by meaning.",
+              "examples": [
+                "charity never faileth"
+              ],
+              "title": "Query"
+            },
+            "description": "Free-text query to search across all corpora by meaning."
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Number of results to return.",
+              "default": 10,
+              "title": "K"
+            },
+            "description": "Number of results to return."
+          },
+          {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated subset to search. Any of: bible, book-of-mormon, doctrine-and-covenants, pearl-of-great-price, conference, handbook. Omit to search everything.",
+              "examples": [
+                "bible,book-of-mormon"
+              ],
+              "title": "Sources"
+            },
+            "description": "Comma-separated subset to search. Any of: bible, book-of-mormon, doctrine-and-covenants, pearl-of-great-price, conference, handbook. Omit to search everything."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/by-reference": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Find passages similar to a known verse",
+        "description": "Look up a verse by reference and return similar passages.\n\nReuses the verse's **stored** embedding (no re-encoding) and excludes the\nverse itself from the results.",
+        "operationId": "search_by_reference_search_by_reference_get",
+        "parameters": [
+          {
+            "name": "reference",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Exact scripture reference present in the corpus.",
+              "examples": [
+                "John 3:16"
+              ],
+              "title": "Reference"
+            },
+            "description": "Exact scripture reference present in the corpus."
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Number of results to return.",
+              "default": 10,
+              "title": "K"
+            },
+            "description": "Number of results to return."
+          },
+          {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional comma-separated source filter (see /search).",
+              "examples": [
+                "conference"
+              ],
+              "title": "Sources"
+            },
+            "description": "Optional comma-separated source filter (see /search)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown reference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check",
+        "description": "Return service status and confirm the database is reachable.",
+        "operationId": "read_root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "examples": [
+              "Online!"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "HealthResponse"
+      },
+      "SearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "The query that was searched (echoed back)."
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "results"
+        ],
+        "title": "SearchResponse"
+      },
+      "SearchResult": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "bible",
+              "book-of-mormon",
+              "doctrine-and-covenants",
+              "pearl-of-great-price",
+              "conference",
+              "handbook"
+            ],
+            "title": "Source",
+            "description": "Which corpus the result belongs to."
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference",
+            "description": "Human label: verse reference, talk title, or handbook section."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The matched passage text."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Talk/chapter title; null for scripture verses."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Deep link to the passage on churchofjesuschrist.org."
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Cosine similarity in [0, 1] \u2014 higher is more relevant."
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "description": "Source-specific metadata (speaker, book, section, \u2026)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "reference",
+          "text",
+          "url",
+          "score"
+        ],
+        "title": "SearchResult",
+        "example": {
+          "metadata": {
+            "book": "1 John",
+            "chapter": 4,
+            "testament": "nt",
+            "translation": "KJV",
+            "verse": 8
+          },
+          "reference": "1 John 4:8",
+          "score": 0.888,
+          "source": "bible",
+          "text": "He that loveth not knoweth not God; for God is love.",
+          "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/1-jn/4?id=p8#p8"
+        }
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Search",
+      "description": "Semantic vector search across the corpora."
+    },
+    {
+      "name": "Health",
+      "description": "Service and database status."
+    }
+  ]
+}

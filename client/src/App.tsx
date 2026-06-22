@@ -4,6 +4,7 @@ import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
 import SourcesFilter from "./components/sources-filter";
+import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
 import { cn } from "./lib/utils";
@@ -91,6 +92,9 @@ export default function App() {
                             </a>
                             .
                         </p>
+                        <div className="flex justify-center pt-1">
+                            <McpDialog />
+                        </div>
                     </header>
 
                     <div className="space-y-4">

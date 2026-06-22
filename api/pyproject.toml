@@ -1,0 +1,26 @@
+[project]
+name = "gospel-library-search"
+version = "0.1.0"
+description = "Semantic search API over the Bible, General Conference, and the General Handbook."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # Web stack: relaxed to ranges so FastMCP can co-resolve a compatible set.
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "fastmcp>=2.8",        # hosts the MCP server (Streamable HTTP, auto-generated from this app)
+    "slowapi>=0.1.9",      # per-IP rate limiting
+    "pymongo==4.10.1",  # includes dnspython, so mongodb+srv:// Atlas URIs work
+    # Embedding: ONNX runtime + HF tokenizer (no torch). Encodes queries at
+    # runtime and passages at ingest time; matches the torch model exactly.
+    "onnxruntime>=1.20",
+    "transformers>=4.40",
+    "huggingface-hub>=0.24",
+    "numpy>=1.26",
+    "beautifulsoup4==4.12.3",
+    "requests==2.32.3",
+    "python-dotenv>=1.0.1",
+]
+
+# This is an application, not an installable package — uv manages only the deps.
+[tool.uv]
+package = false

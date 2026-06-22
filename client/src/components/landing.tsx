@@ -14,13 +14,13 @@ export default function Landing({ setBackendRunning }: LandingProps) {
             setError("");
             if (!import.meta.env.VITE_API_DOMAIN) {
                 setError(
-                    "API domain is not set. Please check your environment variables."
+                    "API domain is not set. Please check your environment variables.",
                 );
                 return;
             }
             try {
                 const response = await fetch(
-                    `${import.meta.env.VITE_API_DOMAIN}/`
+                    `${import.meta.env.VITE_API_DOMAIN}/`,
                 );
                 if (response.ok) {
                     setBackendRunning(true);
@@ -32,7 +32,7 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                 console.error("Error checking backend status:", error);
                 setBackendRunning(false);
                 setError(
-                    "Failed to connect to the backend. Please wait a few minutes and try again."
+                    "Failed to connect to the backend. Please wait a few minutes and try again.",
                 );
             }
         };
@@ -53,8 +53,8 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                             Gospel Library Search
                         </h1>
                         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-                            Search the Bible, General Conference, and the General
-                            Handbook by meaning — not just words.
+                            Search the Bible, General Conference, and the
+                            General Handbook by meaning — not just words.
                         </p>
                         <p className="text-muted-foreground/80 text-sm">
                             Developed by{" "}
@@ -65,15 +65,6 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                                 className="text-primary hover:underline font-semibold"
                             >
                                 Ethan Glenn
-                            </a>
-                            .{" "}
-                            <a
-                                target="_blank"
-                                href="https://ethanglenn.dev/blog/bible-search"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline font-semibold"
-                            >
-                                How it works
                             </a>
                             .
                         </p>
@@ -93,8 +84,8 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                     ) : (
                         <div className="flex flex-col justify-center">
                             <div className="text-muted-foreground text-sm mx-auto mb-4">
-                                Connecting to the search service. This may take a
-                                minute on first load.
+                                Connecting to the search service. This may take
+                                a minute on first load.
                             </div>
                             <div className="flex items-center justify-center">
                                 <span className="inline-block w-6 h-6 border-4 border-border border-t-primary rounded-full animate-spin"></span>

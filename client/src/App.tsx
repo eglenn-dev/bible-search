@@ -18,7 +18,7 @@ export default function App() {
     const [query, setQuery] = useState<string>("");
     const [sources, setSources] = useState<Source[]>([]);
     const [queryType, setQueryType] = useState<"natural" | "scripture">(
-        "natural"
+        "natural",
     );
 
     useEffect(() => {
@@ -68,8 +68,8 @@ export default function App() {
                             Gospel Library Search
                         </h1>
                         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-                            Search the Bible, General Conference, and the General
-                            Handbook by meaning — not just words.
+                            Search the Bible, General Conference, and the
+                            General Handbook by meaning — not just words.
                         </p>
                         <p className="text-muted-foreground/80 text-sm">
                             Developed by{" "}
@@ -80,15 +80,6 @@ export default function App() {
                                 className="text-primary hover:underline font-semibold"
                             >
                                 Ethan Glenn
-                            </a>
-                            .{" "}
-                            <a
-                                target="_blank"
-                                href="https://ethanglenn.dev/blog/bible-search"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline font-semibold"
-                            >
-                                How it works
                             </a>
                             .
                         </p>
@@ -113,7 +104,7 @@ export default function App() {
                                             "rounded-full px-5 py-2 text-sm font-medium transition-colors",
                                             queryType === type
                                                 ? "bg-primary text-primary-foreground shadow-sm"
-                                                : "text-muted-foreground hover:text-foreground"
+                                                : "text-muted-foreground hover:text-foreground",
                                         )}
                                     >
                                         {label}

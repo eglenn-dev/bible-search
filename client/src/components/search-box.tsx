@@ -9,6 +9,9 @@ interface SearchBoxProps {
     sources: Source[];
     setParams: (content: string) => void;
     setResults: (results: Result[]) => void;
+    // Compact mode renders just the search bar (no heading/examples) for the
+    // post-search, Google-style collapsed header.
+    compact?: boolean;
 }
 
 const EXAMPLE_QUERIES = [
@@ -23,6 +26,7 @@ export default function SearchBox({
     sources,
     setParams,
     setResults,
+    compact = false,
 }: SearchBoxProps) {
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
@@ -87,6 +91,40 @@ export default function SearchBox({
         setParams(q);
         inputRef.current?.focus();
     };
+
+    if (compact) {
+        return (
+            <div>
+                {error && (
+                    <div className="text-destructive text-sm mb-2">{error}</div>
+                )}
+                <form
+                    className="flex items-center gap-2"
+                    onSubmit={handleSubmit}
+                >
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                            type="text"
+                            name="search-query"
+                            ref={inputRef}
+                            value={query}
+                            onChange={setQueryHandler}
+                            placeholder="Search by topic, theme, or phrase"
+                            className="h-11 pl-10 pr-3 text-base rounded-xl"
+                        />
+                    </div>
+                    <Button
+                        type="submit"
+                        className="h-11 shrink-0 rounded-xl px-6 font-semibold"
+                        disabled={loading}
+                    >
+                        {loading ? "Searching..." : "Search"}
+                    </Button>
+                </form>
+            </div>
+        );
+    }
 
     return (
         <>

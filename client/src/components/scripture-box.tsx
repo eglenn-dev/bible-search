@@ -5,8 +5,15 @@ import { Input } from "./ui/input";
 import { Search } from "lucide-react";
 
 interface ScriptureBoxProps {
+    // Reference is lifted to App so it survives the hero <-> compact layout
+    // swap, which remounts this component.
+    parentRef: string;
+    setParentRef: (ref: string) => void;
     sources: Source[];
     setResults: (results: Result[]) => void;
+    // Compact mode renders just the reference bar (no heading/examples) for the
+    // post-search, Google-style collapsed header.
+    compact?: boolean;
 }
 
 const EXAMPLE_REFERENCES = ["John 3:16", "Alma 32:21", "D&C 4:2", "Moses 1:39"];
@@ -18,17 +25,29 @@ const SOURCE_LABELS: Record<string, string> = {
     "pearl-of-great-price": "Pearl of Great Price",
 };
 
-export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps) {
-    const [query, setQuery] = useState("");
+export default function ScriptureBox({
+    parentRef,
+    setParentRef,
+    sources,
+    setResults,
+    compact = false,
+}: ScriptureBoxProps) {
+    const [query, setQuery] = useState(parentRef);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [inputVerse, setInputVerse] = useState("");
     const [verseSource, setVerseSource] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Mirror the lifted reference into the local input (e.g. after a remount).
     useEffect(() => {
-        setQuery("");
-    }, []);
+        setQuery(parentRef);
+    }, [parentRef]);
+
+    const setQueryHandler = (value: string) => {
+        setQuery(value);
+        setParentRef(value);
+    };
 
     // Validate + preview the reference against the backend (any Standard Work),
     // debounced so we don't fire a request on every keystroke.
@@ -104,6 +123,56 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
         }
     };
 
+    if (compact) {
+        return (
+            <div className="space-y-2">
+                {error && (
+                    <div className="text-destructive text-sm">{error}</div>
+                )}
+                <form
+                    className="flex items-center gap-2"
+                    onSubmit={handleSubmit}
+                >
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                            type="text"
+                            name="search-query"
+                            ref={inputRef}
+                            value={query}
+                            onChange={(e) => setQueryHandler(e.target.value)}
+                            placeholder="Alma 32:21, John 3:16, D&C 4:2…"
+                            className="h-11 pl-10 pr-3 text-base rounded-xl"
+                        />
+                    </div>
+                    <Button
+                        type="submit"
+                        className="h-11 shrink-0 rounded-xl px-6 font-semibold"
+                        disabled={loading || !inputVerse}
+                    >
+                        {loading
+                            ? "Searching..."
+                            : inputVerse
+                              ? "Search"
+                              : "Enter a reference"}
+                    </Button>
+                </form>
+                {inputVerse && (
+                    <div className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm">
+                        {verseSource && (
+                            <span className="text-xs uppercase tracking-wide text-muted-foreground mr-2">
+                                {SOURCE_LABELS[verseSource] || verseSource}
+                            </span>
+                        )}
+                        <span className="text-foreground italic">
+                            “{inputVerse}”
+                        </span>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
         <>
             <div className="text-center mb-6">
@@ -128,7 +197,7 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
                         autoFocus
                         ref={inputRef}
                         value={query}
-                        onChange={(e) => setQuery(e.target.value)}
+                        onChange={(e) => setQueryHandler(e.target.value)}
                         placeholder="Alma 32:21, John 3:16, D&C 4:2, Moses 1:39…"
                         className="pl-12 pr-4 py-6 text-lg rounded-xl"
                     />
@@ -165,7 +234,7 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
                         <span
                             key={ref}
                             className="font-medium bg-secondary text-secondary-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground select-none rounded-full px-3 py-1 transition-colors"
-                            onClick={() => setQuery(ref)}
+                            onClick={() => setQueryHandler(ref)}
                         >
                             {ref}
                         </span>

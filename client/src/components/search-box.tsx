@@ -58,8 +58,8 @@ export default function SearchBox({
                 : "";
             const response = await fetch(
                 `${import.meta.env.VITE_API_DOMAIN}/search?query=${encodeURIComponent(
-                    query
-                )}&k=12${sourcesParam}`
+                    query,
+                )}&k=12${sourcesParam}`,
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");
@@ -111,7 +111,7 @@ export default function SearchBox({
                         ref={inputRef}
                         value={query}
                         onChange={setQueryHandler}
-                        placeholder="Try “charity never faileth” or “forgiveness”"
+                        placeholder="Try “charity never faileth”, “forgiveness”, or something longer"
                         className="pl-12 pr-4 py-6 text-lg rounded-xl"
                     />
                 </div>

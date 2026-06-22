@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Result, Source } from "./lib/types";
+import { SOURCES } from "./lib/types";
 import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
@@ -11,32 +12,67 @@ import { cn } from "./lib/utils";
 import { BookOpen } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
+const parseSources = (raw: string | null): Source[] => {
+    if (!raw) return [];
+    const valid = new Set<string>(SOURCES);
+    return raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => valid.has(s)) as Source[];
+};
+
+const parseQueryType = (raw: string | null): "natural" | "scripture" =>
+    raw === "scripture" ? "scripture" : "natural";
+
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const [query, setQuery] = useState<string>("");
-    const [sources, setSources] = useState<Source[]>([]);
-    const [queryType, setQueryType] = useState<"natural" | "scripture">(
-        "natural",
+    // Source filter + search mode are URL-backed so a selection survives a
+    // refresh and is shareable — initialized from the URL, written back on
+    // every change (like the ?q text param).
+    const [sources, setSourcesState] = useState<Source[]>(() =>
+        parseSources(searchParams.get("sources")),
+    );
+    const [queryType, setQueryTypeState] = useState<"natural" | "scripture">(
+        () => parseQueryType(searchParams.get("type")),
     );
 
-    useEffect(() => {
-        setQuery("");
-        if (queryType === "scripture") {
-            setSearchParams((prev) => {
+    const setSources = (next: Source[]) => {
+        setSourcesState(next);
+        setSearchParams(
+            (prev) => {
                 const newParams = new URLSearchParams(prev);
-                newParams.delete("q");
+                if (next.length) newParams.set("sources", next.join(","));
+                else newParams.delete("sources");
                 return newParams;
-            });
-        }
-    }, [queryType, setSearchParams]);
+            },
+            { replace: true },
+        );
+    };
 
+    const setQueryType = (type: "natural" | "scripture") => {
+        setQueryTypeState(type);
+        setSearchParams(
+            (prev) => {
+                const newParams = new URLSearchParams(prev);
+                if (type === "scripture") {
+                    newParams.set("type", "scripture");
+                    newParams.delete("q"); // scripture mode doesn't use ?q
+                } else {
+                    newParams.delete("type"); // natural is the default
+                }
+                return newParams;
+            },
+            { replace: true },
+        );
+    };
+
+    // Mirror ?q into the input when in natural mode; scripture mode keeps its
+    // own reference input and ignores ?q.
     useEffect(() => {
-        if (queryType === "natural") {
-            const urlQuery = searchParams.get("q") || "";
-            setQuery(urlQuery);
-        }
+        setQuery(queryType === "natural" ? searchParams.get("q") || "" : "");
     }, [searchParams, queryType]);
 
     useEffect(() => {
@@ -89,34 +125,29 @@ export default function App() {
                         </div>
                     </header>
 
-                    <div className="space-y-4">
-                        <div className="flex justify-center">
-                            <div className="inline-flex rounded-full border border-border bg-card p-1 shadow-sm">
-                                {(
-                                    [
-                                        ["natural", "Natural Language"],
-                                        ["scripture", "Scripture Reference"],
-                                    ] as const
-                                ).map(([type, label]) => (
-                                    <button
-                                        key={type}
-                                        onClick={() => setQueryType(type)}
-                                        className={cn(
-                                            "rounded-full px-5 py-2 text-sm font-medium transition-colors",
-                                            queryType === type
-                                                ? "bg-primary text-primary-foreground shadow-sm"
-                                                : "text-muted-foreground hover:text-foreground",
-                                        )}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
-                            </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                        <div className="inline-flex rounded-full border border-border bg-card p-1 shadow-sm">
+                            {(
+                                [
+                                    ["natural", "Natural Language"],
+                                    ["scripture", "Scripture Reference"],
+                                ] as const
+                            ).map(([type, label]) => (
+                                <button
+                                    key={type}
+                                    onClick={() => setQueryType(type)}
+                                    className={cn(
+                                        "rounded-full px-5 py-2 text-sm font-medium transition-colors",
+                                        queryType === type
+                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
-                        <SourcesFilter
-                            selected={sources}
-                            onChange={setSources}
-                        />
+                        <SourcesFilter selected={sources} onChange={setSources} />
                     </div>
 
                     <div className="bg-card rounded-2xl shadow-lg border border-border p-6 md:p-8">

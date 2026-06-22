@@ -7,6 +7,17 @@ export type Source =
     | "byu-speeches"
     | "handbook";
 
+// Canonical list of valid source keys — used to validate URL-supplied filters.
+export const SOURCES: Source[] = [
+    "bible",
+    "book-of-mormon",
+    "doctrine-and-covenants",
+    "pearl-of-great-price",
+    "conference",
+    "byu-speeches",
+    "handbook",
+];
+
 export interface ResultMetadata {
     // scriptures (bible + other standard works)
     book?: string;

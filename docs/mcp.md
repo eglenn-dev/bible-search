@@ -5,7 +5,7 @@ The API doubles as a **remote MCP server** so AI agents can search the corpora a
 - **Endpoint:** `https://<your-api-host>/mcp` (e.g. `https://api.bible.eglenn.dev/mcp`)
 - **Transport:** Streamable HTTP (the current remote-MCP standard)
 - **Auth:** none (public), with per-IP rate limiting
-- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `health`
+- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `get_verse`, `health`
 
 ## How it's built
 
@@ -56,6 +56,7 @@ Any agent framework with a Streamable-HTTP MCP client works the same way — poi
 |---|---|---|
 | `search` | `query` (required), `k` (1–50), `sources` (CSV) | Top semantic matches across the chosen corpora |
 | `search_by_reference` | `reference` (required), `k`, `sources` | Passages similar to a known verse (self-match excluded) |
+| `get_verse` | `reference` (required) | A single passage's text + deep link by exact reference |
 | `health` | — | Service/DB status |
 
 `sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `handbook`.

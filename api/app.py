@@ -72,6 +72,14 @@ class SearchResponse(BaseModel):
     results: list[SearchResult]
 
 
+class VerseResponse(BaseModel):
+    source: SourceLiteral
+    reference: str
+    text: str
+    title: Optional[str] = None
+    url: str
+
+
 class HealthResponse(BaseModel):
     message: str = Field(..., examples=["Online!"])
 
@@ -216,6 +224,32 @@ def search_by_reference(
     )
     hits = [h for h in hits if h.get("reference") != doc["reference"]][:k]
     return {"query": doc["reference"], "results": hits}
+
+
+@api.get(
+    "/verse",
+    response_model=VerseResponse,
+    tags=["Search"],
+    operation_id="get_verse",
+    summary="Look up a passage by exact reference",
+    responses={404: {"model": ErrorResponse, "description": "Unknown reference."}},
+)
+def get_verse(
+    reference: str = Query(
+        ...,
+        description="Exact reference across any Standard Work corpus.",
+        examples=["Alma 32:21"],
+    ),
+):
+    """Return a single passage's text + deep link by exact reference.
+
+    Covers all scripture corpora (bible, book-of-mormon, doctrine-and-covenants,
+    pearl-of-great-price). Used by the frontend to validate/preview a reference.
+    """
+    doc = db.find_verse(reference.strip())
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Unknown reference: {reference}")
+    return doc
 
 
 @api.get(

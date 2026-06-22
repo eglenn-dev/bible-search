@@ -109,6 +109,13 @@ def find_by_reference(reference: str) -> Optional[dict[str, Any]]:
     return get_collection().find_one({"reference": reference})
 
 
+def find_verse(reference: str) -> Optional[dict[str, Any]]:
+    """Look up a passage by exact reference for display (no embedding/_id)."""
+    return get_collection().find_one(
+        {"reference": reference}, {"embedding": 0, "_id": 0}
+    )
+
+
 def embedding_to_list(embedding: Any) -> list[float]:
     """Normalize a stored embedding (BSON binData vector or array) to a list."""
     if isinstance(embedding, Binary):

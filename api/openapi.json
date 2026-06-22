@@ -206,6 +206,64 @@
         }
       }
     },
+    "/verse": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Look up a passage by exact reference",
+        "description": "Return a single passage's text + deep link by exact reference.\n\nCovers all scripture corpora (bible, book-of-mormon, doctrine-and-covenants,\npearl-of-great-price). Used by the frontend to validate/preview a reference.",
+        "operationId": "get_verse",
+        "parameters": [
+          {
+            "name": "reference",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Exact reference across any Standard Work corpus.",
+              "examples": [
+                "Alma 32:21"
+              ],
+              "title": "Reference"
+            },
+            "description": "Exact reference across any Standard Work corpus."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerseResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown reference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "tags": [
@@ -422,6 +480,53 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerseResponse": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "bible",
+              "book-of-mormon",
+              "doctrine-and-covenants",
+              "pearl-of-great-price",
+              "conference",
+              "handbook"
+            ],
+            "title": "Source"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "reference",
+          "text",
+          "url"
+        ],
+        "title": "VerseResponse"
       }
     }
   },

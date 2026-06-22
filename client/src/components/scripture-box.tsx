@@ -1,33 +1,78 @@
-import type { Result, BibleVerse, Source } from "@/lib/types";
+import type { Result, Source } from "@/lib/types";
 import { useRef, useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Search } from "lucide-react";
-import BibleVersesData from "@/lib/bible-verses.json";
-const BibleVerses = BibleVersesData as BibleVerse[];
 
 interface ScriptureBoxProps {
     sources: Source[];
     setResults: (results: Result[]) => void;
 }
 
-const EXAMPLE_REFERENCES = ["Genesis 1:1", "John 3:16", "Matthew 28:19"];
+const EXAMPLE_REFERENCES = ["John 3:16", "Alma 32:21", "D&C 4:2", "Moses 1:39"];
+
+const SOURCE_LABELS: Record<string, string> = {
+    bible: "Bible",
+    "book-of-mormon": "Book of Mormon",
+    "doctrine-and-covenants": "Doctrine & Covenants",
+    "pearl-of-great-price": "Pearl of Great Price",
+};
 
 export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps) {
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [inputVerse, setInputVerse] = useState("");
+    const [verseSource, setVerseSource] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setQuery("");
     }, []);
 
+    // Validate + preview the reference against the backend (any Standard Work),
+    // debounced so we don't fire a request on every keystroke.
+    useEffect(() => {
+        const ref = query.trim();
+        if (!ref) {
+            setInputVerse("");
+            setVerseSource(null);
+            return;
+        }
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetch(
+                    `${import.meta.env.VITE_API_DOMAIN}/verse?reference=${encodeURIComponent(
+                        ref
+                    )}`
+                );
+                if (cancelled) return;
+                if (res.ok) {
+                    const data = await res.json();
+                    setInputVerse(data.text);
+                    setVerseSource(data.source);
+                } else {
+                    setInputVerse("");
+                    setVerseSource(null);
+                }
+            } catch {
+                if (!cancelled) {
+                    setInputVerse("");
+                    setVerseSource(null);
+                }
+            }
+        }, 350);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [query]);
+
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!query) {
-            setError("Please enter a search query.");
+        if (!inputVerse) {
+            setError("Please enter a valid reference.");
             return;
         }
         if (loading) return;
@@ -41,7 +86,7 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
                 `${
                     import.meta.env.VITE_API_DOMAIN
                 }/search/by-reference?reference=${encodeURIComponent(
-                    query
+                    query.trim()
                 )}&k=12${sourcesParam}`
             );
             if (!response.ok) {
@@ -59,16 +104,6 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
         }
     };
 
-    useEffect(() => {
-        try {
-            const verse = BibleVerses.find((v) => v.reference === query);
-            setInputVerse(verse ? verse.text : "");
-        } catch (error) {
-            console.error("Error finding verse:", error);
-            setInputVerse("");
-        }
-    }, [query]);
-
     return (
         <>
             <div className="text-center mb-6">
@@ -76,8 +111,9 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
                     Scripture Reference
                 </h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                    Enter a verse like “Genesis 1:1” or “John 3:16” to find
-                    related scripture and teachings.
+                    Enter a reference from any Standard Work — like “Alma 32:21”,
+                    “John 3:16”, or “D&C 4:2” — to find related scripture and
+                    teachings.
                 </p>
             </div>
             {error && (
@@ -93,7 +129,7 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
                         ref={inputRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Genesis 1:1, John 3:16, etc."
+                        placeholder="Alma 32:21, John 3:16, D&C 4:2, Moses 1:39…"
                         className="pl-12 pr-4 py-6 text-lg rounded-xl"
                     />
                 </div>
@@ -107,11 +143,16 @@ export default function ScriptureBox({ sources, setResults }: ScriptureBoxProps)
                         ? "Searching..."
                         : inputVerse
                         ? "Search"
-                        : "Enter a valid verse"}
+                        : "Enter a valid reference"}
                 </Button>
             </form>
             {inputVerse && (
                 <div className="mt-4 rounded-lg border border-border bg-secondary/50 p-4 text-center">
+                    {verseSource && (
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+                            {SOURCE_LABELS[verseSource] || verseSource}
+                        </p>
+                    )}
                     <p className="text-foreground italic">“{inputVerse}”</p>
                 </div>
             )}

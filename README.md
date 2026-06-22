@@ -62,7 +62,7 @@ The same process hosts a remote MCP server at **`/mcp`**, so agents can use `sea
 
 ### Frontend Client (`client/`)
 
-React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Conference / Handbook), two modes (natural language and scripture reference), and source-tagged result cards that deep-link back to churchofjesuschrist.org.
+React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), and source-tagged result cards that deep-link back to churchofjesuschrist.org.
 
 ## Getting Started Locally
 

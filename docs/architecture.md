@@ -91,6 +91,7 @@ Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (requir
 - **`GET /`** — health check; also pings Atlas. Returns `{"message": "Online!"}` or 503.
 - **`GET /search?query=<text>&k=10&sources=<csv>`** — encodes the query, runs `$vectorSearch`. `sources` is an optional comma-separated subset (`bible,conference,…`); omit for all. Returns `{ query, results: [...] }`.
 - **`GET /search/by-reference?reference=<ref>&k=10&sources=<csv>`** — looks up a document by exact `reference`, **reuses its stored embedding** (no re-encode), and drops the self-match. Powers the "Scripture Reference" mode.
+- **`GET /verse?reference=<ref>`** — returns a single passage's text + deep link by exact reference (any Standard Work). Used by the frontend to validate/preview a reference.
 - **`/docs`, `/redoc`, `/openapi.json`** — Swagger UI, ReDoc, and the OpenAPI spec.
 - **`/mcp`** — the MCP server (Streamable HTTP) for AI agents.
 
@@ -105,7 +106,7 @@ React 19 + Vite + Tailwind v4 + a few shadcn/ui primitives. Key pieces:
 | `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`. |
 | `src/components/sources-filter.tsx` | The All / Bible / … filter chips. |
 | `src/components/search-box.tsx` | Natural-language search → `GET /search`. |
-| `src/components/scripture-box.tsx` | Verse-reference search → `GET /search/by-reference` (validates the reference against bundled `src/lib/bible-verses.json`). |
+| `src/components/scripture-box.tsx` | Verse-reference search → `GET /search/by-reference`; validates/previews the reference (any Standard Work) via `GET /verse`, debounced. |
 | `src/components/render-results.tsx` | Result cards: source badge, metadata line, relevance bar, deep-link via `result.url`. |
 | `src/lib/types.ts` | `Source` union + `Result`/`ResultMetadata` types. |
 | `src/index.css` | "Classic & scholarly" theme tokens + serif fonts. |

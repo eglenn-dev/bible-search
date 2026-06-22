@@ -8,6 +8,7 @@ const OPTIONS: { key: Source | "all"; label: string }[] = [
     { key: "doctrine-and-covenants", label: "D&C" },
     { key: "pearl-of-great-price", label: "Pearl of Great Price" },
     { key: "conference", label: "Conference" },
+    { key: "byu-speeches", label: "BYU Speeches" },
     { key: "handbook", label: "Handbook" },
 ];
 

@@ -4,6 +4,7 @@ export type Source =
     | "doctrine-and-covenants"
     | "pearl-of-great-price"
     | "conference"
+    | "byu-speeches"
     | "handbook";
 
 export interface ResultMetadata {
@@ -21,6 +22,11 @@ export interface ResultMetadata {
     month?: string;
     talk_uri?: string;
     paragraph_id?: string;
+    // byu-speeches
+    position?: string | null;
+    date?: string | null;
+    speech_path?: string;
+    paragraph_index?: number;
     // handbook
     section_title?: string;
     section_number?: string | null;

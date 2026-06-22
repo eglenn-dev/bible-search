@@ -25,6 +25,7 @@ SourceLiteral = Literal[
     "doctrine-and-covenants",
     "pearl-of-great-price",
     "conference",
+    "byu-speeches",
     "handbook",
 ]
 
@@ -93,7 +94,8 @@ class ErrorResponse(BaseModel):
 DESCRIPTION = """
 Semantic search across the LDS **Standard Works** (Bible, Book of Mormon,
 Doctrine and Covenants, Pearl of Great Price), **General Conference** addresses
-(1971–present), and the **General Handbook**.
+(1971–present), **BYU Speeches** devotionals and forums, and the
+**General Handbook**.
 
 Queries are matched by meaning using sentence embeddings + MongoDB Atlas Vector
 Search. Every result links back to the passage on churchofjesuschrist.org.
@@ -173,8 +175,8 @@ def search(
         None,
         description=(
             "Comma-separated subset to search. Any of: bible, book-of-mormon, "
-            "doctrine-and-covenants, pearl-of-great-price, conference, handbook. "
-            "Omit to search everything."
+            "doctrine-and-covenants, pearl-of-great-price, conference, "
+            "byu-speeches, handbook. Omit to search everything."
         ),
         examples=["bible,book-of-mormon"],
     ),

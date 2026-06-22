@@ -1,6 +1,6 @@
 # Data Sources
 
-Six corpora are indexed today, all in `gospel_library.documents`. Each is identified by its `source` field, which is also the filter value used by the API and the frontend chips.
+Seven corpora are indexed today, all in `gospel_library.documents`. Each is identified by its `source` field, which is also the filter value used by the API and the frontend chips.
 
 ## Summary
 
@@ -11,8 +11,9 @@ Six corpora are indexed today, all in `gospel_library.documents`. Each is identi
 | `doctrine-and-covenants` | Doctrine and Covenants | 3,654 | one verse / doc | `api/data/new/dnc.json` |
 | `pearl-of-great-price` | Pearl of Great Price | 635 | one verse / doc | `api/data/new/pogp.json` |
 | `conference` | General Conference (1971–present) | 49,069 chunks (4,125 talks) | ~3 paragraphs / chunk | scraped (content API) |
+| `byu-speeches` | BYU Speeches (devotionals/forums) | 41,030 chunks (1,968 speeches) | ~3 paragraphs / chunk | scraped (sitemaps + HTML) |
 | `handbook` | General Handbook | 2,330 chunks | ~1 section / chunk | scraped (content API) |
-| | **Total** | **~93,394** | | ~193 MB / 512 MB cap |
+| | **Total** | **~134,424** | | ~345 MB data / 308 MB storage / 512 MB cap |
 
 `VALID_SOURCES` in `api/db.py` is the canonical list — the API only honors these as filters. The frontend mirrors them in `client/src/components/sources-filter.tsx` and `client/src/lib/types.ts`.
 
@@ -53,6 +54,17 @@ Every source produces the same top-level shape (see [architecture.md](./architec
 - **`metadata`:** `{ speaker, calling, year, month, talk_uri, paragraph_id }`
 - **Resumable** via `already_ingested({ "metadata.talk_uri": uri })`.
 
+### `byu-speeches` — BYU Speeches
+- **Module:** `api/ingest/byu_speeches.py` · **Command:** `uv run python -m ingest.run --source byu-speeches`
+- **Source:** scraped from **speeches.byu.edu** (no content API). URLs come from the site's three speech sitemaps (`/speech-sitemap{,2,3}.xml`); each `/talks/<speaker>/<slug>/` page is static HTML.
+- **Parsing:** metadata from `.single-speech__{title,speaker,speaker-position,date}`; transcript paragraphs from `.single-speech__content > p`. Video/audio-only speeches (which carry a "text unavailable" notice, ~22%) and the trailing `©` boilerplate line are skipped.
+- **Chunking:** groups of `CHUNK_PARAGRAPHS = 3` paragraphs.
+- **`_id`:** `byu-speeches:<path>:<chunk_start_index>`
+- **`reference`/`title`:** the speech title; **`url`:** the speech page (no per-paragraph anchors on the source pages)
+- **`metadata`:** `{ speaker, position, date, year, speech_path, paragraph_index }`
+- **Resumable** via `already_ingested({ "metadata.speech_path": path })`.
+- robots.txt allows `/talks/`; the one Disallow-ed talk path is honored via `DISALLOWED_PATHS` in `api/ingest/byu.py`.
+
 ### `handbook` — General Handbook
 - **Module:** `api/ingest/handbook.py` · **Command:** `uv run python -m ingest.run --source handbook`
 - **Source:** scraped from the content API under `/manual/general-handbook` (all chapters).
@@ -64,7 +76,7 @@ Every source produces the same top-level shape (see [architecture.md](./architec
 
 ## The churchofjesuschrist.org content API
 
-The scrapers don't parse the rendered SPA; they use the content API, which returns JSON containing the page's HTML body:
+The **church** scrapers (`conference`, `handbook`) don't parse the rendered SPA; they use the content API, which returns JSON containing the page's HTML body. (BYU Speeches is a separate static site — see [`byu-speeches`](#byu-speeches--byu-speeches) above, scraped via `api/ingest/byu.py`.)
 
 ```
 https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content?lang=eng&uri=<uri>
@@ -74,6 +86,6 @@ https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content?lan
 
 ## Storage & limits (M0 free tier)
 
-- Cap: **512 MB** storage; currently **~193 MB**.
+- Cap: **512 MB** storage; currently **~308 MB** (compressed `storageSize` — the figure the cap measures; logical `dataSize` is ~345 MB).
 - Watch it with `uv run python -m ingest.run --stats`.
 - Mitigations already in place if you approach the cap: `binData` float32 vectors + scalar quantization + sensible chunking. If you outgrow M0, only the connection string changes to move to Atlas Flex/M10.

@@ -27,6 +27,10 @@ const SOURCE_META: Record<Source, { label: string; badge: string }> = {
         label: "Conference",
         badge: "bg-primary text-primary-foreground",
     },
+    "byu-speeches": {
+        label: "BYU Speeches",
+        badge: "bg-[oklch(0.47_0.1_150)] text-white",
+    },
     handbook: {
         label: "Handbook",
         badge: "bg-accent text-accent-foreground",
@@ -45,7 +49,7 @@ const MONTHS: Record<string, string> = { "04": "April", "10": "October" };
 
 function headingFor(result: Result): string {
     if (SCRIPTURE_SOURCES.includes(result.source)) return result.reference;
-    if (result.source === "conference")
+    if (result.source === "conference" || result.source === "byu-speeches")
         return result.title || result.reference;
     return result.metadata?.section_title || result.title || result.reference;
 }
@@ -58,6 +62,9 @@ function subtitleFor(result: Result): string {
                 ? `${MONTHS[m.month] || m.month} ${m.year}`
                 : undefined;
         return [m.speaker, date].filter(Boolean).join(" • ");
+    }
+    if (result.source === "byu-speeches") {
+        return [m.speaker, m.date].filter(Boolean).join(" • ");
     }
     if (result.source === "handbook") {
         return [m.chapter, m.section_number].filter(Boolean).join(" • ");

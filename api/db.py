@@ -28,6 +28,7 @@ VALID_SOURCES = {
     "doctrine-and-covenants",
     "pearl-of-great-price",
     "conference",
+    "byu-speeches",
     "handbook",
 }
 

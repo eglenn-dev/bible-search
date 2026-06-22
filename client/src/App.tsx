@@ -68,8 +68,9 @@ export default function App() {
                             Gospel Library Search
                         </h1>
                         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-                            Search the Bible, General Conference, and the
-                            General Handbook by meaning — not just words.
+                            Search the Bible, General Conference, BYU
+                            Speeches, and the General Handbook by meaning — not
+                            just words.
                         </p>
                         <p className="text-muted-foreground/80 text-sm">
                             Developed by{" "}

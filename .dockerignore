@@ -35,7 +35,7 @@ node_modules/
 **/.venv/
 
 # Ingestion-only and now-unused artifacts (not needed by the runtime API).
-**/.cache/
+**/.cache*/
 api/data/*.faiss
 api/data/*.ipynb
 .mypy_cache/

@@ -4,6 +4,6 @@
 
 __pycache__
 
-.cache
+.cache*
 
 .venv

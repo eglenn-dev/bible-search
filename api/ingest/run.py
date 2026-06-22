@@ -13,16 +13,18 @@ Examples (run from the api/ directory):
 
 import argparse
 
-from ingest import bible, conference, handbook, lds_scriptures
+from ingest import bible, byu_speeches, conference, handbook, lds_scriptures
 from ingest.common import ensure_vector_index, log_storage
 
 # Priority order: always-useful Bible + other Standard Works first, then the
-# large Conference scrape, then the Handbook. Watch storage vs the M0 512MB cap.
-ORDER = ["bible", "scriptures", "conference", "handbook"]
+# large Conference + BYU Speeches scrapes, then the Handbook. Watch storage vs
+# the M0 512MB cap.
+ORDER = ["bible", "scriptures", "conference", "byu-speeches", "handbook"]
 RUNNERS = {
     "bible": bible.run,
     "scriptures": lds_scriptures.run,
     "conference": conference.run,
+    "byu-speeches": byu_speeches.run,
     "handbook": handbook.run,
 }
 # Sources whose run() takes no --force argument.

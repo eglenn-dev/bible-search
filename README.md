@@ -1,6 +1,6 @@
 <div align="center">
     <h1>Gospel Library Search</h1>
-    <p>A semantic search application for the <strong>Standard Works</strong> (Bible, Book of Mormon, Doctrine and Covenants, Pearl of Great Price), <strong>General Conference</strong> addresses, and the <strong>General Handbook</strong>. Instead of keyword matching, it uses sentence embeddings and vector search to surface passages that are contextually and semantically related to your query.</p>
+    <p>A semantic search application for the <strong>Standard Works</strong> (Bible, Book of Mormon, Doctrine and Covenants, Pearl of Great Price), <strong>General Conference</strong> addresses, <strong>BYU Speeches</strong> devotionals and forums, and the <strong>General Handbook</strong>. Instead of keyword matching, it uses sentence embeddings and vector search to surface passages that are contextually and semantically related to your query.</p>
     <p>
         <img alt="Python" src="https://img.shields.io/badge/-Python-3776AB?style=flat-square&logo=python&logoColor=white" />
         <img alt="FastAPI" src="https://img.shields.io/badge/-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" />
@@ -16,7 +16,7 @@ Full docs live in [`docs/`](./docs/README.md):
 - [Architecture](./docs/architecture.md) — how it works (data model, embeddings, vector search, API, frontend, ingestion).
 - [API & Swagger](./docs/api.md) — OpenAPI spec, interactive Swagger UI (`/docs`), and mocking.
 - [MCP server](./docs/mcp.md) — the hosted `/mcp` connector for AI agents (auto-generated from the OpenAPI spec).
-- [Data sources](./docs/data-sources.md) — the six corpora, schemas, and deep-link logic.
+- [Data sources](./docs/data-sources.md) — the seven corpora, schemas, and deep-link logic.
 - [Adding a source](./docs/adding-a-source.md) — step-by-step guide to extend it.
 - [Project history](./docs/project-history.md) — what changed and why, plus gotchas.
 
@@ -32,7 +32,7 @@ A single collection (`documents`) holds every corpus. Each document:
 
 ```jsonc
 {
-  "source": "bible" | "book-of-mormon" | "doctrine-and-covenants" | "pearl-of-great-price" | "conference" | "handbook",
+  "source": "bible" | "book-of-mormon" | "doctrine-and-covenants" | "pearl-of-great-price" | "conference" | "byu-speeches" | "handbook",
   "text": "<chunk text>",
   "embedding": BinData(float32, 384),   // BSON binary vector, scalar-quantized in the index
   "reference": "Genesis 1:1",
@@ -62,7 +62,7 @@ The same process hosts a remote MCP server at **`/mcp`**, so agents can use `sea
 
 ### Frontend Client (`client/`)
 
-React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), and source-tagged result cards that deep-link back to churchofjesuschrist.org.
+React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), and source-tagged result cards that deep-link back to churchofjesuschrist.org.
 
 ## Getting Started Locally
 
@@ -90,6 +90,7 @@ Run from the `api/` directory. Sources run in priority order; runs are resumable
 uv run python -m ingest.run --source bible        # migrate the 31,102 KJV verses
 uv run python -m ingest.run --source scriptures   # Book of Mormon, D&C, Pearl of Great Price (from data/new/)
 uv run python -m ingest.run --source conference   # scrape General Conference (1971–present)
+uv run python -m ingest.run --source byu-speeches # scrape BYU Speeches (speeches.byu.edu)
 uv run python -m ingest.run --source handbook     # scrape the General Handbook
 # ...or everything, then (re)build the vector index:
 uv run python -m ingest.run --source all
@@ -97,7 +98,7 @@ uv run python -m ingest.run --create-index
 uv run python -m ingest.run --stats               # check storage usage vs. the M0 512MB cap
 ```
 
-> The scrapers fetch from churchofjesuschrist.org's content API, are rate-limited, and cache responses under `api/ingest/.cache/`. Wait for the Atlas index to report **READY** before querying.
+> The scrapers are rate-limited and cache responses on disk: the church corpora fetch churchofjesuschrist.org's content API (`api/ingest/.cache/`), and BYU Speeches fetches speeches.byu.edu's sitemaps + static HTML (`api/ingest/.cache_byu/`). Wait for the Atlas index to report **READY** before querying.
 
 ### 4. Run the API
 

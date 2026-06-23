@@ -6,7 +6,9 @@ the dataset or the embeddings into process memory; it only issues
 ``$vectorSearch`` aggregations against Atlas.
 """
 
+import logging
 import os
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -17,10 +19,19 @@ from pymongo.collection import Collection
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 MONGODB_URI = os.getenv("MONGODB_URI", "")
 MONGODB_DB = os.getenv("MONGODB_DB", "gospel_library")
 MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "documents")
 VECTOR_INDEX_NAME = os.getenv("VECTOR_INDEX_NAME", "vector_index")
+MONGODB_QUERY_LOG_COLLECTION = os.getenv("MONGODB_QUERY_LOG_COLLECTION", "query_logs")
+LOG_QUERIES = os.getenv("LOG_QUERIES", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "",
+}
 
 VALID_SOURCES = {
     "bible",
@@ -122,3 +133,42 @@ def embedding_to_list(embedding: Any) -> list[float]:
     if isinstance(embedding, Binary):
         return list(embedding.as_vector().data)
     return list(embedding)
+
+
+def get_query_log_collection() -> Collection:
+    return get_client()[MONGODB_DB][MONGODB_QUERY_LOG_COLLECTION]
+
+
+def log_query(
+    *,
+    endpoint: str,
+    query: str,
+    k: int,
+    sources: Optional[list[str]],
+    result_count: int,
+    ip: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> None:
+    """Record a user search for analytics. Best-effort: never raises.
+
+    Intended to run after the response is sent (e.g. via FastAPI ``BackgroundTasks``)
+    so it adds no latency to the search itself. Any failure is swallowed and logged
+    so a logging/connection hiccup can never break search.
+    """
+    if not LOG_QUERIES:
+        return
+    try:
+        get_query_log_collection().insert_one(
+            {
+                "endpoint": endpoint,
+                "query": query,
+                "k": k,
+                "sources": sources,
+                "result_count": result_count,
+                "ip": ip,
+                "user_agent": user_agent,
+                "created_at": datetime.now(timezone.utc),
+            }
+        )
+    except Exception:  # logging must never break the request path
+        logger.warning("Failed to log query", exc_info=True)

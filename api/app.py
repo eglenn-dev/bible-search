@@ -1,7 +1,7 @@
 import os
 from typing import Any, Literal, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.applications import Starlette
@@ -31,20 +31,26 @@ SourceLiteral = Literal[
 
 
 class SearchResult(BaseModel):
-    source: SourceLiteral = Field(..., description="Which corpus the result belongs to.")
+    source: SourceLiteral = Field(
+        ..., description="Which corpus the result belongs to."
+    )
     reference: str = Field(
-        ..., description="Human label: verse reference, talk title, or handbook section."
+        ...,
+        description="Human label: verse reference, talk title, or handbook section.",
     )
     text: str = Field(..., description="The matched passage text.")
     title: Optional[str] = Field(
         None, description="Talk/chapter title; null for scripture verses."
     )
-    url: str = Field(..., description="Deep link to the passage on churchofjesuschrist.org.")
+    url: str = Field(
+        ..., description="Deep link to the passage on churchofjesuschrist.org."
+    )
     score: float = Field(
         ..., description="Cosine similarity in [0, 1] — higher is more relevant."
     )
     metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Source-specific metadata (speaker, book, section, …)."
+        default_factory=dict,
+        description="Source-specific metadata (speaker, book, section, …).",
     )
 
     model_config = {
@@ -128,6 +134,7 @@ _default_origins = [
     "https://api.bible.eglenn.dev",
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:5174",
 ]
 _env_origins = os.getenv("ALLOWED_ORIGINS")
 allowed_origins = (
@@ -156,6 +163,32 @@ def _parse_sources(sources: str | None) -> list[str] | None:
     return [s.strip().lower() for s in sources.split(",") if s.strip()]
 
 
+def _log_query(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    endpoint: str,
+    query: str,
+    k: int,
+    sources: list[str] | None,
+    result_count: int,
+) -> None:
+    """Schedule a best-effort query-log write after the response is sent.
+
+    Runs in a background task so it adds no latency to the search response, and
+    ``db.log_query`` swallows any error so logging can never break a request.
+    """
+    background_tasks.add_task(
+        db.log_query,
+        endpoint=endpoint,
+        query=query,
+        k=k,
+        sources=sources,
+        result_count=result_count,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
+
 @api.get(
     "/search",
     response_model=SearchResponse,
@@ -165,6 +198,8 @@ def _parse_sources(sources: str | None) -> list[str] | None:
     responses={400: {"model": ErrorResponse, "description": "Empty query."}},
 )
 def search(
+    request: Request,
+    background_tasks: BackgroundTasks,
     query: str = Query(
         ...,
         description="Free-text query to search across all corpora by meaning.",
@@ -185,7 +220,11 @@ def search(
     query = query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query must not be empty.")
-    results = db.vector_search(_encode(query), k=k, sources=_parse_sources(sources))
+    parsed_sources = _parse_sources(sources)
+    results = db.vector_search(_encode(query), k=k, sources=parsed_sources)
+    _log_query(
+        request, background_tasks, "search", query, k, parsed_sources, len(results)
+    )
     return {"query": query, "results": results}
 
 
@@ -198,6 +237,8 @@ def search(
     responses={404: {"model": ErrorResponse, "description": "Unknown reference."}},
 )
 def search_by_reference(
+    request: Request,
+    background_tasks: BackgroundTasks,
     reference: str = Query(
         ...,
         description="Exact scripture reference present in the corpus.",
@@ -219,12 +260,20 @@ def search_by_reference(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Unknown reference: {reference}")
 
+    parsed_sources = _parse_sources(sources)
     query_vector = db.embedding_to_list(doc["embedding"])
     # Fetch one extra so we can drop the self-match.
-    hits = db.vector_search(
-        query_vector, k=k, sources=_parse_sources(sources), limit=k + 1
-    )
+    hits = db.vector_search(query_vector, k=k, sources=parsed_sources, limit=k + 1)
     hits = [h for h in hits if h.get("reference") != doc["reference"]][:k]
+    _log_query(
+        request,
+        background_tasks,
+        "search_by_reference",
+        doc["reference"],
+        k,
+        parsed_sources,
+        len(hits),
+    )
     return {"query": doc["reference"], "results": hits}
 
 

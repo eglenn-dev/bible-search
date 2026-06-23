@@ -95,7 +95,7 @@ export default function SourcesFilter({
                 <div
                     role="listbox"
                     aria-multiselectable="true"
-                    className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-border bg-card p-1.5 shadow-lg"
+                    className="absolute left-0 z-20 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-1.5 shadow-lg sm:left-auto sm:right-0"
                 >
                     <button
                         type="button"

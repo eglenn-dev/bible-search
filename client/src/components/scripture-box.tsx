@@ -106,7 +106,7 @@ export default function ScriptureBox({
                     import.meta.env.VITE_API_DOMAIN
                 }/search/by-reference?reference=${encodeURIComponent(
                     query.trim()
-                )}&k=12${sourcesParam}`
+                )}&k=20${sourcesParam}`
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");

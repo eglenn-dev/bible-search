@@ -63,7 +63,7 @@ export default function SearchBox({
             const response = await fetch(
                 `${import.meta.env.VITE_API_DOMAIN}/search?query=${encodeURIComponent(
                     query,
-                )}&k=12${sourcesParam}`,
+                )}&k=20${sourcesParam}`,
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");

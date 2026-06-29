@@ -1,4 +1,4 @@
-import type { Result, Source } from "@/lib/types";
+import type { Result, Source, ResultCount } from "@/lib/types";
 import { useRef, useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -10,6 +10,7 @@ interface ScriptureBoxProps {
     parentRef: string;
     setParentRef: (ref: string) => void;
     sources: Source[];
+    resultCount: ResultCount;
     setResults: (results: Result[]) => void;
     // Compact mode renders just the reference bar (no heading/examples) for the
     // post-search, Google-style collapsed header.
@@ -29,6 +30,7 @@ export default function ScriptureBox({
     parentRef,
     setParentRef,
     sources,
+    resultCount,
     setResults,
     compact = false,
 }: ScriptureBoxProps) {
@@ -63,8 +65,8 @@ export default function ScriptureBox({
             try {
                 const res = await fetch(
                     `${import.meta.env.VITE_API_DOMAIN}/verse?reference=${encodeURIComponent(
-                        ref
-                    )}`
+                        ref,
+                    )}`,
                 );
                 if (cancelled) return;
                 if (res.ok) {
@@ -105,8 +107,8 @@ export default function ScriptureBox({
                 `${
                     import.meta.env.VITE_API_DOMAIN
                 }/search/by-reference?reference=${encodeURIComponent(
-                    query.trim()
-                )}&k=20${sourcesParam}`
+                    query.trim(),
+                )}&k=${resultCount}${sourcesParam}`,
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");
@@ -180,9 +182,7 @@ export default function ScriptureBox({
                     Scripture Reference
                 </h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                    Enter a reference from any Standard Work — like “Alma 32:21”,
-                    “John 3:16”, or “D&C 4:2” — to find related scripture and
-                    teachings.
+                    Enter a reference from any Standard Work
                 </p>
             </div>
             {error && (
@@ -211,8 +211,8 @@ export default function ScriptureBox({
                     {loading
                         ? "Searching..."
                         : inputVerse
-                        ? "Search"
-                        : "Enter a valid reference"}
+                          ? "Search"
+                          : "Enter a valid reference"}
                 </Button>
             </form>
             {inputVerse && (

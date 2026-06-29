@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Result, Source } from "@/lib/types";
+import type { Result, Source, ResultCount } from "@/lib/types";
 
 interface SearchBoxProps {
     parentQuery: string;
     sources: Source[];
+    resultCount: ResultCount;
     setParams: (content: string) => void;
     setResults: (results: Result[]) => void;
     // Compact mode renders just the search bar (no heading/examples) for the
@@ -24,6 +25,7 @@ const EXAMPLE_QUERIES = [
 export default function SearchBox({
     parentQuery,
     sources,
+    resultCount,
     setParams,
     setResults,
     compact = false,
@@ -63,7 +65,7 @@ export default function SearchBox({
             const response = await fetch(
                 `${import.meta.env.VITE_API_DOMAIN}/search?query=${encodeURIComponent(
                     query,
-                )}&k=20${sourcesParam}`,
+                )}&k=${resultCount}${sourcesParam}`,
             );
             if (!response.ok) {
                 setError("Failed to fetch results.");

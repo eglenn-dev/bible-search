@@ -7,6 +7,14 @@ export type Source =
     | "byu-speeches"
     | "handbook";
 
+// Result ordering: by semantic relevance (server ranking) or newest-first.
+export type SortKey = "relevance" | "date";
+
+// How many results to request (the API caps k at 50).
+export const RESULT_COUNTS = [10, 20, 30, 40, 50] as const;
+export type ResultCount = (typeof RESULT_COUNTS)[number];
+export const DEFAULT_RESULT_COUNT: ResultCount = 20;
+
 // Canonical list of valid source keys — used to validate URL-supplied filters.
 export const SOURCES: Source[] = [
     "bible",

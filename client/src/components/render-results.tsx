@@ -1,6 +1,7 @@
 import type { Result, Source } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ExternalLink } from "lucide-react";
+import { dateLabelFor } from "@/lib/result-date";
+import { Calendar, ExternalLink } from "lucide-react";
 
 interface RenderResultsProps {
     results: Result[];
@@ -45,8 +46,6 @@ const SCRIPTURE_SOURCES: Source[] = [
     "pearl-of-great-price",
 ];
 
-const MONTHS: Record<string, string> = { "04": "April", "10": "October" };
-
 function headingFor(result: Result): string {
     if (SCRIPTURE_SOURCES.includes(result.source)) return result.reference;
     if (result.source === "conference" || result.source === "byu-speeches")
@@ -54,17 +53,12 @@ function headingFor(result: Result): string {
     return result.metadata?.section_title || result.title || result.reference;
 }
 
+// Secondary line under the heading. The talk/speech date is shown separately
+// and prominently (see ``dateLabelFor``), so it is intentionally omitted here.
 function subtitleFor(result: Result): string {
     const m = result.metadata || {};
-    if (result.source === "conference") {
-        const date =
-            m.year && m.month
-                ? `${MONTHS[m.month] || m.month} ${m.year}`
-                : undefined;
-        return [m.speaker, date].filter(Boolean).join(" • ");
-    }
-    if (result.source === "byu-speeches") {
-        return [m.speaker, m.date].filter(Boolean).join(" • ");
+    if (result.source === "conference" || result.source === "byu-speeches") {
+        return m.speaker || "";
     }
     if (result.source === "handbook") {
         return [m.chapter, m.section_number].filter(Boolean).join(" • ");
@@ -86,6 +80,7 @@ export default function RenderResults({ results }: RenderResultsProps) {
             {results.map((result, index) => {
                 const meta = SOURCE_META[result.source];
                 const subtitle = subtitleFor(result);
+                const dateLabel = dateLabelFor(result);
                 return (
                     <a
                         key={`${result.source}-${index}`}
@@ -109,7 +104,15 @@ export default function RenderResults({ results }: RenderResultsProps) {
                                         {headingFor(result)}
                                     </h3>
                                 </div>
-                                <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    {dateLabel && (
+                                        <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                                            <Calendar className="h-3.5 w-3.5" />
+                                            {dateLabel}
+                                        </span>
+                                    )}
+                                    <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                </div>
                             </div>
                             {subtitle && (
                                 <p className="text-xs text-muted-foreground mb-2">

@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
-import type { Result, Source } from "./lib/types";
-import { SOURCES } from "./lib/types";
+import type { Result, Source, SortKey, ResultCount } from "./lib/types";
+import { SOURCES, RESULT_COUNTS, DEFAULT_RESULT_COUNT } from "./lib/types";
+import { sortResults } from "./lib/result-date";
 import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
+import SortControl from "./components/sort-control";
 import SourcesFilter from "./components/sources-filter";
+import ResultsCount from "./components/results-count";
 import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
@@ -24,6 +27,16 @@ const parseSources = (raw: string | null): Source[] => {
 const parseQueryType = (raw: string | null): "natural" | "scripture" =>
     raw === "scripture" ? "scripture" : "natural";
 
+const parseSort = (raw: string | null): SortKey =>
+    raw === "date" ? "date" : "relevance";
+
+const parseResultCount = (raw: string | null): ResultCount => {
+    const n = Number(raw);
+    return (RESULT_COUNTS as readonly number[]).includes(n)
+        ? (n as ResultCount)
+        : DEFAULT_RESULT_COUNT;
+};
+
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
     const [hasSearched, setHasSearched] = useState<boolean>(false);
@@ -39,6 +52,12 @@ export default function App() {
     const [queryType, setQueryTypeState] = useState<"natural" | "scripture">(
         () => parseQueryType(searchParams.get("type")),
     );
+    const [sortBy, setSortByState] = useState<SortKey>(() =>
+        parseSort(searchParams.get("sort")),
+    );
+    const [resultCount, setResultCountState] = useState<ResultCount>(() =>
+        parseResultCount(searchParams.get("k")),
+    );
     const [scriptureRef, setScriptureRef] = useState<string>("");
 
     const setSources = (next: Source[]) => {
@@ -48,6 +67,32 @@ export default function App() {
                 const newParams = new URLSearchParams(prev);
                 if (next.length) newParams.set("sources", next.join(","));
                 else newParams.delete("sources");
+                return newParams;
+            },
+            { replace: true },
+        );
+    };
+
+    const setSortBy = (next: SortKey) => {
+        setSortByState(next);
+        setSearchParams(
+            (prev) => {
+                const newParams = new URLSearchParams(prev);
+                if (next === "date") newParams.set("sort", "date");
+                else newParams.delete("sort"); // relevance is the default
+                return newParams;
+            },
+            { replace: true },
+        );
+    };
+
+    const setResultCount = (next: ResultCount) => {
+        setResultCountState(next);
+        setSearchParams(
+            (prev) => {
+                const newParams = new URLSearchParams(prev);
+                if (next === DEFAULT_RESULT_COUNT) newParams.delete("k");
+                else newParams.set("k", String(next));
                 return newParams;
             },
             { replace: true },
@@ -104,6 +149,8 @@ export default function App() {
         });
     };
 
+    const sortedResults = sortResults(results, sortBy);
+
     if (!backendRunning)
         return <Landing setBackendRunning={setBackendRunning} />;
 
@@ -138,6 +185,7 @@ export default function App() {
                 ))}
             </div>
             <SourcesFilter selected={sources} onChange={setSources} />
+            <ResultsCount value={resultCount} onChange={setResultCount} />
         </div>
     );
 
@@ -146,6 +194,7 @@ export default function App() {
             <SearchBox
                 parentQuery={query}
                 sources={sources}
+                resultCount={resultCount}
                 setParams={setQueryParam}
                 setResults={handleResults}
                 compact={hasSearched}
@@ -155,6 +204,7 @@ export default function App() {
                 parentRef={scriptureRef}
                 setParentRef={setScriptureRef}
                 sources={sources}
+                resultCount={resultCount}
                 setResults={handleResults}
                 compact={hasSearched}
             />
@@ -187,7 +237,14 @@ export default function App() {
                                 collections.
                             </p>
                         ) : (
-                            <RenderResults results={results} />
+                            <>
+                                <SortControl
+                                    sortBy={sortBy}
+                                    onChange={setSortBy}
+                                    count={results.length}
+                                />
+                                <RenderResults results={sortedResults} />
+                            </>
                         )}
                     </div>
                 </main>
@@ -209,11 +266,6 @@ export default function App() {
                         <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground tracking-tight">
                             Gospel Library Search
                         </h1>
-                        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-                            Search the Bible, General Conference, BYU Speeches,
-                            and the General Handbook by meaning — not just
-                            words.
-                        </p>
                         <p className="text-muted-foreground/80 text-sm">
                             Developed by{" "}
                             <a

@@ -33,6 +33,47 @@ LOG_QUERIES = os.getenv("LOG_QUERIES", "1").strip().lower() not in {
     "",
 }
 
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+
+
+# --- Result re-ranking: recency boost + per-document de-duplication ----------
+# After $vectorSearch we (1) gently lift more-recent dated passages so the newest
+# General Conference / BYU Speeches aren't buried under the far larger back
+# catalogue, and (2) collapse the multiple chunks of one talk/speech/section to
+# its single best-matching chunk so one source can't fill the whole page.
+#
+# The factor is multiplicative on the cosine score and neutral-centered (see
+# _recency_factor): a passage ``RECENCY_HALFLIFE_YEARS`` old is neutral, newer
+# ones are lifted up to ×(1+RECENCY_WEIGHT), older ones lowered toward
+# ×(1-RECENCY_WEIGHT). Tuned so recent talks surface without burying the
+# undated scriptures. Set RECENCY_WEIGHT=0 to disable.
+RECENCY_WEIGHT = _env_float("RECENCY_WEIGHT", 0.06)
+RECENCY_HALFLIFE_YEARS = _env_float("RECENCY_HALFLIFE_YEARS", 8.0)
+DEDUPE_RESULTS = os.getenv("DEDUPE_RESULTS", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "",
+}
+# Pull this many × the requested hits before dedupe/re-rank so the final list
+# still fills `limit` distinct documents.
+RESULT_OVERFETCH = 6
+
+# Per-source field identifying the underlying document (talk/speech/section).
+# Chunks sharing this value are the same document and are de-duplicated.
+_DOC_GROUP_FIELDS = {
+    "conference": "talk_uri",
+    "byu-speeches": "speech_path",
+    "handbook": "chapter_uri",
+}
+
+_CURRENT_YEAR = datetime.now(timezone.utc).year
+
 VALID_SOURCES = {
     "bible",
     "book-of-mormon",
@@ -82,29 +123,99 @@ def _clean_sources(sources: Optional[list[str]]) -> Optional[list[str]]:
     return cleaned or None
 
 
+def _recency_factor(hit: dict[str, Any]) -> float:
+    """Neutral-centered score multiplier based on a dated passage's age.
+
+    Centered on ``1.0`` so it lifts *recent* dated passages and gently lowers
+    *old* ones, rather than handing every dated source a blanket edge over the
+    undated, timeless scriptures. A passage from the current year is scored
+    ``×(1 + RECENCY_WEIGHT)``, one ``RECENCY_HALFLIFE_YEARS`` old is neutral
+    (``×1.0``, the same as scripture/handbook), and very old ones approach
+    ``×(1 - RECENCY_WEIGHT)``.
+    """
+    if RECENCY_WEIGHT <= 0 or RECENCY_HALFLIFE_YEARS <= 0:
+        return 1.0
+    year = (hit.get("metadata") or {}).get("year")
+    if not isinstance(year, int):
+        return 1.0
+    age = max(0, _CURRENT_YEAR - year)
+    decay = 0.5 ** (age / RECENCY_HALFLIFE_YEARS)  # 1.0 at age 0 → 0 as age grows
+    return 1.0 + RECENCY_WEIGHT * (2.0 * decay - 1.0)
+
+
+def _group_key(hit: dict[str, Any]) -> tuple:
+    """Key identifying a hit's underlying source document, for de-duplication."""
+    source = hit.get("source")
+    field = _DOC_GROUP_FIELDS.get(source)
+    if field:
+        value = (hit.get("metadata") or {}).get(field)
+        if value:
+            return (source, value)
+    # Scriptures are one chunk per verse; for those (or a missing group field)
+    # key on the passage itself so distinct passages are never merged.
+    return (source, hit.get("reference"), hit.get("url"))
+
+
+def _rerank_and_dedupe(
+    hits: list[dict[str, Any]], limit: int
+) -> list[dict[str, Any]]:
+    """Apply the recency boost, then keep each document's best chunk, up to ``limit``.
+
+    Ranking uses ``score * recency_factor``, but the cosine ``score`` returned to
+    callers is left unchanged so the displayed "% match" stays truthful.
+    """
+    if RECENCY_WEIGHT > 0:
+        hits = sorted(
+            hits,
+            key=lambda h: h.get("score", 0.0) * _recency_factor(h),
+            reverse=True,
+        )
+    if not DEDUPE_RESULTS:
+        return hits[:limit]
+
+    seen: set = set()
+    out: list[dict[str, Any]] = []
+    for hit in hits:
+        key = _group_key(hit)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(hit)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def vector_search(
     query_vector: list[float],
     k: int = 10,
     sources: Optional[list[str]] = None,
     limit: Optional[int] = None,
 ) -> list[dict[str, Any]]:
-    """Run an Atlas ``$vectorSearch`` and return projected hits with scores.
+    """Run an Atlas ``$vectorSearch`` and return re-ranked, de-duplicated hits.
 
     - ``query_vector``: normalized 384-dim query embedding.
     - ``sources``: optional subset of {bible, conference, handbook} to filter on.
     - ``limit``: number of hits to return (defaults to ``k``); callers that need
       to drop a self-match request one extra.
+
+    Raw chunks are over-fetched, lifted by a recency factor (see
+    ``_recency_factor``), then collapsed to one hit per source document (see
+    ``_rerank_and_dedupe``) before the top ``limit`` are returned.
     """
     limit = limit or k
     cleaned = _clean_sources(sources)
-    num_candidates = min(max(limit * 20, 150), 10000)
+    # Over-fetch so recency re-ranking + de-duplication still yield `limit`
+    # distinct documents.
+    fetch_limit = min(max(limit * RESULT_OVERFETCH, 100), 1000)
+    num_candidates = min(max(fetch_limit * 20, 150), 10000)
 
     vector_stage: dict[str, Any] = {
         "index": VECTOR_INDEX_NAME,
         "path": "embedding",
         "queryVector": query_vector,
         "numCandidates": num_candidates,
-        "limit": limit,
+        "limit": fetch_limit,
     }
     if cleaned:
         vector_stage["filter"] = {"source": {"$in": cleaned}}
@@ -113,7 +224,8 @@ def vector_search(
         {"$vectorSearch": vector_stage},
         {"$project": _PROJECTION},
     ]
-    return list(get_collection().aggregate(pipeline))
+    hits = list(get_collection().aggregate(pipeline))
+    return _rerank_and_dedupe(hits, limit)
 
 
 def find_by_reference(reference: str) -> Optional[dict[str, Any]]:

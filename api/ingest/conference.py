@@ -12,8 +12,17 @@ FIRST_YEAR = 1971
 MONTHS = ["04", "10"]  # April and October conferences
 CHUNK_PARAGRAPHS = 3
 
-_PARA_ID_RE = re.compile(r"^p\d+$")
-_SKIP_PARA_CLASSES = {"author-name", "author-role", "kicker", "study-summary", "title-number"}
+# Body paragraphs carry an id of either the legacy ``p12`` form or the newer
+# random-suffix ``p_aB3dE`` form the site switched to in late 2024.
+_PARA_ID_RE = re.compile(r"^p(?:\d+|_[A-Za-z0-9]+)$")
+_SKIP_PARA_CLASSES = {
+    "author-name",
+    "author-role",
+    "kicker",
+    "study-summary",
+    "title-number",
+    "title",
+}
 
 
 def _is_session_link(slug: str) -> bool:
@@ -74,6 +83,10 @@ def parse_talk(uri: str) -> dict | None:
             continue
         classes = set(p.get("class") or [])
         if classes & _SKIP_PARA_CLASSES:
+            continue
+        # In the new format, footnotes live in <footer class="notes"> and share
+        # the ``p_…`` id form; skip them so only the sermon body is ingested.
+        if p.find_parent("footer"):
             continue
         text = p.get_text(" ", strip=True)
         if text:

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { Result, Source, SortKey, ResultCount } from "./lib/types";
+import type { Result, Source, SortKey } from "./lib/types";
 import { SOURCES, RESULT_COUNTS, DEFAULT_RESULT_COUNT } from "./lib/types";
 import { sortResults } from "./lib/result-date";
 import SearchBox from "./components/search-box";
@@ -13,114 +13,55 @@ import Footer from "./components/footer";
 import Landing from "./components/landing";
 import { cn } from "./lib/utils";
 import { BookOpen } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
-
-const parseSources = (raw: string | null): Source[] => {
-    if (!raw) return [];
-    const valid = new Set<string>(SOURCES);
-    return raw
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => valid.has(s)) as Source[];
-};
-
-const parseQueryType = (raw: string | null): "natural" | "scripture" =>
-    raw === "scripture" ? "scripture" : "natural";
-
-const parseSort = (raw: string | null): SortKey =>
-    raw === "date" ? "date" : "relevance";
-
-const parseResultCount = (raw: string | null): ResultCount => {
-    const n = Number(raw);
-    return (RESULT_COUNTS as readonly number[]).includes(n)
-        ? (n as ResultCount)
-        : DEFAULT_RESULT_COUNT;
-};
+import {
+    useQueryState,
+    parseAsString,
+    parseAsStringEnum,
+    parseAsArrayOf,
+    parseAsNumberLiteral,
+} from "nuqs";
 
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
     const [hasSearched, setHasSearched] = useState<boolean>(false);
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [query, setQuery] = useState<string>("");
-    // Source filter + search mode are URL-backed so a selection survives a
-    // refresh and is shareable — initialized from the URL, written back on
-    // every change (like the ?q text param).
-    const [sources, setSourcesState] = useState<Source[]>(() =>
-        parseSources(searchParams.get("sources")),
-    );
-    const [queryType, setQueryTypeState] = useState<"natural" | "scripture">(
-        () => parseQueryType(searchParams.get("type")),
-    );
-    const [sortBy, setSortByState] = useState<SortKey>(() =>
-        parseSort(searchParams.get("sort")),
-    );
-    const [resultCount, setResultCountState] = useState<ResultCount>(() =>
-        parseResultCount(searchParams.get("k")),
-    );
     const [scriptureRef, setScriptureRef] = useState<string>("");
 
-    const setSources = (next: Source[]) => {
-        setSourcesState(next);
-        setSearchParams(
-            (prev) => {
-                const newParams = new URLSearchParams(prev);
-                if (next.length) newParams.set("sources", next.join(","));
-                else newParams.delete("sources");
-                return newParams;
-            },
-            { replace: true },
-        );
-    };
+    // Every shareable/refresh-safe setting lives in the URL via nuqs: each
+    // hook returns a [value, setValue] pair backed directly by the query
+    // string, so there's no shadow state or hand-rolled URLSearchParams
+    // plumbing. A value equal to its default is omitted from the URL, and the
+    // enum/literal parsers drop invalid values (replacing the old parse* and
+    // validation helpers). Writes default to history: "replace".
+    const [query, setQuery] = useQueryState("q", parseAsString.withDefault(""));
+    const [sources, setSources] = useQueryState(
+        "sources",
+        parseAsArrayOf(parseAsStringEnum<Source>([...SOURCES])).withDefault([]),
+    );
+    const [queryType, setQueryTypeState] = useQueryState(
+        "type",
+        parseAsStringEnum<"natural" | "scripture">([
+            "natural",
+            "scripture",
+        ]).withDefault("natural"),
+    );
+    const [sortBy, setSortBy] = useQueryState(
+        "sort",
+        parseAsStringEnum<SortKey>(["relevance", "date"]).withDefault(
+            "relevance",
+        ),
+    );
+    const [resultCount, setResultCount] = useQueryState(
+        "k",
+        parseAsNumberLiteral(RESULT_COUNTS).withDefault(DEFAULT_RESULT_COUNT),
+    );
 
-    const setSortBy = (next: SortKey) => {
-        setSortByState(next);
-        setSearchParams(
-            (prev) => {
-                const newParams = new URLSearchParams(prev);
-                if (next === "date") newParams.set("sort", "date");
-                else newParams.delete("sort"); // relevance is the default
-                return newParams;
-            },
-            { replace: true },
-        );
-    };
-
-    const setResultCount = (next: ResultCount) => {
-        setResultCountState(next);
-        setSearchParams(
-            (prev) => {
-                const newParams = new URLSearchParams(prev);
-                if (next === DEFAULT_RESULT_COUNT) newParams.delete("k");
-                else newParams.set("k", String(next));
-                return newParams;
-            },
-            { replace: true },
-        );
-    };
-
+    // Switching to scripture mode drops the ?q text (scripture mode uses its
+    // own reference input and ignores ?q).
     const setQueryType = (type: "natural" | "scripture") => {
         setQueryTypeState(type);
-        setSearchParams(
-            (prev) => {
-                const newParams = new URLSearchParams(prev);
-                if (type === "scripture") {
-                    newParams.set("type", "scripture");
-                    newParams.delete("q"); // scripture mode doesn't use ?q
-                } else {
-                    newParams.delete("type"); // natural is the default
-                }
-                return newParams;
-            },
-            { replace: true },
-        );
+        if (type === "scripture") setQuery(null);
     };
-
-    // Mirror ?q into the input when in natural mode; scripture mode keeps its
-    // own reference input and ignores ?q.
-    useEffect(() => {
-        setQuery(queryType === "natural" ? searchParams.get("q") || "" : "");
-    }, [searchParams, queryType]);
 
     // Switching search mode clears the old results but stays in whichever
     // layout we're in (the compact view persists once you've searched).
@@ -139,14 +80,6 @@ export default function App() {
     const goHome = () => {
         setResults([]);
         setHasSearched(false);
-    };
-
-    const setQueryParam = (content: string) => {
-        setSearchParams((prev) => {
-            const newParams = new URLSearchParams(prev);
-            newParams.set("q", content);
-            return newParams;
-        });
     };
 
     const sortedResults = sortResults(results, sortBy);
@@ -195,7 +128,7 @@ export default function App() {
                 parentQuery={query}
                 sources={sources}
                 resultCount={resultCount}
-                setParams={setQueryParam}
+                setParams={setQuery}
                 setResults={handleResults}
                 compact={hasSearched}
             />

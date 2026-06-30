@@ -24,3 +24,7 @@ dependencies = [
 # This is an application, not an installable package — uv manages only the deps.
 [tool.uv]
 package = false
+
+[tool.ruff]
+# Exploratory Jupyter notebooks under data/ are not part of the application source.
+extend-exclude = ["data"]

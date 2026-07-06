@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Result, Source, ResultCount } from "@/lib/types";
+import { runSearch } from "@/lib/search";
 
 interface SearchBoxProps {
     parentQuery: string;
@@ -59,21 +60,13 @@ export default function SearchBox({
         setLoading(true);
         setError("");
         try {
-            const sourcesParam = sources.length
-                ? `&sources=${sources.join(",")}`
-                : "";
-            const response = await fetch(
-                `${import.meta.env.VITE_API_DOMAIN}/search?query=${encodeURIComponent(
-                    query,
-                )}&k=${resultCount}${sourcesParam}`,
-            );
-            if (!response.ok) {
-                setError("Failed to fetch results.");
-                setLoading(false);
-                return;
-            }
-            const data = await response.json();
-            setResults(data.results || []);
+            const results = await runSearch({
+                queryType: "natural",
+                query,
+                resultCount,
+                sources,
+            });
+            setResults(results);
             setLoading(false);
         } catch (error) {
             console.error("Error fetching results:", error);

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import type { Result, Source, SortKey } from "./lib/types";
 import { SOURCES, RESULT_COUNTS, DEFAULT_RESULT_COUNT } from "./lib/types";
 import { sortResults } from "./lib/result-date";
+import { runSearch } from "./lib/search";
+import { Button } from "@/components/ui/button";
 import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
@@ -24,6 +26,7 @@ import {
 export default function App() {
     const [results, setResults] = useState<Result[]>([]);
     const [hasSearched, setHasSearched] = useState<boolean>(false);
+    const [loadingMore, setLoadingMore] = useState<boolean>(false);
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
     const [scriptureRef, setScriptureRef] = useState<string>("");
 
@@ -83,6 +86,36 @@ export default function App() {
     };
 
     const sortedResults = sortResults(results, sortBy);
+
+    // "Load more results" bumps the results-count drop-down one step and
+    // re-runs the same query. Hidden at the 50 cap and when the backend already
+    // returned fewer than requested (the query is exhausted).
+    const nextCount = RESULT_COUNTS[RESULT_COUNTS.indexOf(resultCount) + 1] as
+        | (typeof RESULT_COUNTS)[number]
+        | undefined;
+    const canLoadMore = !!nextCount && results.length >= resultCount;
+
+    const handleLoadMore = async () => {
+        if (!nextCount || loadingMore) return;
+        const text = queryType === "scripture" ? scriptureRef : query;
+        if (!text) return;
+        setLoadingMore(true);
+        try {
+            setResultCount(nextCount);
+            handleResults(
+                await runSearch({
+                    queryType,
+                    query: text,
+                    resultCount: nextCount,
+                    sources,
+                }),
+            );
+        } catch (e) {
+            console.error("Error loading more results:", e);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     if (!backendRunning)
         return <Landing setBackendRunning={setBackendRunning} />;
@@ -177,6 +210,20 @@ export default function App() {
                                     count={results.length}
                                 />
                                 <RenderResults results={sortedResults} />
+                                {canLoadMore && (
+                                    <div className="flex justify-center pt-6">
+                                        <Button
+                                            variant="outline"
+                                            onClick={handleLoadMore}
+                                            disabled={loadingMore}
+                                            className="rounded-xl px-6 font-semibold"
+                                        >
+                                            {loadingMore
+                                                ? "Loading…"
+                                                : "Load more results"}
+                                        </Button>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>

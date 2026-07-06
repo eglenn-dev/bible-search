@@ -1,4 +1,5 @@
 import type { Result, Source, ResultCount } from "@/lib/types";
+import { runSearch } from "@/lib/search";
 import { useRef, useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -100,23 +101,13 @@ export default function ScriptureBox({
         setLoading(true);
         setError("");
         try {
-            const sourcesParam = sources.length
-                ? `&sources=${sources.join(",")}`
-                : "";
-            const response = await fetch(
-                `${
-                    import.meta.env.VITE_API_DOMAIN
-                }/search/by-reference?reference=${encodeURIComponent(
-                    query.trim(),
-                )}&k=${resultCount}${sourcesParam}`,
-            );
-            if (!response.ok) {
-                setError("Failed to fetch results.");
-                setLoading(false);
-                return;
-            }
-            const data = await response.json();
-            setResults(data.results || []);
+            const results = await runSearch({
+                queryType: "scripture",
+                query,
+                resultCount,
+                sources,
+            });
+            setResults(results);
             setLoading(false);
         } catch (error) {
             console.error("Error fetching similar verses:", error);

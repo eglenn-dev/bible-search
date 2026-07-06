@@ -21,9 +21,9 @@ jobs:
                 working-directory: ./client
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
             - name: Set up Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: lts/*
                   cache: "npm"
@@ -45,9 +45,9 @@ jobs:
                 working-directory: ./api
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
             - name: Set up uv
-              uses: astral-sh/setup-uv@v5
+              uses: astral-sh/setup-uv@v8.3.0
               with:
                   python-version: "3.11"
             - name: Lint

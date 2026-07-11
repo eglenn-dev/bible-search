@@ -88,7 +88,7 @@ Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (requir
 
 ### Query logging (analytics)
 
-`/search` and `/search/by-reference` record each user search into a **separate** `query_logs` collection — kept apart from `documents` so it never touches the vector index. Each log doc holds `endpoint`, `query`, `k`, `sources`, `result_count`, `ip`, `user_agent`, and a UTC `created_at`. The write is scheduled as a **FastAPI background task** (runs after the response is sent, so it adds no latency to search) and is **best-effort**: `db.log_query()` swallows and logs any error so a logging hiccup can never break a search. The `/verse` preview lookup is *not* logged (it fires on every keystroke while typing a reference). Toggle the whole feature with `LOG_QUERIES`.
+`/search` and `/search/by-reference` record each user search into a **separate** `query_logs` collection — kept apart from `documents` so it never touches the vector index. Each log doc holds `endpoint`, `query`, the filter params `k` and `sources`, `result_count`, `result_ids` (the deterministic `_id` of each returned passage, in result order), `ip`, `user_agent`, and a UTC `created_at`. The write is scheduled as a **FastAPI background task** (runs after the response is sent, so it adds no latency to search) and is **best-effort**: `db.log_query()` swallows and logs any error so a logging hiccup can never break a search. The `/verse` preview lookup is *not* logged (it fires on every keystroke while typing a reference). Toggle the whole feature with `LOG_QUERIES`.
 
 ### Endpoints
 

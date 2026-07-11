@@ -171,6 +171,7 @@ def _log_query(
     k: int,
     sources: list[str] | None,
     result_count: int,
+    result_ids: list[str] | None = None,
 ) -> None:
     """Schedule a best-effort query-log write after the response is sent.
 
@@ -184,6 +185,7 @@ def _log_query(
         k=k,
         sources=sources,
         result_count=result_count,
+        result_ids=result_ids,
         ip=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
@@ -222,8 +224,16 @@ def search(
         raise HTTPException(status_code=400, detail="query must not be empty.")
     parsed_sources = _parse_sources(sources)
     results = db.vector_search(_encode(query), k=k, sources=parsed_sources)
+    result_ids = [r["_id"] for r in results if r.get("_id")]
     _log_query(
-        request, background_tasks, "search", query, k, parsed_sources, len(results)
+        request,
+        background_tasks,
+        "search",
+        query,
+        k,
+        parsed_sources,
+        len(results),
+        result_ids,
     )
     return {"query": query, "results": results}
 
@@ -265,6 +275,7 @@ def search_by_reference(
     # Fetch one extra so we can drop the self-match.
     hits = db.vector_search(query_vector, k=k, sources=parsed_sources, limit=k + 1)
     hits = [h for h in hits if h.get("reference") != doc["reference"]][:k]
+    result_ids = [h["_id"] for h in hits if h.get("_id")]
     _log_query(
         request,
         background_tasks,
@@ -273,6 +284,7 @@ def search_by_reference(
         k,
         parsed_sources,
         len(hits),
+        result_ids,
     )
     return {"query": doc["reference"], "results": hits}
 

@@ -84,9 +84,11 @@ VALID_SOURCES = {
     "handbook",
 }
 
-# Fields returned to the client for every hit.
+# Fields fetched for every hit. `_id` is the deterministic document key, recorded
+# in the query log for analytics; it's dropped from the API payload by the
+# `SearchResult` response model (which has no `_id`/`id` field).
 _PROJECTION = {
-    "_id": 0,
+    "_id": 1,
     "source": 1,
     "reference": 1,
     "text": 1,
@@ -258,10 +260,15 @@ def log_query(
     k: int,
     sources: Optional[list[str]],
     result_count: int,
+    result_ids: Optional[list[str]] = None,
     ip: Optional[str] = None,
     user_agent: Optional[str] = None,
 ) -> None:
     """Record a user search for analytics. Best-effort: never raises.
+
+    ``sources`` and ``k`` capture the filter params applied to the search, and
+    ``result_ids`` records the deterministic ``_id`` of each returned passage, in
+    result order, so we can see which documents surfaced for a query/filter combo.
 
     Intended to run after the response is sent (e.g. via FastAPI ``BackgroundTasks``)
     so it adds no latency to the search itself. Any failure is swallowed and logged
@@ -277,6 +284,7 @@ def log_query(
                 "k": k,
                 "sources": sources,
                 "result_count": result_count,
+                "result_ids": result_ids,
                 "ip": ip,
                 "user_agent": user_agent,
                 "created_at": datetime.now(timezone.utc),

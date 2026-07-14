@@ -35,10 +35,14 @@ def _is_session_link(slug: str) -> bool:
     )
 
 
-def list_talk_uris(year: int, month: str) -> list[str]:
-    """Return the ordered list of talk uris for a conference session."""
+def list_talk_uris(year: int, month: str, *, use_cache: bool = True) -> list[str]:
+    """Return the ordered list of talk uris for a conference session.
+
+    Pass ``use_cache=False`` to re-fetch the session listing (used when checking a
+    recent conference for newly published talks, so the disk cache can't hide them).
+    """
     session_uri = f"/general-conference/{year}/{month}"
-    data = fetch_content(session_uri)
+    data = fetch_content(session_uri, use_cache=use_cache)
     if not data:
         return []
 

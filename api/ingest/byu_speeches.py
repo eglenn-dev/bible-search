@@ -30,12 +30,17 @@ def _url_path(url: str) -> str:
     return path.split("?")[0].split("#")[0]
 
 
-def list_speech_urls() -> list[str]:
-    """Return every transcript URL from the speech sitemaps, in order, deduped."""
+def list_speech_urls(*, use_cache: bool = True) -> list[str]:
+    """Return every transcript URL from the speech sitemaps, in order, deduped.
+
+    Pass ``use_cache=False`` to re-fetch the sitemaps (used when checking for newly
+    published speeches — the sitemap URLs are stable, so a cached copy would hide
+    anything added since the last run).
+    """
     urls: list[str] = []
     seen: set[str] = set()
     for sitemap in SPEECH_SITEMAPS:
-        xml = fetch_html(sitemap)
+        xml = fetch_html(sitemap, use_cache=use_cache)
         if not xml:
             continue
         for loc in _LOC_RE.findall(xml):

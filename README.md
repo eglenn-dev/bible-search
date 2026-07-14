@@ -84,7 +84,27 @@ uv sync          # creates .venv and installs the locked dependencies
 
 ### 3. Ingest the data
 
-Run from the `api/` directory. Sources run in priority order; runs are resumable and cached.
+Run from the `api/` directory.
+
+#### Keeping everything current — one command
+
+`ingest.sync` is the command to run whenever you want to refresh the database. It is idempotent and self-healing: run it on a healthy database and it only pulls in what's new; run it against an **empty/deleted** database and it rebuilds every corpus from scratch.
+
+```bash
+uv run python -m ingest.sync
+```
+
+What it does, per source:
+
+- **Standard Works** (Bible + Book of Mormon, D&C, Pearl of Great Price) — the static seed corpora. Ingested **only when missing**, so a fresh database is fully repopulated while a normal refresh skips them.
+- **General Conference** & **BYU Speeches** — **incremental**. It re-fetches the listing pages (so newly published talks/speeches aren't hidden by the scrape cache) and ingests only what isn't already stored.
+- **General Handbook** — **replaced in full** every run (the Church revises it a few times a year). Fetched fresh, then the old handbook is deleted and the new one inserted — the delete only happens *after* a successful fetch, so a network hiccup can't leave it wiped.
+
+It then ensures the Atlas vector index exists and prints a **before/after diff** plus a **summary of work done** (new talks/speeches, handbook chapters replaced, storage used). Useful flags: `--force-foundational` (re-ingest the Standard Works even if present), `--fresh-years N` (how many recent Conference years to re-check, default 2), and `--skip-conference` / `--skip-byu` / `--skip-handbook`.
+
+#### Per-source / lower-level commands
+
+`ingest.run` ingests a single corpus at a time (sources run in priority order; runs are resumable and cached).
 
 ```bash
 uv run python -m ingest.run --source bible        # migrate the 31,102 KJV verses

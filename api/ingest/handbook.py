@@ -14,8 +14,8 @@ _CHAPTER_HREF_RE = re.compile(r"^/study/manual/general-handbook/([a-z0-9\-]+)$")
 _SECTION_NUMBER_RE = re.compile(r"\b(\d+(?:\.\d+)+)\b")
 
 
-def list_chapter_uris() -> list[str]:
-    data = fetch_content(HANDBOOK_ROOT)
+def list_chapter_uris(*, use_cache: bool = True) -> list[str]:
+    data = fetch_content(HANDBOOK_ROOT, use_cache=use_cache)
     if not data:
         return []
     soup = BeautifulSoup(content_body(data), "html.parser")
@@ -32,8 +32,8 @@ def list_chapter_uris() -> list[str]:
     return uris
 
 
-def parse_chapter(uri: str) -> dict | None:
-    data = fetch_content(uri)
+def parse_chapter(uri: str, *, use_cache: bool = True) -> dict | None:
+    data = fetch_content(uri, use_cache=use_cache)
     if not data:
         return None
     soup = BeautifulSoup(content_body(data), "html.parser")

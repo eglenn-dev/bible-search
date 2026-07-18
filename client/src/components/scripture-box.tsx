@@ -1,9 +1,7 @@
 import type { Result, Source, ResultCount } from "@/lib/types";
 import { runSearch } from "@/lib/search";
 import { useRef, useState, useEffect } from "react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ScriptureBoxProps {
     // Reference is lifted to App so it survives the hero <-> compact layout
@@ -13,12 +11,9 @@ interface ScriptureBoxProps {
     sources: Source[];
     resultCount: ResultCount;
     setResults: (results: Result[]) => void;
-    // Compact mode renders just the reference bar (no heading/examples) for the
-    // post-search, Google-style collapsed header.
+    // Compact mode renders a smaller pill for the post-search header.
     compact?: boolean;
 }
-
-const EXAMPLE_REFERENCES = ["John 3:16", "Alma 32:21", "D&C 4:2", "Moses 1:39"];
 
 const SOURCE_LABELS: Record<string, string> = {
     bible: "Bible",
@@ -116,122 +111,77 @@ export default function ScriptureBox({
         }
     };
 
+    const searchBar = (
+        <form
+            onSubmit={handleSubmit}
+            className={cn(
+                "flex w-full overflow-hidden rounded-full border-[1.5px] border-foreground/60 bg-card",
+                !compact && "shadow-[0_3px_10px_rgba(27,30,36,.08)]",
+            )}
+        >
+            <input
+                type="text"
+                name="search-query"
+                autoFocus={!compact}
+                ref={inputRef}
+                value={query}
+                onChange={(e) => setQueryHandler(e.target.value)}
+                placeholder="e.g.  Alma 32:21  or  D&C 4:2"
+                className={cn(
+                    "min-w-0 flex-1 border-none bg-transparent text-foreground outline-none",
+                    compact ? "px-4 py-1.5 text-base" : "px-6 py-3 text-lg",
+                )}
+            />
+            <button
+                type="submit"
+                disabled={loading || !inputVerse}
+                className={cn(
+                    "shrink-0 whitespace-nowrap rounded-full bg-primary uppercase text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70",
+                    compact
+                        ? "m-[3px] px-4 text-[13px] tracking-[0.12em]"
+                        : "m-1 px-7 text-base tracking-[0.1em]",
+                )}
+            >
+                {loading ? "Searching…" : "Search"}
+            </button>
+        </form>
+    );
+
+    const versePreview = inputVerse && (
+        <div
+            className={cn(
+                "border-l-2 border-primary/40 pl-3 text-left",
+                compact ? "mt-2 text-sm" : "mt-4",
+            )}
+        >
+            {verseSource && (
+                <span className="mr-2 text-[13px] uppercase tracking-[0.16em] text-muted-foreground">
+                    {SOURCE_LABELS[verseSource] || verseSource}
+                </span>
+            )}
+            <span className="italic text-foreground/85">“{inputVerse}”</span>
+        </div>
+    );
+
     if (compact) {
         return (
-            <div className="space-y-2">
+            <div>
                 {error && (
-                    <div className="text-destructive text-sm">{error}</div>
+                    <div className="mb-2 text-sm text-destructive">{error}</div>
                 )}
-                <form
-                    className="flex items-center gap-2"
-                    onSubmit={handleSubmit}
-                >
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                            type="text"
-                            name="search-query"
-                            ref={inputRef}
-                            value={query}
-                            onChange={(e) => setQueryHandler(e.target.value)}
-                            placeholder="Alma 32:21, John 3:16, D&C 4:2…"
-                            className="h-11 pl-10 pr-3 text-base rounded-xl"
-                        />
-                    </div>
-                    <Button
-                        type="submit"
-                        className="h-11 shrink-0 rounded-xl px-6 font-semibold"
-                        disabled={loading || !inputVerse}
-                    >
-                        {loading
-                            ? "Searching..."
-                            : inputVerse
-                              ? "Search"
-                              : "Enter a reference"}
-                    </Button>
-                </form>
-                {inputVerse && (
-                    <div className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm">
-                        {verseSource && (
-                            <span className="text-xs uppercase tracking-wide text-muted-foreground mr-2">
-                                {SOURCE_LABELS[verseSource] || verseSource}
-                            </span>
-                        )}
-                        <span className="text-foreground italic">
-                            “{inputVerse}”
-                        </span>
-                    </div>
-                )}
+                {searchBar}
+                {versePreview}
             </div>
         );
     }
 
     return (
         <>
-            <div className="text-center mb-6">
-                <h2 className="font-display text-2xl font-semibold text-foreground">
-                    Scripture Reference
-                </h2>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                    Enter a reference from any Standard Work
-                </p>
-            </div>
             {error && (
-                <div className="text-destructive text-center mb-4">{error}</div>
+                <div className="mb-3 text-center text-destructive">{error}</div>
             )}
-            <form className="space-y-6" onSubmit={handleSubmit}>
-                <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground h-5 w-5" />
-                    <Input
-                        type="text"
-                        name="search-query"
-                        autoFocus
-                        ref={inputRef}
-                        value={query}
-                        onChange={(e) => setQueryHandler(e.target.value)}
-                        placeholder="Alma 32:21, John 3:16, D&C 4:2, Moses 1:39…"
-                        className="pl-12 pr-4 py-6 text-lg rounded-xl"
-                    />
-                </div>
-                <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full py-6 text-lg font-semibold rounded-xl"
-                    disabled={loading || !inputVerse}
-                >
-                    {loading
-                        ? "Searching..."
-                        : inputVerse
-                          ? "Search"
-                          : "Enter a valid reference"}
-                </Button>
-            </form>
-            {inputVerse && (
-                <div className="mt-4 rounded-lg border border-border bg-secondary/50 p-4 text-center">
-                    {verseSource && (
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-                            {SOURCE_LABELS[verseSource] || verseSource}
-                        </p>
-                    )}
-                    <p className="text-foreground italic">“{inputVerse}”</p>
-                </div>
-            )}
-            <div className="flex flex-col items-center justify-center mt-6">
-                <h3 className="text-sm mb-2 font-semibold text-muted-foreground uppercase tracking-wide">
-                    Try an example
-                </h3>
-                <div className="flex flex-wrap justify-center gap-2 text-sm">
-                    {EXAMPLE_REFERENCES.map((ref) => (
-                        <span
-                            key={ref}
-                            className="font-medium bg-secondary text-secondary-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground select-none rounded-full px-3 py-1 transition-colors"
-                            onClick={() => setQueryHandler(ref)}
-                        >
-                            {ref}
-                        </span>
-                    ))}
-                </div>
-            </div>
+            {searchBar}
+            {versePreview}
         </>
     );
 }

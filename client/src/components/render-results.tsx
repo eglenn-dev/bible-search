@@ -1,41 +1,18 @@
 import type { Result, Source } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { dateLabelFor } from "@/lib/result-date";
-import { Calendar, ExternalLink } from "lucide-react";
 
 interface RenderResultsProps {
     results: Result[];
 }
 
-const SOURCE_META: Record<Source, { label: string; badge: string }> = {
-    bible: {
-        label: "Bible",
-        badge: "bg-[oklch(0.45_0.06_245)] text-white",
-    },
-    "book-of-mormon": {
-        label: "Book of Mormon",
-        badge: "bg-[oklch(0.48_0.09_180)] text-white",
-    },
-    "doctrine-and-covenants": {
-        label: "D&C",
-        badge: "bg-[oklch(0.48_0.12_300)] text-white",
-    },
-    "pearl-of-great-price": {
-        label: "Pearl of Great Price",
-        badge: "bg-[oklch(0.5_0.1_55)] text-white",
-    },
-    conference: {
-        label: "Conference",
-        badge: "bg-primary text-primary-foreground",
-    },
-    "byu-speeches": {
-        label: "BYU Speeches",
-        badge: "bg-[oklch(0.47_0.1_150)] text-white",
-    },
-    handbook: {
-        label: "Handbook",
-        badge: "bg-accent text-accent-foreground",
-    },
+const SOURCE_LABELS: Record<Source, string> = {
+    bible: "Bible",
+    "book-of-mormon": "Book of Mormon",
+    "doctrine-and-covenants": "D&C",
+    "pearl-of-great-price": "Pearl of Great Price",
+    conference: "Conference",
+    "byu-speeches": "BYU Speeches",
+    handbook: "Handbook",
 };
 
 // Sources whose results are scripture verses (heading = reference, subtitle = volume).
@@ -53,15 +30,14 @@ function headingFor(result: Result): string {
     return result.metadata?.section_title || result.title || result.reference;
 }
 
-// Secondary line under the heading. The talk/speech date is shown separately
-// and prominently (see ``dateLabelFor``), so it is intentionally omitted here.
+// Secondary line under the heading (joined with the date label where present).
 function subtitleFor(result: Result): string {
     const m = result.metadata || {};
     if (result.source === "conference" || result.source === "byu-speeches") {
         return m.speaker || "";
     }
     if (result.source === "handbook") {
-        return [m.chapter, m.section_number].filter(Boolean).join(" • ");
+        return [m.chapter, m.section_number].filter(Boolean).join(" · ");
     }
     return m.volume || m.translation || "";
 }
@@ -76,70 +52,48 @@ export default function RenderResults({ results }: RenderResultsProps) {
     }
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-9">
             {results.map((result, index) => {
-                const meta = SOURCE_META[result.source];
-                const subtitle = subtitleFor(result);
-                const dateLabel = dateLabelFor(result);
+                const metaLine = [subtitleFor(result), dateLabelFor(result)]
+                    .filter(Boolean)
+                    .join(" · ");
                 return (
-                    <a
+                    <article
                         key={`${result.source}-${index}`}
-                        href={result.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group block"
+                        className="flex flex-col gap-1.5"
+                        style={{
+                            animation: `gsFade .4s ease ${Math.min(index, 8) * 45}ms both`,
+                        }}
                     >
-                        <article className="relative p-5 bg-card rounded-xl border border-border shadow-sm hover:shadow-md hover:border-primary/40 transition-all">
-                            <div className="flex items-center justify-between gap-3 mb-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span
-                                        className={cn(
-                                            "rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide",
-                                            meta.badge
-                                        )}
-                                    >
-                                        {meta.label}
-                                    </span>
-                                    <h3 className="font-display text-lg font-semibold text-foreground">
-                                        {headingFor(result)}
-                                    </h3>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    {dateLabel && (
-                                        <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-muted-foreground">
-                                            <Calendar className="h-3.5 w-3.5" />
-                                            {dateLabel}
-                                        </span>
-                                    )}
-                                    <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                                </div>
+                        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                            <a
+                                href={result.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-display text-xl font-medium text-foreground transition-colors hover:text-primary hover:underline hover:underline-offset-[3px]"
+                            >
+                                {headingFor(result)}
+                            </a>
+                            <span className="relative -top-px shrink-0 rounded-full border border-primary/30 bg-secondary px-2.5 py-0.5 text-xs uppercase tracking-[0.12em] text-primary">
+                                {SOURCE_LABELS[result.source]}
+                            </span>
+                            <span className="ml-auto shrink-0 text-sm text-muted-foreground">
+                                {Math.round(
+                                    Math.max(0, Math.min(1, result.score)) *
+                                        100,
+                                )}
+                                %
+                            </span>
+                        </div>
+                        {metaLine && (
+                            <div className="text-[15px] text-muted-foreground">
+                                {metaLine}
                             </div>
-                            {subtitle && (
-                                <p className="text-xs text-muted-foreground mb-2">
-                                    {subtitle}
-                                </p>
-                            )}
-                            <p className="text-foreground/90 leading-relaxed whitespace-pre-line line-clamp-5">
-                                {result.text}
-                            </p>
-                            <div className="mt-3 flex items-center gap-2">
-                                <div className="h-1.5 w-24 rounded-full bg-secondary overflow-hidden">
-                                    <div
-                                        className="h-full bg-primary"
-                                        style={{
-                                            width: `${Math.max(
-                                                0,
-                                                Math.min(100, result.score * 100)
-                                            )}%`,
-                                        }}
-                                    />
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                    {Math.round(result.score * 100)}% match
-                                </span>
-                            </div>
-                        </article>
-                    </a>
+                        )}
+                        <p className="max-w-2xl whitespace-pre-line text-base leading-[1.65] text-foreground/80 line-clamp-5">
+                            {result.text}
+                        </p>
+                    </article>
                 );
             })}
         </div>

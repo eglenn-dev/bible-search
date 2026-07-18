@@ -10,6 +10,7 @@ export default function Footer() {
             >
                 Ethan Glenn
             </a>
+            | Not affiliated with any religious organization.
         </footer>
     );
 }

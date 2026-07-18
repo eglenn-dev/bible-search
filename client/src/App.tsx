@@ -216,7 +216,7 @@ export default function App() {
                         <div className="min-w-[240px] max-w-xl flex-1">
                             {searchInput}
                         </div>
-                        <div className="flex flex-row justify-between w-full items-center">
+                        <div className="flex w-full flex-row items-center justify-between md:w-auto md:justify-start md:gap-3">
                             {modeToggle(true)}
                             <button
                                 type="button"
@@ -238,12 +238,13 @@ export default function App() {
                                     )}
                                 />
                             </button>
-                        </div>
-                        <div className="hidden md:block">
-                            <ResultsCount
-                                value={resultCount}
-                                onChange={setResultCount}
-                            />
+                            <div className="hidden md:block">
+                                <ResultsCount
+                                    value={resultCount}
+                                    onChange={setResultCount}
+                                    compact
+                                />
+                            </div>
                         </div>
                     </div>
                 </header>

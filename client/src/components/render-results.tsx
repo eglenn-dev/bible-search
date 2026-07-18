@@ -70,7 +70,7 @@ export default function RenderResults({ results }: RenderResultsProps) {
                                 href={result.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="font-display text-xl font-medium text-foreground transition-colors hover:text-primary hover:underline hover:underline-offset-[3px]"
+                                className="font-display text-2xl font-medium text-foreground transition-colors hover:text-primary hover:underline hover:underline-offset-[3px]"
                             >
                                 {headingFor(result)}
                             </a>
@@ -90,7 +90,7 @@ export default function RenderResults({ results }: RenderResultsProps) {
                                 {metaLine}
                             </div>
                         )}
-                        <p className="max-w-2xl whitespace-pre-line text-base leading-[1.65] text-foreground/80 line-clamp-5">
+                        <p className="max-w-2xl whitespace-pre-line text-lg line-clamp-5">
                             {result.text}
                         </p>
                     </article>

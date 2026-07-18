@@ -6,9 +6,16 @@ import { Check, ChevronDown } from "lucide-react";
 interface ResultsCountProps {
     value: ResultCount;
     onChange: (next: ResultCount) => void;
+    // Compact matches the header's mode-toggle pill height; default matches
+    // the larger hero controls.
+    compact?: boolean;
 }
 
-export default function ResultsCount({ value, onChange }: ResultsCountProps) {
+export default function ResultsCount({
+    value,
+    onChange,
+    compact = false,
+}: ResultsCountProps) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -38,7 +45,12 @@ export default function ResultsCount({ value, onChange }: ResultsCountProps) {
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 onClick={() => setOpen((v) => !v)}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium text-muted-foreground shadow-sm transition-colors select-none hover:text-foreground"
+                className={cn(
+                    "inline-flex select-none items-center gap-2 rounded-full border-[1.5px] border-input bg-card text-muted-foreground transition-colors hover:text-foreground",
+                    compact
+                        ? "px-3.5 py-2 text-sm"
+                        : "px-4 py-2.5 text-sm font-medium shadow-sm",
+                )}
             >
                 <span>{value} results</span>
                 <ChevronDown

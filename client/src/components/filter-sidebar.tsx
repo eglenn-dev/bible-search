@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { Source, SortKey, ResultCount } from "@/lib/types";
 import { RESULT_COUNTS } from "@/lib/types";
+import { Check } from "lucide-react";
 
 const SOURCE_OPTIONS: { key: Source; label: string }[] = [
     { key: "bible", label: "Bible" },
@@ -55,20 +56,33 @@ function FilterLink({
     return (
         <button
             type="button"
+            role="checkbox"
+            aria-checked={active}
             onClick={onClick}
             className={cn(
-                "text-left text-base transition-colors",
-                active
-                    ? "text-primary underline underline-offset-[3px]"
-                    : "text-foreground/90 hover:text-primary",
+                "group flex items-center gap-2.5 text-left text-base transition-colors",
+                active ? "text-primary" : "text-foreground/90 hover:text-primary",
             )}
         >
-            {label}
-            {count !== undefined && count > 0 && (
-                <span className="ml-2 text-sm text-muted-foreground">
-                    {count}
-                </span>
-            )}
+            <span
+                aria-hidden="true"
+                className={cn(
+                    "flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[4px] border-[1.5px] transition-colors",
+                    active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-card text-transparent group-hover:border-primary/50",
+                )}
+            >
+                <Check className="h-3 w-3" strokeWidth={3.5} />
+            </span>
+            <span>
+                {label}
+                {count !== undefined && count > 0 && (
+                    <span className="ml-2 text-sm text-muted-foreground">
+                        {count}
+                    </span>
+                )}
+            </span>
         </button>
     );
 }

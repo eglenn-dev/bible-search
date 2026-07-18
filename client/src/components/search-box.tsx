@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import type { Result, Source, ResultCount } from "@/lib/types";
 import { runSearch } from "@/lib/search";
 
@@ -11,17 +9,9 @@ interface SearchBoxProps {
     resultCount: ResultCount;
     setParams: (content: string) => void;
     setResults: (results: Result[]) => void;
-    // Compact mode renders just the search bar (no heading/examples) for the
-    // post-search, Google-style collapsed header.
+    // Compact mode renders a smaller pill for the post-search header.
     compact?: boolean;
 }
-
-const EXAMPLE_QUERIES = [
-    "God is love",
-    "enduring to the end",
-    "comfort in times of trial",
-    "ministering to others",
-];
 
 export default function SearchBox({
     parentQuery,
@@ -81,98 +71,59 @@ export default function SearchBox({
         setParams(newQuery);
     };
 
-    const exampleQuery = (q: string) => {
-        setQuery(q);
-        setParams(q);
-        inputRef.current?.focus();
-    };
+    const searchBar = (
+        <form
+            onSubmit={handleSubmit}
+            className={cn(
+                "flex w-full overflow-hidden rounded-full border-[1.5px] border-foreground/60 bg-card",
+                !compact && "shadow-[0_3px_10px_rgba(27,30,36,.08)]",
+            )}
+        >
+            <input
+                type="text"
+                name="search-query"
+                autoFocus={!compact}
+                ref={inputRef}
+                value={query}
+                onChange={setQueryHandler}
+                placeholder="seek, and ye shall find…"
+                className={cn(
+                    "min-w-0 flex-1 border-none bg-transparent text-foreground outline-none",
+                    compact ? "px-4 py-1.5 text-base" : "px-6 py-3 text-lg",
+                )}
+            />
+            <button
+                type="submit"
+                disabled={loading}
+                className={cn(
+                    "shrink-0 rounded-full bg-primary uppercase text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70",
+                    compact
+                        ? "m-[3px] px-4 text-[13px] tracking-[0.12em]"
+                        : "m-1 px-7 text-base tracking-[0.1em]",
+                )}
+            >
+                {loading ? "Searching…" : "Search"}
+            </button>
+        </form>
+    );
 
     if (compact) {
         return (
             <div>
+                {searchBar}
                 {error && (
-                    <div className="text-destructive text-sm mb-2">{error}</div>
+                    <div className="mb-2 text-sm text-destructive">{error}</div>
                 )}
-                <form
-                    className="flex items-center gap-2"
-                    onSubmit={handleSubmit}
-                >
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                            type="text"
-                            name="search-query"
-                            ref={inputRef}
-                            value={query}
-                            onChange={setQueryHandler}
-                            placeholder="Search by topic, theme, or phrase"
-                            className="h-11 pl-10 pr-3 text-base rounded-xl"
-                        />
-                    </div>
-                    <Button
-                        type="submit"
-                        className="h-11 shrink-0 rounded-xl px-6 font-semibold"
-                        disabled={loading}
-                    >
-                        {loading ? "Searching..." : "Search"}
-                    </Button>
-                </form>
             </div>
         );
     }
 
     return (
         <>
-            <div className="text-center mb-6">
-                <h2 className="font-display text-2xl font-semibold text-foreground">
-                    Natural Language Search
-                </h2>
-                <p className="text-muted-foreground">
-                    Search by topic, theme, words, or phrases
-                </p>
-            </div>
+            {searchBar}
             {error && (
-                <div className="text-destructive text-center mb-4">{error}</div>
+                <div className="mb-3 text-center text-destructive">{error}</div>
             )}
-            <form className="space-y-6" onSubmit={handleSubmit}>
-                <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground h-5 w-5" />
-                    <Input
-                        type="text"
-                        name="search-query"
-                        autoFocus
-                        ref={inputRef}
-                        value={query}
-                        onChange={setQueryHandler}
-                        placeholder="Try “charity never faileth”, “forgiveness”, or something longer"
-                        className="pl-12 pr-4 py-6 text-lg rounded-xl"
-                    />
-                </div>
-                <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full py-6 text-lg font-semibold rounded-xl"
-                    disabled={loading}
-                >
-                    {loading ? "Searching..." : "Search"}
-                </Button>
-            </form>
-            <div className="flex flex-col items-center justify-center mt-6">
-                <h3 className="text-sm mb-2 font-semibold text-muted-foreground uppercase tracking-wide">
-                    Try an example
-                </h3>
-                <div className="flex flex-wrap justify-center gap-2 text-sm">
-                    {EXAMPLE_QUERIES.map((q) => (
-                        <span
-                            key={q}
-                            className="font-medium bg-secondary text-secondary-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground select-none rounded-full px-3 py-1 transition-colors"
-                            onClick={() => exampleQuery(q)}
-                        >
-                            {q}
-                        </span>
-                    ))}
-                </div>
-            </div>
         </>
     );
 }

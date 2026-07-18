@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import { Button } from "./ui/button";
-import { BookOpen } from "lucide-react";
 
 interface LandingProps {
     setBackendRunning: (running: boolean) => void;
@@ -40,60 +38,42 @@ export default function Landing({ setBackendRunning }: LandingProps) {
     }, [setBackendRunning]);
 
     return (
-        <div className="flex flex-col min-h-screen">
-            <div className="flex-grow w-full flex items-center justify-center p-4">
-                <div className="w-full max-w-2xl space-y-8">
-                    <div className="text-center space-y-4">
-                        <div className="flex items-center justify-center gap-3 text-primary">
-                            <span className="h-px w-10 bg-border" />
-                            <BookOpen className="h-6 w-6" strokeWidth={1.5} />
-                            <span className="h-px w-10 bg-border" />
+        <div className="gs-fade flex min-h-screen flex-col">
+            <div className="flex w-full flex-grow flex-col items-center justify-center px-6 py-12">
+                <div className="w-64 border-t-2 border-foreground sm:w-72" />
+                <h1 className="mb-2 mt-5 text-center font-display text-5xl font-medium italic tracking-wide text-foreground md:text-6xl">
+                    Gospel Help
+                </h1>
+                <p className="mb-5 text-center text-sm uppercase tracking-[0.28em] text-muted-foreground">
+                    A Gospel Library concordance of 135,000+ indexed items
+                </p>
+                <div className="mb-10 w-64 border-b-2 border-foreground sm:w-72" />
+                {error ? (
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="max-w-md text-center text-destructive">
+                            {error}
                         </div>
-                        <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground tracking-tight">
-                            Gospel Library Search
-                        </h1>
-                        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-                            Search the Bible, General Conference, BYU
-                            Speeches, and the General Handbook by meaning — not
-                            just words.
-                        </p>
-                        <p className="text-muted-foreground/80 text-sm">
-                            Developed by{" "}
-                            <a
-                                href="https://ethanglenn.dev"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline font-semibold"
-                            >
-                                Ethan Glenn
-                            </a>
-                            .
-                        </p>
+                        <button
+                            type="button"
+                            onClick={() => window.location.reload()}
+                            className="rounded-full bg-primary px-6 py-2 text-sm uppercase tracking-[0.12em] text-primary-foreground transition-colors hover:bg-primary/90"
+                        >
+                            Try again
+                        </button>
                     </div>
-                    {error ? (
-                        <div className="flex flex-col items-center">
-                            <div className="text-destructive text-center mb-2">
-                                {error}
-                            </div>
-                            <Button
-                                onClick={() => window.location.reload()}
-                                className="mt-2 w-fit mx-auto"
-                            >
-                                Try Again
-                            </Button>
+                ) : (
+                    <div className="flex flex-col items-center gap-5">
+                        <div className="max-w-md text-center italic text-muted-foreground">
+                            Connecting to the search service. This may take a
+                            minute on first load.
                         </div>
-                    ) : (
-                        <div className="flex flex-col justify-center">
-                            <div className="text-muted-foreground text-sm mx-auto mb-4">
-                                Connecting to the search service. This may take
-                                a minute on first load.
-                            </div>
-                            <div className="flex items-center justify-center">
-                                <span className="inline-block w-6 h-6 border-4 border-border border-t-primary rounded-full animate-spin"></span>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                        <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
+                    </div>
+                )}
+            </div>
+            <div className="pb-8 text-center text-sm tracking-wide text-muted-foreground">
+                Scriptures &nbsp;·&nbsp; General Conference &nbsp;·&nbsp; BYU
+                Speeches &nbsp;·&nbsp; General Handbook
             </div>
         </div>
     );

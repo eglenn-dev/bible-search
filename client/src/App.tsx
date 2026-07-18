@@ -3,18 +3,17 @@ import type { Result, Source, SortKey } from "./lib/types";
 import { SOURCES, RESULT_COUNTS, DEFAULT_RESULT_COUNT } from "./lib/types";
 import { sortResults } from "./lib/result-date";
 import { runSearch } from "./lib/search";
-import { Button } from "@/components/ui/button";
 import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
-import SortControl from "./components/sort-control";
-import SourcesFilter from "./components/sources-filter";
+import FilterSidebar from "./components/filter-sidebar";
 import ResultsCount from "./components/results-count";
+import SourcesFilter from "./components/sources-filter";
 import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
 import { cn } from "./lib/utils";
-import { BookOpen } from "lucide-react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import {
     useQueryState,
     parseAsString,
@@ -29,6 +28,9 @@ export default function App() {
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
     const [scriptureRef, setScriptureRef] = useState<string>("");
+    // Mobile-only: whether the collapsed filter panel (source/sort/count) is
+    // expanded. Desktop always shows the sidebar and ignores this.
+    const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
 
     // Every shareable/refresh-safe setting lives in the URL via nuqs: each
     // hook returns a [value, setValue] pair backed directly by the query
@@ -73,7 +75,7 @@ export default function App() {
     }, [queryType]);
 
     // Wraps setResults so any completed search (even one with no hits) flips
-    // the page into the compact results layout.
+    // the page into the results layout.
     const handleResults = (next: Result[]) => {
         setResults(next);
         setHasSearched(true);
@@ -85,7 +87,34 @@ export default function App() {
         setHasSearched(false);
     };
 
+    const activeQuery = queryType === "scripture" ? scriptureRef : query;
+
+    // Toggling a source in the sidebar re-runs the current search so the
+    // result list reflects the new filter immediately.
+    const handleSidebarSources = async (next: Source[]) => {
+        setSources(next);
+        if (!activeQuery) return;
+        try {
+            handleResults(
+                await runSearch({
+                    queryType,
+                    query: activeQuery,
+                    resultCount,
+                    sources: next,
+                }),
+            );
+        } catch (e) {
+            console.error("Error re-running search:", e);
+        }
+    };
+
     const sortedResults = sortResults(results, sortBy);
+
+    // Per-source hit counts for the sidebar, from the current result set.
+    const sourceCounts: Partial<Record<Source, number>> = {};
+    for (const r of results) {
+        sourceCounts[r.source] = (sourceCounts[r.source] ?? 0) + 1;
+    }
 
     // "Load more results" bumps the results-count drop-down one step and
     // re-runs the same query. Hidden at the 50 cap and when the backend already
@@ -97,15 +126,14 @@ export default function App() {
 
     const handleLoadMore = async () => {
         if (!nextCount || loadingMore) return;
-        const text = queryType === "scripture" ? scriptureRef : query;
-        if (!text) return;
+        if (!activeQuery) return;
         setLoadingMore(true);
         try {
             setResultCount(nextCount);
             handleResults(
                 await runSearch({
                     queryType,
-                    query: text,
+                    query: activeQuery,
                     resultCount: nextCount,
                     sources,
                 }),
@@ -120,38 +148,30 @@ export default function App() {
     if (!backendRunning)
         return <Landing setBackendRunning={setBackendRunning} />;
 
-    // The mode toggle + sources filter; centered in the hero, left-aligned in
-    // the compact header.
-    const controls = (
-        <div
-            className={cn(
-                "flex flex-wrap items-center gap-3",
-                hasSearched ? "justify-start" : "justify-center",
-            )}
-        >
-            <div className="inline-flex rounded-full border border-border bg-card p-1 shadow-sm">
-                {(
-                    [
-                        ["natural", "Natural Language"],
-                        ["scripture", "Scripture Reference"],
-                    ] as const
-                ).map(([type, label]) => (
-                    <button
-                        key={type}
-                        onClick={() => setQueryType(type)}
-                        className={cn(
-                            "rounded-full px-5 py-2 text-sm font-medium transition-colors",
-                            queryType === type
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground",
-                        )}
-                    >
-                        {label}
-                    </button>
-                ))}
-            </div>
-            <SourcesFilter selected={sources} onChange={setSources} />
-            <ResultsCount value={resultCount} onChange={setResultCount} />
+    const modeToggle = (compact: boolean) => (
+        <div className="inline-flex rounded-full border-[1.5px] border-input bg-card p-1">
+            {(
+                [
+                    ["natural", "Natural language", "Natural"],
+                    ["scripture", "Scripture reference", "Reference"],
+                ] as const
+            ).map(([type, label, short]) => (
+                <button
+                    key={type}
+                    onClick={() => setQueryType(type)}
+                    className={cn(
+                        "whitespace-nowrap rounded-full transition-colors",
+                        compact
+                            ? "px-3.5 py-1 text-sm"
+                            : "px-5 py-1.5 text-[15px]",
+                        queryType === type
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground",
+                    )}
+                >
+                    {compact ? short : label}
+                </button>
+            ))}
         </div>
     );
 
@@ -177,97 +197,146 @@ export default function App() {
         );
 
     if (hasSearched) {
+        const countLabel =
+            sortedResults.length === 1
+                ? "1 result"
+                : `${sortedResults.length} results` +
+                  (queryType === "scripture" ? " — reference lookup" : "");
         return (
-            <div className="flex flex-col min-h-screen">
-                <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
-                    <div className="mx-auto w-full max-w-2xl space-y-3 px-4 py-3">
+            <div className="gs-fade flex min-h-screen flex-col">
+                <header className="sticky top-0 z-30 border-b border-border bg-background/95 shadow-[0_2px_8px_rgba(27,30,36,.06)] backdrop-blur">
+                    <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
                         <button
                             type="button"
                             onClick={goHome}
-                            className="flex items-center gap-2 text-primary transition-opacity hover:opacity-80"
+                            className="whitespace-nowrap font-display text-2xl font-medium italic text-foreground transition-colors hover:text-primary"
                         >
-                            <BookOpen className="h-5 w-5" strokeWidth={1.5} />
-                            <span className="font-display text-lg font-semibold text-foreground tracking-tight">
-                                Gospel Library Search
-                            </span>
+                            Gospel Help
                         </button>
-                        {searchInput}
-                        {controls}
+                        <div className="min-w-[240px] max-w-xl flex-1">
+                            {searchInput}
+                        </div>
+                        <div className="flex w-full flex-row items-center justify-between md:w-auto md:justify-start md:gap-3">
+                            {modeToggle(true)}
+                            <button
+                                type="button"
+                                aria-expanded={filtersOpen}
+                                onClick={() => setFiltersOpen((v) => !v)}
+                                className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-input bg-card px-3.5 py-1 text-sm text-foreground/90 md:hidden"
+                            >
+                                <SlidersHorizontal className="h-4 w-4" />
+                                Filters
+                                {sources.length > 0 && (
+                                    <span className="text-sm text-primary">
+                                        · {sources.length}
+                                    </span>
+                                )}
+                                <ChevronDown
+                                    className={cn(
+                                        "h-4 w-4 transition-transform",
+                                        filtersOpen && "rotate-180",
+                                    )}
+                                />
+                            </button>
+                            <div className="hidden md:block">
+                                <ResultsCount
+                                    value={resultCount}
+                                    onChange={setResultCount}
+                                    compact
+                                />
+                            </div>
+                        </div>
                     </div>
                 </header>
-                <main className="flex-grow w-full">
-                    <div className="mx-auto w-full max-w-2xl px-4 py-6">
+                <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col md:flex-row md:items-stretch">
+                    {filtersOpen && (
+                        <div className="gs-fade border-b border-border px-5 pb-6 pt-5 md:hidden">
+                            <FilterSidebar
+                                sources={sources}
+                                onSourcesChange={handleSidebarSources}
+                                sortBy={sortBy}
+                                onSortChange={setSortBy}
+                                counts={sourceCounts}
+                                total={results.length}
+                                resultCount={resultCount}
+                                onResultCountChange={setResultCount}
+                            />
+                        </div>
+                    )}
+                    <aside className="hidden w-full flex-none px-5 py-8 md:block md:w-60 md:py-10 md:pl-5 md:pr-8">
+                        <FilterSidebar
+                            sources={sources}
+                            onSourcesChange={handleSidebarSources}
+                            sortBy={sortBy}
+                            onSortChange={setSortBy}
+                            counts={sourceCounts}
+                            total={results.length}
+                        />
+                    </aside>
+                    <main className="flex max-w-3xl flex-1 flex-col gap-8 border-border px-5 pb-24 pt-8 md:border-l md:px-12 md:pt-10">
+                        <div className="text-[15px] italic text-muted-foreground">
+                            {countLabel}
+                        </div>
                         {results.length === 0 ? (
-                            <p className="text-center text-muted-foreground text-sm">
-                                Enter a query above to search across the
-                                collections.
+                            <p className="text-lg text-foreground/80">
+                                No results
+                                {activeQuery
+                                    ? ` for “${activeQuery}”`
+                                    : ""}.{" "}
+                                <span className="italic text-muted-foreground">
+                                    Try fewer or different words, or switch
+                                    search mode.
+                                </span>
                             </p>
                         ) : (
                             <>
-                                <SortControl
-                                    sortBy={sortBy}
-                                    onChange={setSortBy}
-                                    count={results.length}
-                                />
                                 <RenderResults results={sortedResults} />
                                 {canLoadMore && (
-                                    <div className="flex justify-center pt-6">
-                                        <Button
-                                            variant="outline"
-                                            onClick={handleLoadMore}
-                                            disabled={loadingMore}
-                                            className="rounded-xl px-6 font-semibold"
-                                        >
-                                            {loadingMore
-                                                ? "Loading…"
-                                                : "Load more results"}
-                                        </Button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleLoadMore}
+                                        disabled={loadingMore}
+                                        className="mt-2 self-center text-base text-primary underline underline-offset-[3px] transition-colors hover:text-primary/80 disabled:opacity-60"
+                                    >
+                                        {loadingMore
+                                            ? "Loading…"
+                                            : "Load more results"}
+                                    </button>
                                 )}
                             </>
                         )}
-                    </div>
-                </main>
+                    </main>
+                </div>
                 <Footer />
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col min-h-screen">
-            <main className="flex-grow w-full flex items-center justify-center p-4 py-12">
-                <div className="w-full max-w-2xl space-y-8">
-                    <header className="text-center space-y-4">
-                        <div className="flex items-center justify-center gap-3 text-primary">
-                            <span className="h-px w-10 bg-border" />
-                            <BookOpen className="h-6 w-6" strokeWidth={1.5} />
-                            <span className="h-px w-10 bg-border" />
-                        </div>
-                        <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground tracking-tight">
-                            Gospel Library Search
-                        </h1>
-                        <p className="text-muted-foreground/80 text-sm">
-                            Developed by{" "}
-                            <a
-                                href="https://ethanglenn.dev"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline font-semibold"
-                            >
-                                Ethan Glenn
-                            </a>
-                            .
-                        </p>
-                        <div className="flex justify-center pt-1">
-                            <McpDialog />
-                        </div>
-                    </header>
+        <div className="flex min-h-screen flex-col">
+            <main className="gs-fade flex w-full flex-grow flex-col items-center justify-center px-6 py-12">
+                <div className="w-64 border-t-2 border-foreground sm:w-72" />
+                <h1 className="mb-4 mt-5 text-center font-display text-4xl sm:text-5xl font-medium italic tracking-wide text-foreground md:text-6xl">
+                    Gospel Help
+                </h1>
+                <p className="mb-5 text-center text-sm sm:text-base uppercase tracking-[0.28em] text-muted-foreground">
+                    A Gospel Library concordance of 135,000+ indexed items
+                </p>
+                <div className="mb-10 w-64 border-b-2 border-foreground sm:w-72" />
 
-                    {controls}
+                <div className="w-full max-w-xl">{searchInput}</div>
 
-                    <div className="bg-card rounded-2xl shadow-lg border border-border p-6 md:p-8">
-                        {searchInput}
-                    </div>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                    {modeToggle(false)}
+                    <SourcesFilter selected={sources} onChange={setSources} />
+                    <ResultsCount
+                        value={resultCount}
+                        onChange={setResultCount}
+                    />
+                </div>
+
+                <div className="mt-8 flex justify-center">
+                    <McpDialog />
                 </div>
             </main>
             <Footer />

@@ -49,6 +49,15 @@
     --chart-4: #9aa1ad;
     --chart-5: #b9c6f2;
 
+    /* stats-page categorical series (CVD-validated order — keep fixed) */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --chart-grid: #eceef1;
+
     --sidebar: #f7f7f6;
     --sidebar-foreground: #1b1e24;
     --sidebar-primary: #2c46b8;
@@ -127,6 +136,15 @@
     --sidebar-accent-foreground: #dbe4ff;
     --sidebar-border: rgba(255, 255, 255, 0.12);
     --sidebar-ring: #7b93e8;
+
+    /* stats-page series, re-stepped for the dark surface */
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #229622;
+    --chart-grid: #242832;
 }
 
 @keyframes gsFade {

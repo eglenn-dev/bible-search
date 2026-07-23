@@ -26,6 +26,7 @@ MONGODB_DB = os.getenv("MONGODB_DB", "gospel_library")
 MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "documents")
 VECTOR_INDEX_NAME = os.getenv("VECTOR_INDEX_NAME", "vector_index")
 MONGODB_QUERY_LOG_COLLECTION = os.getenv("MONGODB_QUERY_LOG_COLLECTION", "query_logs")
+MONGODB_STATS_COLLECTION = os.getenv("MONGODB_STATS_COLLECTION", "stats")
 LOG_QUERIES = os.getenv("LOG_QUERIES", "1").strip().lower() not in {
     "0",
     "false",
@@ -251,6 +252,22 @@ def embedding_to_list(embedding: Any) -> list[float]:
 
 def get_query_log_collection() -> Collection:
     return get_client()[MONGODB_DB][MONGODB_QUERY_LOG_COLLECTION]
+
+
+def get_stats_collection() -> Collection:
+    return get_client()[MONGODB_DB][MONGODB_STATS_COLLECTION]
+
+
+def get_site_stats() -> Optional[dict[str, Any]]:
+    """Return the precomputed stats-page payload, or None if never generated.
+
+    Written offline by ``python -m ingest.stats`` as a single document
+    ``{_id: "site_stats", generated_at, data}``; served verbatim by ``GET /stats``.
+    """
+    doc = get_stats_collection().find_one({"_id": "site_stats"})
+    if doc:
+        doc.pop("_id", None)
+    return doc
 
 
 def log_query(

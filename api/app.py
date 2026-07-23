@@ -87,6 +87,20 @@ class VerseResponse(BaseModel):
     url: str
 
 
+class StatsResponse(BaseModel):
+    generated_at: str = Field(
+        ..., description="UTC ISO-8601 timestamp of when the stats were computed."
+    )
+    data: dict[str, Any] = Field(
+        ...,
+        description=(
+            "Precomputed corpus analytics (speaker stats, word trends, citation "
+            "counts, embedding clusters, …) rendered by the frontend /stats page. "
+            "Regenerated offline via `python -m ingest.stats`."
+        ),
+    )
+
+
 class HealthResponse(BaseModel):
     message: str = Field(..., examples=["Online!"])
 
@@ -114,6 +128,7 @@ Search. Every result links back to the passage on churchofjesuschrist.org.
 
 tags_metadata = [
     {"name": "Search", "description": "Semantic vector search across the corpora."},
+    {"name": "Stats", "description": "Precomputed corpus analytics for the stats page."},
     {"name": "Health", "description": "Service and database status."},
 ]
 
@@ -312,6 +327,29 @@ def get_verse(
     doc = db.find_verse(reference.strip())
     if not doc:
         raise HTTPException(status_code=404, detail=f"Unknown reference: {reference}")
+    return doc
+
+
+@api.get(
+    "/stats",
+    response_model=StatsResponse,
+    tags=["Stats"],
+    operation_id="get_stats",
+    summary="Precomputed corpus statistics",
+    responses={404: {"model": ErrorResponse, "description": "Stats not generated yet."}},
+)
+def get_stats():
+    """Return the precomputed stats-page payload.
+
+    A single small document (~100 KB) written offline by ``python -m
+    ingest.stats`` — nothing is computed per-request.
+    """
+    doc = db.get_site_stats()
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail="Stats have not been generated yet. Run: python -m ingest.stats",
+        )
     return doc
 
 

@@ -163,6 +163,10 @@ WORD_TREND_TERMS = {
     "war": r"\bwars?\b", "freedom": r"\bfreedom\b", "self-reliance": r"self.relian",
     "depression/anxiety": r"depression|anxiety", "abuse": r"\babuse", "tithing": r"tith",
     "jesus christ": r"jesus christ", "holy ghost": r"holy ghost|holy spirit",
+    # Plural "elders" only: the singular is overwhelmingly the honorific
+    # ("Elder Bednar taught…"), which would measure citation habits, not topic.
+    "elders": r"\belders\b", "men": r"\bmen\b",
+    "relief society": r"relief society", "women": r"\bwomen\b",
 }
 
 

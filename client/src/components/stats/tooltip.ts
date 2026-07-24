@@ -11,7 +11,7 @@ function ensureTip(): HTMLDivElement {
     if (!tipEl) {
         tipEl = document.createElement("div");
         tipEl.className =
-            "pointer-events-none fixed z-50 max-w-xs rounded-md bg-foreground px-2.5 py-1.5 text-[13px] leading-snug text-background opacity-0 transition-opacity duration-75";
+            "pointer-events-none fixed z-50 max-w-xs rounded-md bg-foreground px-3 py-2 text-[15px] leading-snug text-background opacity-0 transition-opacity duration-75";
         document.body.appendChild(tipEl);
     }
     return tipEl;

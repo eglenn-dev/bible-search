@@ -23,11 +23,11 @@ export function BarList({ rows }: { rows: BarRow[] }) {
             {rows.map((r, i) => (
                 <div
                     key={i}
-                    className="my-1.5 grid grid-cols-[minmax(110px,38%)_1fr] items-center gap-2.5"
+                    className="my-2 grid grid-cols-[minmax(120px,50%)_1fr] items-center gap-2.5 sm:grid-cols-[minmax(125px,42%)_1fr]"
                     onMouseMove={r.tip ? (ev) => showTip(ev, r.tip!) : undefined}
                     onMouseLeave={r.tip ? hideTip : undefined}
                 >
-                    <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[14.5px]">
+                    <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[17px] leading-snug">
                         {r.label}
                     </div>
                     <div className="flex min-w-0 items-center gap-2">
@@ -40,7 +40,7 @@ export function BarList({ rows }: { rows: BarRow[] }) {
                                 }}
                             />
                         </div>
-                        <span className="flex-none whitespace-nowrap text-[13px] tabular-nums text-muted-foreground">
+                        <span className="flex-none whitespace-nowrap text-[15px] tabular-nums text-muted-foreground">
                             {r.valText ?? fmt.format(r.value)}
                         </span>
                     </div>
@@ -78,7 +78,7 @@ export function LineChart({
 
     const w = 480;
     const h = height;
-    const P = { l: 42, r: 10, t: 10, b: 22 };
+    const P = { l: 50, r: 10, t: 10, b: 26 };
     const xs = series[0].map((p) => p[0]);
     const allY = series.flat().map((p) => p[1]);
     const yMin = yMinProp ?? Math.min(...allY) * 0.97;
@@ -133,10 +133,10 @@ export function LineChart({
                         stroke="var(--chart-grid)"
                     />
                     <text
-                        x={P.l - 6}
-                        y={Y(v) + 4}
+                        x={P.l - 8}
+                        y={Y(v) + 5}
                         textAnchor="end"
-                        className="fill-muted-foreground text-[12px]"
+                        className="fill-muted-foreground text-[14px]"
                     >
                         {yFmt(v)}
                     </text>
@@ -147,9 +147,9 @@ export function LineChart({
                     <text
                         key={x}
                         x={X(x)}
-                        y={h - 6}
+                        y={h - 7}
                         textAnchor="middle"
-                        className="fill-muted-foreground text-[12px]"
+                        className="fill-muted-foreground text-[14px]"
                     >
                         {x}
                     </text>
@@ -218,9 +218,9 @@ export function SparkPanel({
         .join("");
     const peak = points.reduce((a, b) => (b[1] > a[1] ? b : a));
     return (
-        <div className="rounded-lg border border-border bg-card px-2.5 pb-1 pt-2">
-            <div className="text-[14.5px] font-semibold">{term}</div>
-            <div className="text-[12.5px] text-muted-foreground">
+        <div className="rounded-lg border border-border bg-card px-3 pb-1.5 pt-2.5">
+            <div className="font-display text-[19px] font-medium leading-snug">{term}</div>
+            <div className="text-[14px] text-muted-foreground">
                 peak {peak[0]} · {peak[1]}/M
             </div>
             <svg
@@ -279,8 +279,8 @@ export function SpanChart({
     domain: [number, number];
 }) {
     const w = 480;
-    const rh = 26;
-    const P = { l: 150, r: 48, t: 18, b: 6 };
+    const rh = 29;
+    const P = { l: 162, r: 54, t: 20, b: 6 };
     const h = P.t + P.b + rows.length * rh;
     const X = (y: number) =>
         P.l + ((y - domain[0]) / (domain[1] - domain[0])) * (w - P.l - P.r);
@@ -300,7 +300,7 @@ export function SpanChart({
                         x={X(y)}
                         y={P.t - 8}
                         textAnchor="middle"
-                        className="fill-muted-foreground text-[12px]"
+                        className="fill-muted-foreground text-[14px]"
                     >
                         {y}
                     </text>
@@ -321,10 +321,10 @@ export function SpanChart({
                     >
                         <rect x={0} y={P.t + i * rh} width={w} height={rh} fill="transparent" />
                         <text
-                            x={P.l - 8}
-                            y={y + 4}
+                            x={P.l - 10}
+                            y={y + 5}
                             textAnchor="end"
-                            className="fill-foreground text-[13px]"
+                            className="fill-foreground text-[16px]"
                         >
                             {r.speaker}
                         </text>
@@ -339,9 +339,9 @@ export function SpanChart({
                             opacity={0.85}
                         />
                         <text
-                            x={X(r.last) + 8}
-                            y={y + 4}
-                            className="fill-muted-foreground text-[12.5px] tabular-nums"
+                            x={X(r.last) + 9}
+                            y={y + 5}
+                            className="fill-muted-foreground text-[14px] tabular-nums"
                         >
                             {r.span} yrs
                         </text>
@@ -352,102 +352,15 @@ export function SpanChart({
     );
 }
 
-// --- 100%-stacked decade bars (callings) ----------------------------------
-
-export interface StackGroup {
-    name: string;
-    color: string;
-}
-
-export function DecadeStack({
-    decades,
-    groups,
-}: {
-    /** decade label → group name → count (already aggregated). */
-    decades: [string, Record<string, number>][];
-    groups: StackGroup[];
-}) {
-    const w = 480;
-    const h = 230;
-    const P = { l: 40, r: 8, t: 8, b: 40 };
-    const bw = (w - P.l - P.r) / decades.length;
-    return (
-        <div>
-            <div className="mb-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[13.5px] text-muted-foreground">
-                {groups.map((g) => (
-                    <span key={g.name}>
-                        <span
-                            className="mr-1.5 inline-block h-[11px] w-[11px] rounded-[3px] align-[-1px]"
-                            style={{ background: g.color }}
-                        />
-                        {g.name}
-                    </span>
-                ))}
-            </div>
-            <svg viewBox={`0 0 ${w} ${h}`} className="block h-auto w-full">
-                {[0, 50, 100].map((p) => (
-                    <text
-                        key={p}
-                        x={P.l - 6}
-                        y={h - P.b - (p / 100) * (h - P.t - P.b) + 4}
-                        textAnchor="end"
-                        className="fill-muted-foreground text-[12px]"
-                    >
-                        {p}%
-                    </text>
-                ))}
-                {decades.map(([dec, counts], i) => {
-                    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-                    let y = h - P.b;
-                    return (
-                        <g key={dec}>
-                            {groups.map((g) => {
-                                const v = counts[g.name] ?? 0;
-                                if (!v) return null;
-                                const bh = (v / total) * (h - P.t - P.b);
-                                y -= bh;
-                                return (
-                                    <rect
-                                        key={g.name}
-                                        x={P.l + i * bw + 4}
-                                        y={y}
-                                        width={bw - 8}
-                                        height={Math.max(bh - 2, 1)}
-                                        rx={2}
-                                        fill={g.color}
-                                        onMouseMove={(ev) =>
-                                            showTip(
-                                                ev,
-                                                `${dec}s — ${g.name}: ${v} talks (${((v / total) * 100).toFixed(0)}%)`,
-                                            )
-                                        }
-                                        onMouseLeave={hideTip}
-                                    />
-                                );
-                            })}
-                            <text
-                                x={P.l + i * bw + bw / 2}
-                                y={h - P.b + 16}
-                                textAnchor="middle"
-                                className="fill-muted-foreground text-[12px]"
-                            >
-                                {dec}s
-                            </text>
-                        </g>
-                    );
-                })}
-            </svg>
-        </div>
-    );
-}
-
 // --- Misc -----------------------------------------------------------------
 
 export function Tile({ value, label }: { value: string; label: string }) {
     return (
         <div className="rounded-lg border border-border bg-card px-4 py-3.5">
-            <div className="text-3xl font-semibold leading-tight tabular-nums">{value}</div>
-            <div className="mt-1 text-[13.5px] text-muted-foreground">{label}</div>
+            <div className="font-display text-[34px] font-medium leading-tight tabular-nums">
+                {value}
+            </div>
+            <div className="mt-1 text-[15px] text-muted-foreground">{label}</div>
         </div>
     );
 }
@@ -464,9 +377,9 @@ export function StatCard({
     className?: string;
 }) {
     return (
-        <div className={`rounded-xl border border-border bg-card px-5 pb-4 pt-4 ${className}`}>
-            <h3 className="font-display text-[19px] font-semibold">{title}</h3>
-            {sub && <p className="mb-3.5 mt-0.5 text-[14.5px] text-muted-foreground">{sub}</p>}
+        <div className={`rounded-xl border border-border bg-card px-5 pb-5 pt-4 ${className}`}>
+            <h3 className="font-display text-2xl font-medium leading-snug">{title}</h3>
+            {sub && <p className="mb-4 mt-1 text-[15px] text-muted-foreground">{sub}</p>}
             {children}
         </div>
     );

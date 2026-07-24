@@ -7,13 +7,11 @@ import { Link } from "react-router-dom";
 import Footer from "../components/footer";
 import {
     BarList,
-    DecadeStack,
     LineChart,
     SpanChart,
     SparkPanel,
     StatCard,
     Tile,
-    type StackGroup,
 } from "../components/stats/charts";
 import { hideTip, showTip, useTipCleanup } from "../components/stats/tooltip";
 import {
@@ -29,38 +27,22 @@ import {
 
 const SECTIONS: [string, string][] = [
     ["speakers", "§1 Speakers"],
-    ["voices", "§2 Voices"],
-    ["language", "§3 Language"],
-    ["citations", "§4 Citations"],
-    ["trivia", "§5 Trivia"],
-    ["semantic", "§6 Embeddings"],
+    ["language", "§2 Language"],
+    ["citations", "§3 Citations"],
+    ["trivia", "§4 Trivia"],
+    ["semantic", "§5 Embeddings"],
 ];
-
-const CALLING_GROUPS: StackGroup[] = [
-    { name: "First Presidency", color: "var(--series-1)" },
-    { name: "Quorum of the Twelve", color: "var(--series-2)" },
-    { name: "Seventy", color: "var(--series-3)" },
-    { name: "Women’s organizations", color: "var(--series-5)" },
-    { name: "Presiding Bishopric", color: "var(--series-4)" },
-    { name: "Other", color: "var(--muted-foreground)" },
-];
-
-const CALLING_REMAP: Record<string, string> = {
-    "Relief Society": "Women’s organizations",
-    "Young Women": "Women’s organizations",
-    Primary: "Women’s organizations",
-    "Sunday School": "Other",
-    "Young Men": "Other",
-};
 
 function SectionHead({ no, title, note }: { no: string; title: string; note: string }) {
     return (
         <>
             <div className="mb-1.5 flex items-baseline gap-3.5 border-b-2 border-foreground pb-2">
-                <span className="text-sm tracking-widest text-muted-foreground">{no}</span>
-                <h2 className="font-display text-[28px] font-medium">{title}</h2>
+                <span className="text-[15px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {no}
+                </span>
+                <h2 className="font-display text-[34px] font-medium">{title}</h2>
             </div>
-            <p className="mb-5 mt-2 max-w-[72ch] text-muted-foreground">{note}</p>
+            <p className="mb-6 mt-2.5 max-w-[68ch] text-lg text-muted-foreground">{note}</p>
         </>
     );
 }
@@ -75,11 +57,11 @@ function TalkCard({ talk, accent }: { talk: TalkRef; accent?: string }) {
                 href={talk.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-semibold text-primary hover:underline"
+                className="font-display text-xl font-medium text-primary hover:underline hover:underline-offset-[3px]"
             >
                 {talk.title}
             </a>
-            <div className="text-[14px] italic text-muted-foreground">
+            <div className="text-[15px] italic text-muted-foreground">
                 {talk.speaker}, {talk.year}
                 {talk.words != null && <> — {fmt.format(talk.words)} words</>}
                 {talk.sim != null && <> · similarity {talk.sim}</>}
@@ -95,19 +77,19 @@ function PairRow({ pair }: { pair: TwinPair }) {
                 href={t.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[15px] text-primary hover:underline"
+                className="text-[17px] leading-snug text-primary hover:underline hover:underline-offset-[3px]"
             >
                 {t.title}
             </a>
-            <div className="text-[13.5px] text-muted-foreground">
+            <div className="text-[15px] text-muted-foreground">
                 {t.speaker}, {t.year}
             </div>
         </div>
     );
     return (
-        <div className="grid grid-cols-1 items-center gap-2.5 border-b border-border/60 py-2.5 last:border-b-0 sm:grid-cols-[1fr_auto_1fr]">
+        <div className="grid grid-cols-1 items-center gap-2.5 border-b border-border/60 py-3 last:border-b-0 sm:grid-cols-[1fr_auto_1fr]">
             {side(pair.a)}
-            <div className="text-[15px] font-semibold tabular-nums text-primary sm:text-center">
+            <div className="text-[17px] font-semibold tabular-nums text-primary sm:text-center">
                 {(pair.sim * 100).toFixed(1)}%
             </div>
             {side(pair.b)}
@@ -160,21 +142,6 @@ export default function StatsPage() {
         m.sources.doctrine_and_covenants +
         m.sources.pearl_of_great_price;
 
-    const decades = Object.entries(d.callings_by_decade).map(
-        ([dec, counts]): [string, Record<string, number>] => {
-            const agg: Record<string, number> = {};
-            for (const [k, v] of Object.entries(counts)) {
-                const g = CALLING_REMAP[k] ?? k;
-                agg[g] = (agg[g] ?? 0) + v;
-            }
-            return [dec, agg];
-        },
-    );
-
-    const crossoverMax = Math.max(
-        ...d.crossover.slice(0, 10).map((r) => Math.max(r.conference_talks, r.byu_speeches)),
-    );
-
     // Cluster mini-bars share one scale: the largest decade-share of any cluster.
     const maxClusterShare = Math.max(
         ...d.clusters.flatMap((c) =>
@@ -205,7 +172,7 @@ export default function StatsPage() {
 
             <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-24">
                 <section className="pt-12">
-                    <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-primary">
+                    <div className="text-sm uppercase tracking-[0.28em] text-muted-foreground">
                         Gospel Library Search
                     </div>
                     <h1 className="mb-3 mt-2 font-display text-4xl font-medium sm:text-5xl">
@@ -216,7 +183,7 @@ export default function StatsPage() {
                         search index — four volumes of scripture, {m.conference_years[1] - m.conference_years[0]}{" "}
                         years of General Conference, and five decades of BYU Speeches.
                     </p>
-                    <p className="mt-2 text-[14.5px] italic text-muted-foreground">
+                    <p className="mt-2 text-[15px] italic text-muted-foreground">
                         Data last updated {updated}.
                     </p>
                     <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -237,12 +204,12 @@ export default function StatsPage() {
                             label="years of conference"
                         />
                     </div>
-                    <nav className="mt-6 flex flex-wrap gap-x-4 gap-y-2 border-t border-border pt-4">
+                    <nav className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-4">
                         {SECTIONS.map(([id, label]) => (
                             <a
                                 key={id}
                                 href={`#${id}`}
-                                className="text-[15px] text-primary hover:underline"
+                                className="text-lg text-primary underline-offset-[3px] hover:underline"
                             >
                                 {label}
                             </a>
@@ -302,13 +269,13 @@ export default function StatsPage() {
                             />
                         </StatCard>
                         <StatCard title="Extremes" sub="The longest and shortest sermons in the corpus.">
-                            <div className="text-[12.5px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                            <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                 Longest
                             </div>
                             {d.longest_talks.slice(0, 3).map((t) => (
                                 <TalkCard key={t.url} talk={t} />
                             ))}
-                            <div className="mt-3 text-[12.5px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                            <div className="mt-3 text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                 Shortest
                             </div>
                             {d.shortest_talks.slice(0, 3).map((t) => (
@@ -318,93 +285,14 @@ export default function StatsPage() {
                     </div>
                 </section>
 
-                {/* §2 Voices */}
-                <section id="voices" className="mt-16 scroll-mt-6">
-                    <SectionHead
-                        no="§ 2"
-                        title="Whose Voice Is Heard"
-                        note="How the mix of callings at the pulpit has shifted across six decades."
-                    />
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <StatCard title="Talks by calling, per decade" sub="Share of all conference talks (procedural included — they are part of the pulpit record).">
-                            <DecadeStack decades={decades} groups={CALLING_GROUPS} />
-                        </StatCard>
-                        <StatCard title="Women’s organization leaders at the pulpit" sub="Talks per year by Relief Society, Young Women, and Primary general leaders.">
-                            <LineChart
-                                series={[
-                                    Object.entries(d.women_org_talks_by_year).map(
-                                        ([y, v]): [number, number] => [Number(y), v[0]],
-                                    ),
-                                ]}
-                                colors={["var(--series-5)"]}
-                                yMin={0}
-                                tipFmt={(v) => `${Math.round(v)} talks`}
-                            />
-                        </StatCard>
-                        <StatCard
-                            title="Both pulpits"
-                            sub={`${d.crossover_total} people appear in both corpora. Top by combined output:`}
-                        >
-                            <div className="mb-2.5 flex flex-wrap gap-x-4 text-[13.5px] text-muted-foreground">
-                                <span>
-                                    <span className="mr-1.5 inline-block h-[11px] w-[11px] rounded-[3px] align-[-1px]" style={{ background: "var(--series-1)" }} />
-                                    Conference talks
-                                </span>
-                                <span>
-                                    <span className="mr-1.5 inline-block h-[11px] w-[11px] rounded-[3px] align-[-1px]" style={{ background: "var(--series-2)" }} />
-                                    BYU speeches
-                                </span>
-                            </div>
-                            {d.crossover.slice(0, 10).map((r) => (
-                                <div
-                                    key={r.speaker}
-                                    className="my-2 grid grid-cols-[minmax(110px,36%)_1fr] items-center gap-2.5"
-                                >
-                                    <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[14.5px]">
-                                        {r.speaker}
-                                    </div>
-                                    <div>
-                                        {(
-                                            [
-                                                [r.conference_talks, "var(--series-1)"],
-                                                [r.byu_speeches, "var(--series-2)"],
-                                            ] as const
-                                        ).map(([v, color], i) => (
-                                            <div key={i} className="mt-0.5 flex items-center gap-2 first:mt-0">
-                                                <div
-                                                    className="h-2 rounded-r-[3px]"
-                                                    style={{ width: `${(v / crossoverMax) * 100}%`, background: color }}
-                                                />
-                                                <span className="text-[12px] tabular-nums text-muted-foreground">
-                                                    {v}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </StatCard>
-                        <StatCard title="BYU’s most frequent voices" sub="Devotional & forum addresses per speaker.">
-                            <BarList
-                                rows={d.byu_prolific.slice(0, 10).map((r) => ({
-                                    label: r.speaker,
-                                    value: r.speeches,
-                                    color: "var(--series-2)",
-                                    tip: `<b>${r.speaker}</b><br>${r.speeches} BYU speeches`,
-                                }))}
-                            />
-                        </StatCard>
-                    </div>
-                </section>
-
-                {/* §3 Language */}
+                {/* §2 Language */}
                 <section id="language" className="mt-16 scroll-mt-6">
                     <SectionHead
-                        no="§ 3"
+                        no="§ 2"
                         title="The Language of Conference"
                         note={`A Google-Ngrams view of the pulpit: every panel is one term’s frequency per million words of conference talk, ${m.conference_years[0]}–${m.conference_years[1]}. Hover any panel for exact values.`}
                     />
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(215px,1fr))] gap-3">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(235px,1fr))] gap-3">
                         {Object.entries(d.word_trends).map(([term, byYear]) => (
                             <SparkPanel key={term} term={term} points={toSeries(byYear)} />
                         ))}
@@ -443,12 +331,14 @@ export default function StatsPage() {
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {Object.entries(d.fingerprints).slice(0, 12).map(([speaker, words]) => (
                                 <div key={speaker}>
-                                    <div className="mb-1 font-semibold">{speaker}</div>
+                                    <div className="mb-1.5 font-display text-xl font-medium">
+                                        {speaker}
+                                    </div>
                                     <div>
                                         {words.slice(0, 6).map((w) => (
                                             <span
                                                 key={w.word}
-                                                className="mb-1 mr-1 inline-block whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 text-[14px]"
+                                                className="mb-1.5 mr-1 inline-block whitespace-nowrap rounded-full bg-accent px-3 py-0.5 text-[16px]"
                                             >
                                                 {w.word}{" "}
                                                 <small className="text-muted-foreground">
@@ -463,14 +353,14 @@ export default function StatsPage() {
                     </StatCard>
                 </section>
 
-                {/* §4 Citations */}
+                {/* §3 Citations */}
                 <section id="citations" className="mt-16 scroll-mt-6">
                     <SectionHead
-                        no="§ 4"
+                        no="§ 3"
                         title="What the Pulpit Quotes"
                         note="Every explicit scripture citation (“Alma 32:21”, “1 Ne. 3:7”, “Matt. 5:48”) found in the body text of conference talks, colored by volume. Modern talks keep citations in footnotes, so counts lean toward earlier decades."
                     />
-                    <div className="mb-3.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[13.5px] text-muted-foreground">
+                    <div className="mb-3.5 flex flex-wrap gap-x-5 gap-y-1.5 text-[15px] text-muted-foreground">
                         {Object.entries(VOLUME_COLOR).map(([name, color]) => (
                             <span key={name}>
                                 <span
@@ -503,13 +393,13 @@ export default function StatsPage() {
                             />
                         </StatCard>
                         <StatCard title="Signature verse of each decade" sub="Top-cited verses by decade of conference.">
-                            <table className="w-full border-collapse text-[15px]">
+                            <table className="w-full border-collapse text-[17px]">
                                 <thead>
                                     <tr>
                                         {["Decade", "Top verses"].map((h) => (
                                             <th
                                                 key={h}
-                                                className="border-b border-border pb-1.5 pr-2.5 text-left text-[12.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+                                                className="border-b border-border pb-2 pr-2.5 text-left text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
                                             >
                                                 {h}
                                             </th>
@@ -519,10 +409,10 @@ export default function StatsPage() {
                                 <tbody>
                                     {Object.entries(d.top_verse_by_decade).map(([dec, list]) => (
                                         <tr key={dec}>
-                                            <td className="border-b border-border/50 py-1.5 pr-2.5 font-semibold">
+                                            <td className="border-b border-border/50 py-2 pr-2.5 font-semibold tabular-nums">
                                                 {dec}s
                                             </td>
-                                            <td className="border-b border-border/50 py-1.5">
+                                            <td className="border-b border-border/50 py-2">
                                                 {list.slice(0, 3).map((v, i) => (
                                                     <span key={v.ref}>
                                                         {i > 0 && " · "}
@@ -537,13 +427,13 @@ export default function StatsPage() {
                             </table>
                         </StatCard>
                         <StatCard title="The uncited" sub={`Books never (or barely) cited from the pulpit since ${m.conference_years[0]}.`}>
-                            <div className="mb-3 rounded-lg bg-accent px-4 py-3 text-[15px]">
+                            <div className="mb-3 rounded-lg bg-accent px-4 py-3 text-[17px] leading-relaxed">
                                 <b>Never cited:</b> {d.never_cited_books.join(", ") || "—"}
                             </div>
                             {d.least_cited_books.slice(0, 10).map((b) => (
                                 <div
                                     key={b.book}
-                                    className="flex items-baseline justify-between border-b border-border/50 py-1 text-[15px] last:border-b-0"
+                                    className="flex items-baseline justify-between border-b border-border/50 py-1.5 text-[17px] last:border-b-0"
                                 >
                                     <span>
                                         {b.book}{" "}
@@ -556,20 +446,24 @@ export default function StatsPage() {
                     </div>
                 </section>
 
-                {/* §5 Trivia */}
+                {/* §4 Trivia */}
                 <section id="trivia" className="mt-16 scroll-mt-6">
                     <SectionHead
-                        no="§ 5"
+                        no="§ 4"
                         title="Scripture Trivia"
                         note={`Classic concordance facts, computed across all ${fmt.format(verses)} verses of the standard works.`}
                     />
                     <div className="grid gap-4 md:grid-cols-2">
                         <StatCard title="Shortest verses">
                             {d.shortest_verses.slice(0, 5).map((v) => (
-                                <div key={v.ref} className="my-2.5 border-l-[3px] border-primary py-1 pl-3.5">
-                                    <span className="font-semibold">{v.ref}</span>{" "}
-                                    <span className="text-muted-foreground">· {v.words} words</span>
-                                    <div className="italic text-muted-foreground">“{v.text}”</div>
+                                <div key={v.ref} className="my-3 border-l-[3px] border-primary py-1 pl-3.5">
+                                    <span className="font-display text-xl font-medium">{v.ref}</span>{" "}
+                                    <span className="text-[15px] text-muted-foreground">
+                                        · {v.words} words
+                                    </span>
+                                    <div className="text-lg italic text-muted-foreground">
+                                        “{v.text}”
+                                    </div>
                                 </div>
                             ))}
                         </StatCard>
@@ -577,12 +471,16 @@ export default function StatsPage() {
                             {d.longest_verses.slice(0, 5).map((v) => (
                                 <div
                                     key={v.ref}
-                                    className="my-2.5 border-l-[3px] py-1 pl-3.5"
+                                    className="my-3 border-l-[3px] py-1 pl-3.5"
                                     style={{ borderColor: "var(--series-2)" }}
                                 >
-                                    <span className="font-semibold">{v.ref}</span>{" "}
-                                    <span className="text-muted-foreground">· {v.words} words</span>
-                                    <div className="italic text-muted-foreground">“{v.text}”</div>
+                                    <span className="font-display text-xl font-medium">{v.ref}</span>{" "}
+                                    <span className="text-[15px] text-muted-foreground">
+                                        · {v.words} words
+                                    </span>
+                                    <div className="text-lg italic text-muted-foreground">
+                                        “{v.text}”
+                                    </div>
                                 </div>
                             ))}
                         </StatCard>
@@ -594,7 +492,7 @@ export default function StatsPage() {
                                     color: VOLUME_COLOR[vol] ?? "var(--primary)",
                                 }))}
                             />
-                            <div className="mb-1 mt-3 text-[12.5px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                            <div className="mb-1 mt-3 text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                 Within the Book of Mormon
                             </div>
                             <BarList
@@ -619,10 +517,10 @@ export default function StatsPage() {
                     </div>
                 </section>
 
-                {/* §6 Embeddings */}
+                {/* §5 Embeddings */}
                 <section id="semantic" className="mt-16 scroll-mt-6">
                     <SectionHead
-                        no="§ 6"
+                        no="§ 5"
                         title="What the Embeddings See"
                         note="These stats come from the same 384-dimensional vectors that power search — no keyword matching involved. Each talk is averaged into a single point; distance means semantic difference."
                     />
@@ -655,18 +553,18 @@ export default function StatsPage() {
                     >
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {d.clusters.map((c) => (
-                                <div key={c.top_words.join()} className="rounded-lg border border-border px-3.5 py-3">
-                                    <div className="font-semibold">
+                                <div key={c.top_words.join()} className="rounded-lg border border-border px-4 py-3.5">
+                                    <div className="font-display text-xl font-medium leading-snug">
                                         {c.top_words.slice(0, 3).join(" · ")}
                                     </div>
-                                    <div className="mb-2 mt-0.5 text-[13.5px] text-muted-foreground">
+                                    <div className="mb-2.5 mt-1 text-[15px] text-muted-foreground">
                                         {fmt.format(c.size)} talks — also:{" "}
                                         {c.top_words.slice(3, 7).join(", ")}
                                     </div>
-                                    <div className="flex h-16 items-end gap-1">
+                                    <div className="flex h-[72px] items-end gap-1">
                                         {Object.entries(d.cluster_decade_totals).map(([dec, total]) => {
                                             const share = ((c.by_decade[dec] ?? 0) / total) * 100;
-                                            const barPx = Math.max(2, (share / maxClusterShare) * 46);
+                                            const barPx = Math.max(2, (share / maxClusterShare) * 52);
                                             return (
                                                 <div
                                                     key={dec}
@@ -683,20 +581,20 @@ export default function StatsPage() {
                                                         className="rounded-t-sm bg-primary"
                                                         style={{ height: `${barPx}px` }}
                                                     />
-                                                    <div className="text-center text-[10.5px] text-muted-foreground">
+                                                    <div className="text-center text-[12.5px] tabular-nums text-muted-foreground">
                                                         {dec.slice(2)}s
                                                     </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                    <div className="mt-2 text-[13px] text-muted-foreground">
+                                    <div className="mt-2.5 text-[15px] text-muted-foreground">
                                         e.g.{" "}
                                         <a
                                             href={c.examples[0].url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-primary hover:underline"
+                                            className="text-primary underline-offset-[3px] hover:underline"
                                         >
                                             {c.examples[0].title}
                                         </a>{" "}

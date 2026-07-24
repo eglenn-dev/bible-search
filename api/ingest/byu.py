@@ -12,7 +12,6 @@ paths, which are honored via ``DISALLOWED_PATHS``.
 import hashlib
 import os
 import time
-from typing import Optional
 
 import requests
 
@@ -27,8 +26,10 @@ SPEECH_SITEMAPS = [
 
 # Paths explicitly Disallow-ed by speeches.byu.edu/robots.txt — never fetch these.
 DISALLOWED_PATHS = {
-    "/talks/william-j-barber-ii/the-need-for-a-mass-coming-together-of-poor-people-"
-    "and-people-of-faith-in-this-moment-of-crisis/",
+    (
+        "/talks/william-j-barber-ii/the-need-for-a-mass-coming-together-of-poor-people-"
+        "and-people-of-faith-in-this-moment-of-crisis/"
+    ),
 }
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), ".cache_byu")
@@ -46,7 +47,7 @@ def _cache_path(url: str) -> str:
     return os.path.join(CACHE_DIR, f"{digest}.html")
 
 
-def fetch_html(url: str, *, use_cache: bool = True) -> Optional[str]:
+def fetch_html(url: str, *, use_cache: bool = True) -> str | None:
     """Fetch a page (or sitemap) from speeches.byu.edu as text.
 
     Returns the response body, or ``None`` on 404. Results are cached on disk so

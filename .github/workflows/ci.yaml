@@ -50,5 +50,7 @@ jobs:
               uses: astral-sh/setup-uv@v8.3.0
               with:
                   python-version: "3.11"
+            # Pinned: an unpinned `uvx ruff` breaks CI whenever a new ruff
+            # release adds rules, even on untouched files. Bump deliberately.
             - name: Lint
-              run: uvx ruff check .
+              run: uvx ruff@0.16.0 check .

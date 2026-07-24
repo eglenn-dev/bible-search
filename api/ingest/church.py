@@ -13,7 +13,6 @@ import hashlib
 import json
 import os
 import time
-from typing import Optional
 
 import requests
 
@@ -36,7 +35,7 @@ def _cache_path(uri: str) -> str:
     return os.path.join(CACHE_DIR, f"{digest}.json")
 
 
-def fetch_content(uri: str, *, use_cache: bool = True) -> Optional[dict]:
+def fetch_content(uri: str, *, use_cache: bool = True) -> dict | None:
     """Fetch the content-API JSON for a Gospel Library ``uri`` (e.g.
     ``/general-conference/2024/04/...``). Returns the parsed dict or None on 404.
     """

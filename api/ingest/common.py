@@ -6,7 +6,8 @@ Run ingestion modules from the ``api/`` directory, e.g.::
     python -m ingest.run --source all
 """
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from bson.binary import Binary, BinaryVectorDtype
 from pymongo import ReplaceOne

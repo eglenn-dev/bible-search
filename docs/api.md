@@ -62,6 +62,7 @@ You can also import `api/openapi.json` into Postman/Insomnia, or generate a type
 | `GET /search` | Semantic search across all corpora | `query` (req), `k` (1–50, default 10), `sources` (CSV) |
 | `GET /search/by-reference` | Passages similar to a known verse | `reference` (req), `k`, `sources` |
 | `GET /verse` | Look up a passage's text + link by exact reference | `reference` (req) |
+| `GET /stats` | Precomputed corpus analytics for the frontend `/stats` page (`{generated_at, data}`). Regenerate offline with `uv run python -m ingest.stats` — it is never computed per-request. | — |
 
 `sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `handbook`. Omit it to search everything.
 

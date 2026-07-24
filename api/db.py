@@ -8,9 +8,9 @@ the dataset or the embeddings into process memory; it only issues
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 
 from bson.binary import Binary
 from dotenv import load_dotenv
@@ -73,7 +73,7 @@ _DOC_GROUP_FIELDS = {
     "handbook": "chapter_uri",
 }
 
-_CURRENT_YEAR = datetime.now(timezone.utc).year
+_CURRENT_YEAR = datetime.now(UTC).year
 
 VALID_SOURCES = {
     "bible",
@@ -119,7 +119,7 @@ def ping() -> bool:
     return True
 
 
-def _clean_sources(sources: Optional[list[str]]) -> Optional[list[str]]:
+def _clean_sources(sources: list[str] | None) -> list[str] | None:
     if not sources:
         return None
     cleaned = [s for s in sources if s in VALID_SOURCES]
@@ -192,8 +192,8 @@ def _rerank_and_dedupe(
 def vector_search(
     query_vector: list[float],
     k: int = 10,
-    sources: Optional[list[str]] = None,
-    limit: Optional[int] = None,
+    sources: list[str] | None = None,
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """Run an Atlas ``$vectorSearch`` and return re-ranked, de-duplicated hits.
 
@@ -231,12 +231,12 @@ def vector_search(
     return _rerank_and_dedupe(hits, limit)
 
 
-def find_by_reference(reference: str) -> Optional[dict[str, Any]]:
+def find_by_reference(reference: str) -> dict[str, Any] | None:
     """Fetch a single document (with its stored embedding) by exact reference."""
     return get_collection().find_one({"reference": reference})
 
 
-def find_verse(reference: str) -> Optional[dict[str, Any]]:
+def find_verse(reference: str) -> dict[str, Any] | None:
     """Look up a passage by exact reference for display (no embedding/_id)."""
     return get_collection().find_one(
         {"reference": reference}, {"embedding": 0, "_id": 0}
@@ -258,7 +258,7 @@ def get_stats_collection() -> Collection:
     return get_client()[MONGODB_DB][MONGODB_STATS_COLLECTION]
 
 
-def get_site_stats() -> Optional[dict[str, Any]]:
+def get_site_stats() -> dict[str, Any] | None:
     """Return the precomputed stats-page payload, or None if never generated.
 
     Written offline by ``python -m ingest.stats`` as a single document
@@ -275,11 +275,11 @@ def log_query(
     endpoint: str,
     query: str,
     k: int,
-    sources: Optional[list[str]],
+    sources: list[str] | None,
     result_count: int,
-    result_ids: Optional[list[str]] = None,
-    ip: Optional[str] = None,
-    user_agent: Optional[str] = None,
+    result_ids: list[str] | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
 ) -> None:
     """Record a user search for analytics. Best-effort: never raises.
 
@@ -304,7 +304,7 @@ def log_query(
                 "result_ids": result_ids,
                 "ip": ip,
                 "user_agent": user_agent,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
             }
         )
     except Exception:  # logging must never break the request path

@@ -2,40 +2,9 @@
 // the shapes are simple enough that hand-rolled SVG keeps the bundle small and
 // the styling on-theme (all colors come from CSS custom properties).
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { fmt } from "../../lib/stats";
-
-// --- Shared tooltip -------------------------------------------------------
-// One fixed tooltip element for the whole page; charts call show/hide. Kept as
-// module state (not React state) so mousemove doesn't re-render chart trees.
-
-let tipEl: HTMLDivElement | null = null;
-
-function ensureTip(): HTMLDivElement {
-    if (!tipEl) {
-        tipEl = document.createElement("div");
-        tipEl.className =
-            "pointer-events-none fixed z-50 max-w-xs rounded-md bg-foreground px-2.5 py-1.5 text-[13px] leading-snug text-background opacity-0 transition-opacity duration-75";
-        document.body.appendChild(tipEl);
-    }
-    return tipEl;
-}
-
-export function showTip(ev: { clientX: number; clientY: number }, html: string) {
-    const el = ensureTip();
-    el.innerHTML = html;
-    el.style.opacity = "1";
-    const pad = 14;
-    const w = el.offsetWidth;
-    let x = ev.clientX + pad;
-    if (x + w > window.innerWidth - 8) x = ev.clientX - w - pad;
-    el.style.left = `${x}px`;
-    el.style.top = `${ev.clientY + pad}px`;
-}
-
-export function hideTip() {
-    if (tipEl) tipEl.style.opacity = "0";
-}
+import { hideTip, showTip } from "./tooltip";
 
 // --- Horizontal bar list --------------------------------------------------
 
@@ -500,15 +469,5 @@ export function StatCard({
             {sub && <p className="mb-3.5 mt-0.5 text-[14.5px] text-muted-foreground">{sub}</p>}
             {children}
         </div>
-    );
-}
-
-/** Clean up the shared tooltip if the stats page unmounts. */
-export function useTipCleanup() {
-    useEffect(
-        () => () => {
-            hideTip();
-        },
-        [],
     );
 }

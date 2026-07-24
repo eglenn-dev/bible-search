@@ -1,18 +1,17 @@
 import os
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.routing import Mount
-
 from fastmcp import FastMCP
+from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.routing import Mount
 
 import db
 import encoder
@@ -39,7 +38,7 @@ class SearchResult(BaseModel):
         description="Human label: verse reference, talk title, or handbook section.",
     )
     text: str = Field(..., description="The matched passage text.")
-    title: Optional[str] = Field(
+    title: str | None = Field(
         None, description="Talk/chapter title; null for scripture verses."
     )
     url: str = Field(
@@ -83,7 +82,7 @@ class VerseResponse(BaseModel):
     source: SourceLiteral
     reference: str
     text: str
-    title: Optional[str] = None
+    title: str | None = None
     url: str
 
 
@@ -223,7 +222,7 @@ def search(
         examples=["charity never faileth"],
     ),
     k: int = Query(10, ge=1, le=50, description="Number of results to return."),
-    sources: Optional[str] = Query(
+    sources: str | None = Query(
         None,
         description=(
             "Comma-separated subset to search. Any of: bible, book-of-mormon, "
@@ -270,7 +269,7 @@ def search_by_reference(
         examples=["John 3:16"],
     ),
     k: int = Query(10, ge=1, le=50, description="Number of results to return."),
-    sources: Optional[str] = Query(
+    sources: str | None = Query(
         None,
         description="Optional comma-separated source filter (see /search).",
         examples=["conference"],
@@ -366,7 +365,7 @@ def read_root():
     try:
         db.ping()
         return {"message": "Online!"}
-    except Exception as exc:  # surface DB connectivity issues in the health check
+    except Exception as exc:  # noqa: BLE001 — surface DB connectivity in the health check
         raise HTTPException(status_code=503, detail=f"Database unavailable: {exc}")
 
 
@@ -410,4 +409,4 @@ app = Starlette(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "10000")))

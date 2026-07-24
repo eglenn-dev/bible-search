@@ -1,7 +1,7 @@
 """Ingest General Conference addresses (1971–present) from the content API."""
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
 
@@ -30,8 +30,7 @@ def _is_session_link(slug: str) -> bool:
     return (
         not slug
         or slug == "media"
-        or slug.endswith("session")
-        or slug.endswith("meeting")
+        or slug.endswith(("session", "meeting"))
     )
 
 
@@ -133,7 +132,7 @@ def build_records(uri: str, year: int, month: str, talk: dict) -> list[dict]:
 
 
 def run(force: bool = False) -> None:
-    current_year = datetime.now().year
+    current_year = datetime.now(UTC).year
     grand_total = 0
     for year in range(FIRST_YEAR, current_year + 1):
         for month in MONTHS:

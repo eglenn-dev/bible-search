@@ -26,7 +26,7 @@ what's new; run it against an empty one and it rebuilds everything from scratch.
 
 import argparse
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 
 import db
 from ingest import bible, byu_speeches, conference, handbook, lds_scriptures
@@ -152,7 +152,7 @@ def sync_conference(fresh_years: int, results: dict) -> None:
     """Ingest any conference talks not already stored."""
     collection = db.get_collection()
     existing = set(collection.distinct("metadata.talk_uri", {"source": "conference"}))
-    current_year = datetime.now().year
+    current_year = datetime.now(UTC).year
     fresh_from = current_year - max(fresh_years - 1, 0)
     mode = "full ingest" if not existing else "checking for new talks"
     print(
@@ -369,7 +369,7 @@ def _run_phase(name: str, fn, results: dict) -> None:
     """Run one phase, capturing any failure so later phases + the summary still run."""
     try:
         fn()
-    except Exception as exc:  # keep going: one flaky source shouldn't lose the rest
+    except Exception as exc:  # noqa: BLE001 — keep going: one flaky source shouldn't lose the rest
         print(f"  !! {name} failed: {exc}")
         results["errors"].append((name, str(exc)))
 

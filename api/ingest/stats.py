@@ -22,7 +22,7 @@ import re
 import sys
 import time
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 
@@ -38,8 +38,8 @@ def norm_speaker(s: str | None) -> str:
     prev = None
     while prev != s:
         prev = s
-        s = re.sub(r"^(?:By|Presented by|Sung by|Read by)\s+", "", s, flags=re.I)
-        s = re.sub(r"^(?:President|Elder|Bishop|Sister|Brother)\s+", "", s, flags=re.I)
+        s = re.sub(r"^(?:By|Presented by|Sung by|Read by)\s+", "", s, flags=re.IGNORECASE)
+        s = re.sub(r"^(?:President|Elder|Bishop|Sister|Brother)\s+", "", s, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", s).strip() or "Unknown"
 
 
@@ -49,7 +49,7 @@ def norm_speaker(s: str | None) -> str:
 _PROC_RE = re.compile(
     r"sustaining|church officers|audit|statistical report|solemn assembly"
     r"|general authorities|church finance|financial report",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -146,18 +146,9 @@ def _fetch(source: str, with_embeddings: bool) -> tuple[list[dict], np.ndarray |
     return docs, arr
 
 
-_wc = lambda t: len(t.split())  # noqa: E731
+_wc = lambda t: len(t.split())
 
-STOP = set("""the of and to a in that is was he for it with as his on be at by i had not are but from or
-have an they which one you were her all she there would their we him been has when who will more no if out
-so said what up its about into than them can only other new some could time these two may then do first any
-my now such like our over man me even most made after also did many before must through back years where much
-your way well down should because each just those people how too little good very make world still own see
-men work long get here between both life being under never day same another know while last might us great
-old year off come since against go came right used take three himself few house use during without again
-place around home small found thought went say part once every don't does got left number course until always
-away something fact though think almost hand enough far took head yet nothing night end why called eyes find
-going look asked later knew thy thou thee shall unto ye hath yea behold verily saith""".split())
+STOP = {"the", "of", "and", "to", "a", "in", "that", "is", "was", "he", "for", "it", "with", "as", "his", "on", "be", "at", "by", "i", "had", "not", "are", "but", "from", "or", "have", "an", "they", "which", "one", "you", "were", "her", "all", "she", "there", "would", "their", "we", "him", "been", "has", "when", "who", "will", "more", "no", "if", "out", "so", "said", "what", "up", "its", "about", "into", "than", "them", "can", "only", "other", "new", "some", "could", "time", "these", "two", "may", "then", "do", "first", "any", "my", "now", "such", "like", "our", "over", "man", "me", "even", "most", "made", "after", "also", "did", "many", "before", "must", "through", "back", "years", "where", "much", "your", "way", "well", "down", "should", "because", "each", "just", "those", "people", "how", "too", "little", "good", "very", "make", "world", "still", "own", "see", "men", "work", "long", "get", "here", "between", "both", "life", "being", "under", "never", "day", "same", "another", "know", "while", "last", "might", "us", "great", "old", "year", "off", "come", "since", "against", "go", "came", "right", "used", "take", "three", "himself", "few", "house", "use", "during", "without", "again", "place", "around", "home", "small", "found", "thought", "went", "say", "part", "once", "every", "don't", "does", "got", "left", "number", "course", "until", "always", "away", "something", "fact", "though", "think", "almost", "hand", "enough", "far", "took", "head", "yet", "nothing", "night", "end", "why", "called", "eyes", "find", "going", "look", "asked", "later", "knew", "thy", "thou", "thee", "shall", "unto", "ye", "hath", "yea", "behold", "verily", "saith"}
 
 WORD_TREND_TERMS = {
     "covenant path": r"covenant path", "ministering": r"minister(?:ing|ed)\b",
@@ -548,7 +539,7 @@ def compute_embedding_stats(conference, conf_emb, scriptures, scripture_embs) ->
         csims = centroids[members] @ centers[k]
         top_members = members[np.argsort(csims)[::-1][:2]]
         clusters.append({
-            "size": int(len(members)),
+            "size": len(members),
             "top_words": [w for _, w in scored[:8]],
             "by_decade": {str(d): int(c) for d, c in
                           sorted(Counter((years[i] // 10) * 10 for i in members).items())},
@@ -607,7 +598,7 @@ def main() -> None:
 
     doc = {
         "_id": "site_stats",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "data": data,
     }
     db.get_stats_collection().replace_one({"_id": "site_stats"}, doc, upsert=True)

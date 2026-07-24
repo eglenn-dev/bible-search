@@ -8,16 +8,14 @@ import Footer from "../components/footer";
 import {
     BarList,
     DecadeStack,
-    hideTip,
     LineChart,
-    showTip,
     SpanChart,
     SparkPanel,
     StatCard,
     Tile,
-    useTipCleanup,
     type StackGroup,
 } from "../components/stats/charts";
+import { hideTip, showTip, useTipCleanup } from "../components/stats/tooltip";
 import {
     fetchStats,
     fmt,

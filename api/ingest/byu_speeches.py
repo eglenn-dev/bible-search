@@ -26,7 +26,7 @@ _UNAVAILABLE_MARKER = "text for this speech is unavailable"
 
 def _url_path(url: str) -> str:
     """Return the site-relative path (with trailing slash) for a full URL."""
-    path = url[len(SITE_BASE):] if url.startswith(SITE_BASE) else url
+    path = url.removeprefix(SITE_BASE)
     return path.split("?")[0].split("#")[0]
 
 

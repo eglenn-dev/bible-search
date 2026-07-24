@@ -9,7 +9,7 @@ import json
 import os
 
 from ingest.common import chunked, embed_and_upsert, log_storage
-from ingest.urls import bofm_url, dc_url, pgp_url, parse_reference
+from ingest.urls import bofm_url, dc_url, parse_reference, pgp_url
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "new")
 

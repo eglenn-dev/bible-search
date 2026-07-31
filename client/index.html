@@ -20,6 +20,24 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap"
     rel="stylesheet" />
+  <!-- Paint the saved theme before first paint so a dark-mode load never
+       flashes the light palette. Mirrors src/lib/theme.ts; keep the storage
+       key ("gs-theme") and the default ("system") in sync with it. -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("gs-theme");
+        var theme = saved === "light" || saved === "dark" ? saved : "system";
+        var dark =
+          theme === "dark" ||
+          (theme === "system" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+      } catch (e) {
+        /* storage unavailable — the ThemeProvider re-applies on mount */
+      }
+    })();
+  </script>
 </head>
 
 <body>

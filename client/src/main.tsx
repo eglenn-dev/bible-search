@@ -5,16 +5,19 @@ import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import "./index.css";
 import App from "./App.tsx";
 import StatsPage from "./pages/stats.tsx";
+import ThemeProvider from "./components/theme-provider.tsx";
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
-        <BrowserRouter>
-            <NuqsAdapter>
-                <Routes>
-                    <Route path="/stats" element={<StatsPage />} />
-                    <Route path="*" element={<App />} />
-                </Routes>
-            </NuqsAdapter>
-        </BrowserRouter>
+        <ThemeProvider>
+            <BrowserRouter>
+                <NuqsAdapter>
+                    <Routes>
+                        <Route path="/stats" element={<StatsPage />} />
+                        <Route path="*" element={<App />} />
+                    </Routes>
+                </NuqsAdapter>
+            </BrowserRouter>
+        </ThemeProvider>
     </StrictMode>
 );

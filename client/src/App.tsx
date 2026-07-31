@@ -12,6 +12,7 @@ import SourcesFilter from "./components/sources-filter";
 import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
+import ThemeToggle from "./components/theme-toggle";
 import { cn } from "./lib/utils";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import {
@@ -204,7 +205,7 @@ export default function App() {
                   (queryType === "scripture" ? " — reference lookup" : "");
         return (
             <div className="gs-fade flex min-h-screen flex-col">
-                <header className="sticky top-0 z-30 border-b border-border bg-background/95 shadow-[0_2px_8px_rgba(27,30,36,.06)] backdrop-blur">
+                <header className="sticky top-0 z-30 border-b border-border bg-background/95 shadow-[var(--shadow-header)] backdrop-blur">
                     <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
                         <button
                             type="button"
@@ -245,6 +246,7 @@ export default function App() {
                                     compact
                                 />
                             </div>
+                            <ThemeToggle compact />
                         </div>
                     </div>
                 </header>
@@ -333,6 +335,7 @@ export default function App() {
                         value={resultCount}
                         onChange={setResultCount}
                     />
+                    <ThemeToggle />
                 </div>
 
                 <div className="mt-8 flex justify-center">

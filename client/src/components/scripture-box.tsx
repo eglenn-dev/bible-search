@@ -116,7 +116,7 @@ export default function ScriptureBox({
             onSubmit={handleSubmit}
             className={cn(
                 "flex w-full overflow-hidden rounded-full border-[1.5px] border-foreground/60 bg-card",
-                !compact && "shadow-[0_3px_10px_rgba(27,30,36,.08)]",
+                !compact && "shadow-[var(--shadow-hero)]",
             )}
         >
             <input

@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Footer from "../components/footer";
+import ThemeToggle from "../components/theme-toggle";
 import {
     BarList,
     LineChart,
@@ -161,12 +162,15 @@ export default function StatsPage() {
                     >
                         Gospel Help
                     </Link>
-                    <Link
-                        to="/"
-                        className="text-[15px] text-primary underline-offset-[3px] hover:underline"
-                    >
-                        ← Back to search
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <Link
+                            to="/"
+                            className="text-[15px] text-primary underline-offset-[3px] hover:underline"
+                        >
+                            ← Back to search
+                        </Link>
+                        <ThemeToggle compact />
+                    </div>
                 </div>
             </header>
 

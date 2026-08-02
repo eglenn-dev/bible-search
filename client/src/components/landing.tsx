@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ThemeToggle from "./theme-toggle";
 
 interface LandingProps {
     setBackendRunning: (running: boolean) => void;
@@ -39,7 +40,12 @@ export default function Landing({ setBackendRunning }: LandingProps) {
 
     return (
         <div className="gs-fade flex min-h-screen flex-col">
-            <div className="flex w-full flex-grow flex-col items-center justify-center px-6 py-12">
+            {/* The connect screen can sit here for a minute on a cold start, so
+                the theme control has to be reachable from it too. */}
+            <div className="flex justify-end px-5 pt-4">
+                <ThemeToggle compact />
+            </div>
+            <div className="flex w-full flex-grow flex-col items-center justify-center px-6 pb-12 pt-4">
                 <div className="w-64 border-t-2 border-foreground sm:w-72" />
                 <h1 className="mb-2 mt-5 text-center font-display text-5xl font-medium italic tracking-wide text-foreground md:text-6xl">
                     Gospel Help

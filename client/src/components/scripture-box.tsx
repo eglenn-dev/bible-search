@@ -2,6 +2,7 @@ import type { Result, Source, ResultCount } from "@/lib/types";
 import { runSearch } from "@/lib/search";
 import { useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { Search as SearchIcon } from "lucide-react";
 
 interface ScriptureBoxProps {
     // Reference is lifted to App so it survives the hero <-> compact layout
@@ -115,8 +116,7 @@ export default function ScriptureBox({
         <form
             onSubmit={handleSubmit}
             className={cn(
-                "flex w-full overflow-hidden rounded-full border-[1.5px] border-foreground/60 bg-card",
-                !compact && "shadow-[var(--shadow-hero)]",
+                "flex w-full overflow-hidden rounded-[2px] border border-input bg-card transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary",
             )}
         >
             <input
@@ -129,19 +129,23 @@ export default function ScriptureBox({
                 placeholder="e.g.  Alma 32:21  or  D&C 4:2"
                 className={cn(
                     "min-w-0 flex-1 border-none bg-transparent text-foreground outline-none",
-                    compact ? "px-4 py-1.5 text-base" : "px-6 py-3 text-lg",
+                    compact ? "px-3 py-1.5 text-base" : "px-4 py-3 text-lg",
                 )}
             />
             <button
                 type="submit"
                 disabled={loading || !inputVerse}
                 className={cn(
-                    "shrink-0 whitespace-nowrap rounded-full bg-primary uppercase text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70",
+                    "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[2px] bg-primary text-primary-foreground transition-colors hover:bg-primary-strong disabled:opacity-70",
                     compact
-                        ? "m-[3px] px-4 text-[13px] tracking-[0.12em]"
-                        : "m-1 px-7 text-base tracking-[0.1em]",
+                        ? "m-[3px] px-3 text-sm"
+                        : "m-1 px-4 text-base",
                 )}
             >
+                <SearchIcon
+                    className={compact ? "h-4 w-4" : "h-5 w-5"}
+                    aria-hidden="true"
+                />
                 {loading ? "Searching…" : "Search"}
             </button>
         </form>
@@ -150,16 +154,18 @@ export default function ScriptureBox({
     const versePreview = inputVerse && (
         <div
             className={cn(
-                "border-l-2 border-primary/40 pl-3 text-left",
+                "border-l-2 border-primary pl-3 text-left",
                 compact ? "mt-2 text-sm" : "mt-4",
             )}
         >
             {verseSource && (
-                <span className="mr-2 text-[13px] uppercase tracking-[0.16em] text-muted-foreground">
+                <span className="mr-2 text-[13px] font-semibold text-muted-foreground">
                     {SOURCE_LABELS[verseSource] || verseSource}
                 </span>
             )}
-            <span className="italic text-foreground/85">“{inputVerse}”</span>
+            <span className="font-display text-[1.0625em] text-foreground">
+                “{inputVerse}”
+            </span>
         </div>
     );
 

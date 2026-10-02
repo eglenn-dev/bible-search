@@ -30,14 +30,14 @@ export default function McpDialog() {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="rounded-full gap-2">
+                <Button variant="outline" size="sm" className="gap-2">
                     <Plug className="h-4 w-4" />
                     Use with AI agents
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="font-display text-xl">
+                    <DialogTitle className="text-xl font-semibold">
                         Use with AI agents (MCP)
                     </DialogTitle>
                     <DialogDescription>
@@ -57,7 +57,7 @@ export default function McpDialog() {
 
                 <div className="space-y-4 text-sm">
                     <div>
-                        <p className="mb-1.5 font-medium text-foreground">
+                        <p className="mb-1.5 font-semibold text-foreground">
                             Server URL
                         </p>
                         <div className="flex items-center gap-2">
@@ -80,7 +80,7 @@ export default function McpDialog() {
                     </div>
 
                     <div>
-                        <p className="mb-1.5 font-medium text-foreground">
+                        <p className="mb-1.5 font-semibold text-foreground">
                             Add to Claude
                         </p>
                         <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
@@ -101,7 +101,7 @@ export default function McpDialog() {
                     </div>
 
                     <div>
-                        <p className="mb-1.5 font-medium text-foreground">
+                        <p className="mb-1.5 font-semibold text-foreground">
                             Other platforms
                         </p>
                         <p className="mb-2 text-muted-foreground">
@@ -120,7 +120,7 @@ export default function McpDialog() {
                     </div>
 
                     <div>
-                        <p className="mb-1.5 font-medium text-foreground">
+                        <p className="mb-1.5 font-semibold text-foreground">
                             Available tools
                         </p>
                         <div className="flex flex-wrap gap-1.5">

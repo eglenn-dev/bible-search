@@ -217,7 +217,7 @@ export default function App() {
                         <div className="min-w-[240px] max-w-xl flex-1">
                             {searchInput}
                         </div>
-                        <div className="flex w-full flex-row items-center justify-between md:w-auto md:justify-start md:gap-3">
+                        <div className="flex w-full flex-row items-center justify-between gap-1.5 md:w-auto md:justify-start md:gap-3">
                             {modeToggle(true)}
                             <button
                                 type="button"
@@ -226,7 +226,11 @@ export default function App() {
                                 className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-1 text-sm text-foreground md:hidden"
                             >
                                 <SlidersHorizontal className="h-4 w-4" />
-                                Filters
+                                {/* Visually dropped on the narrowest phones so
+                                    this row fits in 320px; still announced. */}
+                                <span className="max-[374px]:sr-only">
+                                    Filters
+                                </span>
                                 {sources.length > 0 && (
                                     <span className="text-sm text-primary">
                                         · {sources.length}

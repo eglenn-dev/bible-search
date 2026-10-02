@@ -82,7 +82,7 @@ export default function ResultsCount({
                                     "flex w-full items-center justify-between rounded-sm px-3 py-2 text-sm transition-colors",
                                     active
                                         ? "bg-accent font-semibold text-foreground"
-                                        : "text-foreground hover:bg-muted",
+                                        : "text-foreground hover:bg-foreground/8",
                                 )}
                             >
                                 <span>{n} results</span>

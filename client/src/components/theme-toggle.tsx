@@ -94,7 +94,7 @@ export default function ThemeToggle({ compact = false }: ThemeToggleProps) {
                                     "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-sm transition-colors",
                                     active
                                         ? "bg-accent font-semibold text-foreground"
-                                        : "text-foreground hover:bg-muted",
+                                        : "text-foreground hover:bg-foreground/8",
                                 )}
                             >
                                 <Icon className="h-4 w-4 flex-none" />

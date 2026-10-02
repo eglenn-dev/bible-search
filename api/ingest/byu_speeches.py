@@ -21,7 +21,20 @@ _SPEECH_PATH_RE = re.compile(r"^/talks/[^/]+/[^/]+/$")
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 # Video/audio-only speeches show this notice instead of a transcript. It appears
 # either as a class on the content div or as a stray <p> alongside a summary line.
-_UNAVAILABLE_MARKER = "text for this speech is unavailable"
+# Recent speeches can also show a temporary "being edited" placeholder; treat it as
+# unavailable so the speech isn't stored (and later skipped) before its text lands.
+_UNAVAILABLE_MARKERS = (
+    "text for this speech is unavailable",
+    "text of this speech is being edited",
+)
+
+# The site serves two page templates: the original ``single-speech__*`` markup and
+# a newer ``individual-speech__*`` one (rolled out 2026). Selectors list both.
+_CONTENT_SEL = ".single-speech__content, .individual-speech__content"
+_TITLE_SEL = ".single-speech__title, .individual-speech__title"
+_SPEAKER_SEL = ".single-speech__speaker, .individual-speech__speakers"
+_POSITION_SEL = ".single-speech__speaker-position, .individual-speech__position"
+_DATE_SEL = ".single-speech__date, .individual-speech__date"
 
 
 def _url_path(url: str) -> str:
@@ -64,20 +77,20 @@ def parse_speech(url: str) -> dict | None:
         return None
     soup = BeautifulSoup(html, "html.parser")
 
-    content = soup.select_one(".single-speech__content")
+    content = soup.select_one(_CONTENT_SEL)
     if not content:
         return None
     classes = content.get("class") or []
-    if (
-        "single-speech__unavailable-message" in classes
-        or _UNAVAILABLE_MARKER in content.get_text(" ", strip=True).lower()
+    content_text = content.get_text(" ", strip=True).lower()
+    if "single-speech__unavailable-message" in classes or any(
+        marker in content_text for marker in _UNAVAILABLE_MARKERS
     ):
         return None
 
-    title_el = soup.select_one(".single-speech__title")
-    speaker_el = soup.select_one(".single-speech__speaker")
-    position_el = soup.select_one(".single-speech__speaker-position")
-    date_el = soup.select_one(".single-speech__date")
+    title_el = soup.select_one(_TITLE_SEL)
+    speaker_el = soup.select_one(_SPEAKER_SEL)
+    position_el = soup.select_one(_POSITION_SEL)
+    date_el = soup.select_one(_DATE_SEL)
 
     title = (
         title_el.get_text(" ", strip=True)

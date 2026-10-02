@@ -38,7 +38,7 @@ function SectionHead({ no, title, note }: { no: string; title: string; note: str
     return (
         <>
             <div className="mb-1.5 flex items-baseline gap-3.5 border-b-2 border-foreground pb-2">
-                <span className="text-[15px] uppercase tracking-[0.2em] text-muted-foreground">
+                <span className="text-sm font-semibold text-muted-foreground">
                     {no}
                 </span>
                 <h2 className="font-display text-[34px] font-medium">{title}</h2>
@@ -62,7 +62,7 @@ function TalkCard({ talk, accent }: { talk: TalkRef; accent?: string }) {
             >
                 {talk.title}
             </a>
-            <div className="text-[15px] italic text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
                 {talk.speaker}, {talk.year}
                 {talk.words != null && <> — {fmt.format(talk.words)} words</>}
                 {talk.sim != null && <> · similarity {talk.sim}</>}
@@ -125,7 +125,7 @@ export default function StatsPage() {
 
     if (!stats)
         return (
-            <div className="flex min-h-screen items-center justify-center text-lg italic text-muted-foreground">
+            <div className="flex min-h-screen items-center justify-center text-lg text-muted-foreground">
                 Counting the library…
             </div>
         );
@@ -154,18 +154,18 @@ export default function StatsPage() {
 
     return (
         <div className="gs-fade flex min-h-screen flex-col">
-            <header className="border-b border-border bg-background/95">
+            <header className="border-b border-border bg-background">
                 <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-5 py-4">
                     <Link
                         to="/"
-                        className="font-display text-2xl font-medium italic text-foreground transition-colors hover:text-primary"
+                        className="font-display text-[26px] text-foreground transition-colors hover:text-primary"
                     >
                         Gospel Help
                     </Link>
                     <div className="flex items-center gap-4">
                         <Link
                             to="/"
-                            className="text-[15px] text-primary underline-offset-[3px] hover:underline"
+                            className="text-sm text-primary underline hover:text-primary-strong"
                         >
                             ← Back to search
                         </Link>
@@ -176,7 +176,7 @@ export default function StatsPage() {
 
             <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-24">
                 <section className="pt-12">
-                    <div className="text-sm uppercase tracking-[0.28em] text-muted-foreground">
+                    <div className="text-sm font-semibold text-muted-foreground">
                         Gospel Library Search
                     </div>
                     <h1 className="mb-3 mt-2 font-display text-4xl font-medium sm:text-5xl">
@@ -187,7 +187,7 @@ export default function StatsPage() {
                         search index — four volumes of scripture, {m.conference_years[1] - m.conference_years[0]}{" "}
                         years of General Conference, and five decades of BYU Speeches.
                     </p>
-                    <p className="mt-2 text-[15px] italic text-muted-foreground">
+                    <p className="mt-2 text-sm text-muted-foreground">
                         Data last updated {updated}.
                     </p>
                     <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -342,7 +342,7 @@ export default function StatsPage() {
                                         {words.slice(0, 6).map((w) => (
                                             <span
                                                 key={w.word}
-                                                className="mb-1.5 mr-1 inline-block whitespace-nowrap rounded-full bg-accent px-3 py-0.5 text-[16px]"
+                                                className="mb-1.5 mr-1 inline-block whitespace-nowrap rounded-md bg-accent px-3 py-0.5 text-[16px]"
                                             >
                                                 {w.word}{" "}
                                                 <small className="text-muted-foreground">
@@ -465,7 +465,7 @@ export default function StatsPage() {
                                     <span className="text-[15px] text-muted-foreground">
                                         · {v.words} words
                                     </span>
-                                    <div className="text-lg italic text-muted-foreground">
+                                    <div className="font-display text-lg text-foreground">
                                         “{v.text}”
                                     </div>
                                 </div>
@@ -482,7 +482,7 @@ export default function StatsPage() {
                                     <span className="text-[15px] text-muted-foreground">
                                         · {v.words} words
                                     </span>
-                                    <div className="text-lg italic text-muted-foreground">
+                                    <div className="font-display text-lg text-foreground">
                                         “{v.text}”
                                     </div>
                                 </div>

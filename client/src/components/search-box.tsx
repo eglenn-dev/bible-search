@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { Result, Source, ResultCount } from "@/lib/types";
 import { runSearch } from "@/lib/search";
+import { Search as SearchIcon } from "lucide-react";
 
 interface SearchBoxProps {
     parentQuery: string;
@@ -75,8 +76,7 @@ export default function SearchBox({
         <form
             onSubmit={handleSubmit}
             className={cn(
-                "flex w-full overflow-hidden rounded-full border-[1.5px] border-foreground/60 bg-card",
-                !compact && "shadow-[var(--shadow-hero)]",
+                "flex w-full overflow-hidden rounded-[2px] border border-input bg-card transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary",
             )}
         >
             <input
@@ -89,19 +89,23 @@ export default function SearchBox({
                 placeholder="seek, and ye shall find…"
                 className={cn(
                     "min-w-0 flex-1 border-none bg-transparent text-foreground outline-none",
-                    compact ? "px-4 py-1.5 text-base" : "px-6 py-3 text-lg",
+                    compact ? "px-3 py-1.5 text-base" : "px-4 py-3 text-lg",
                 )}
             />
             <button
                 type="submit"
                 disabled={loading}
                 className={cn(
-                    "shrink-0 rounded-full bg-primary uppercase text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70",
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-[2px] bg-primary text-primary-foreground transition-colors hover:bg-primary-strong disabled:opacity-70",
                     compact
-                        ? "m-[3px] px-4 text-[13px] tracking-[0.12em]"
-                        : "m-1 px-7 text-base tracking-[0.1em]",
+                        ? "m-[3px] px-3 text-sm"
+                        : "m-1 px-4 text-base",
                 )}
             >
+                <SearchIcon
+                    className={compact ? "h-4 w-4" : "h-5 w-5"}
+                    aria-hidden="true"
+                />
                 {loading ? "Searching…" : "Search"}
             </button>
         </form>

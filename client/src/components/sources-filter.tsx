@@ -62,10 +62,10 @@ export default function SourcesFilter({
 
     const rowClass = (active: boolean) =>
         cn(
-            "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
+            "flex w-full items-center justify-between rounded-sm px-3 py-2 text-sm transition-colors",
             active
-                ? "bg-primary/10 text-foreground"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                ? "bg-accent font-semibold text-foreground"
+                : "text-foreground hover:bg-muted",
         );
 
     return (
@@ -76,9 +76,9 @@ export default function SourcesFilter({
                 aria-expanded={open}
                 onClick={() => setOpen((v) => !v)}
                 className={cn(
-                    "inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2.5 text-sm font-medium shadow-sm transition-colors select-none",
+                    "inline-flex items-center gap-2 rounded-md border bg-card px-3.5 py-2 text-sm transition-colors select-none",
                     isAll
-                        ? "border-border text-muted-foreground hover:text-foreground"
+                        ? "border-input text-foreground hover:border-primary"
                         : "border-primary text-foreground",
                 )}
             >
@@ -95,7 +95,7 @@ export default function SourcesFilter({
                 <div
                     role="listbox"
                     aria-multiselectable="true"
-                    className="absolute left-0 z-20 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-1.5 shadow-lg sm:left-auto sm:right-0"
+                    className="absolute left-0 z-20 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-card p-1 shadow-[var(--shadow-popover)] sm:left-auto sm:right-0"
                 >
                     <button
                         type="button"

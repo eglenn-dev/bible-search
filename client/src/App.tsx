@@ -150,7 +150,7 @@ export default function App() {
         return <Landing setBackendRunning={setBackendRunning} />;
 
     const modeToggle = (compact: boolean) => (
-        <div className="inline-flex rounded-full border-[1.5px] border-input bg-card p-1">
+        <div className="inline-flex rounded-md border border-input bg-card p-0.5">
             {(
                 [
                     ["natural", "Natural language", "Natural"],
@@ -161,12 +161,12 @@ export default function App() {
                     key={type}
                     onClick={() => setQueryType(type)}
                     className={cn(
-                        "whitespace-nowrap rounded-full transition-colors",
+                        "whitespace-nowrap rounded-sm transition-colors",
                         compact
-                            ? "px-3.5 py-1 text-sm"
-                            : "px-5 py-1.5 text-[15px]",
+                            ? "px-3 py-1 text-sm"
+                            : "px-4 py-1.5 text-sm",
                         queryType === type
-                            ? "bg-primary text-primary-foreground"
+                            ? "bg-primary font-semibold text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground",
                     )}
                 >
@@ -205,12 +205,12 @@ export default function App() {
                   (queryType === "scripture" ? " — reference lookup" : "");
         return (
             <div className="gs-fade flex min-h-screen flex-col">
-                <header className="sticky top-0 z-30 border-b border-border bg-background/95 shadow-[var(--shadow-header)] backdrop-blur">
+                <header className="sticky top-0 z-30 border-b border-border bg-background">
                     <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
                         <button
                             type="button"
                             onClick={goHome}
-                            className="whitespace-nowrap font-display text-2xl font-medium italic text-foreground transition-colors hover:text-primary"
+                            className="whitespace-nowrap font-display text-[26px] text-foreground transition-colors hover:text-primary"
                         >
                             Gospel Help
                         </button>
@@ -223,7 +223,7 @@ export default function App() {
                                 type="button"
                                 aria-expanded={filtersOpen}
                                 onClick={() => setFiltersOpen((v) => !v)}
-                                className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-input bg-card px-3.5 py-1 text-sm text-foreground/90 md:hidden"
+                                className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-1 text-sm text-foreground md:hidden"
                             >
                                 <SlidersHorizontal className="h-4 w-4" />
                                 Filters
@@ -265,18 +265,24 @@ export default function App() {
                             />
                         </div>
                     )}
-                    <aside className="hidden w-full flex-none px-5 py-8 md:block md:w-60 md:py-10 md:pl-5 md:pr-8">
-                        <FilterSidebar
-                            sources={sources}
-                            onSourcesChange={handleSidebarSources}
-                            sortBy={sortBy}
-                            onSortChange={setSortBy}
-                            counts={sourceCounts}
-                            total={results.length}
-                        />
+                    {/* Boxed like the Church's "Filter Results" panel. */}
+                    <aside className="hidden w-full flex-none px-5 py-8 md:block md:w-64 md:py-10 md:pl-5 md:pr-0">
+                        <div className="border border-border bg-muted p-4">
+                            <h2 className="mb-4 font-sans text-lg font-semibold">
+                                Filter results
+                            </h2>
+                            <FilterSidebar
+                                sources={sources}
+                                onSourcesChange={handleSidebarSources}
+                                sortBy={sortBy}
+                                onSortChange={setSortBy}
+                                counts={sourceCounts}
+                                total={results.length}
+                            />
+                        </div>
                     </aside>
-                    <main className="flex max-w-3xl flex-1 flex-col gap-8 border-border px-5 pb-24 pt-8 md:border-l md:px-12 md:pt-10">
-                        <div className="text-[15px] italic text-muted-foreground">
+                    <main className="flex max-w-3xl flex-1 flex-col gap-7 px-5 pb-24 pt-8 md:px-10 md:pt-10">
+                        <div className="text-sm text-muted-foreground">
                             {countLabel}
                         </div>
                         {results.length === 0 ? (
@@ -285,7 +291,7 @@ export default function App() {
                                 {activeQuery
                                     ? ` for “${activeQuery}”`
                                     : ""}.{" "}
-                                <span className="italic text-muted-foreground">
+                                <span className="text-muted-foreground">
                                     Try fewer or different words, or switch
                                     search mode.
                                 </span>
@@ -298,7 +304,7 @@ export default function App() {
                                         type="button"
                                         onClick={handleLoadMore}
                                         disabled={loadingMore}
-                                        className="mt-2 self-center text-base text-primary underline underline-offset-[3px] transition-colors hover:text-primary/80 disabled:opacity-60"
+                                        className="mt-2 self-center rounded-md border border-primary px-5 py-2 text-sm font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-60"
                                     >
                                         {loadingMore
                                             ? "Loading…"
@@ -317,14 +323,12 @@ export default function App() {
     return (
         <div className="flex min-h-screen flex-col">
             <main className="gs-fade flex w-full flex-grow flex-col items-center justify-center px-6 py-12">
-                <div className="w-64 border-t-2 border-foreground sm:w-72" />
-                <h1 className="mb-4 mt-5 text-center font-display text-4xl sm:text-5xl font-medium italic tracking-wide text-foreground md:text-6xl">
+                <h1 className="mb-3 text-center font-display text-4xl text-foreground sm:text-5xl md:text-[56px]">
                     Gospel Help
                 </h1>
-                <p className="mb-5 text-center text-sm sm:text-base uppercase tracking-[0.28em] text-muted-foreground">
+                <p className="mb-10 text-center text-base text-muted-foreground sm:text-lg">
                     A Gospel Library concordance of 135,000+ indexed items
                 </p>
-                <div className="mb-10 w-64 border-b-2 border-foreground sm:w-72" />
 
                 <div className="w-full max-w-xl">{searchInput}</div>
 

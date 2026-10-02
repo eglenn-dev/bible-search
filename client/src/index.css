@@ -3,10 +3,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Concordance theme — warm off-white paper, ink text, indexed blue. */
+/* Gospel Library theme — mirrors churchofjesuschrist.org so the site feels
+   familiar to people coming from it: a humanist sans for the interface, a
+   book serif for scripture and talk text, ink on white, and the Church's
+   teal for links and actions. The Church's own faces (Ensign:Sans/Serif) are
+   proprietary, so Open Sans and Source Serif 4 stand in for them. Colour
+   values are lifted from the site's published palette (grey/info tokens). */
 :root {
-    font-family: "EB Garamond", Georgia, "Times New Roman", serif;
-    line-height: 1.6;
+    font-family: "Open Sans", Roboto, Arial, sans-serif;
+    line-height: 1.4;
     font-weight: 400;
 
     color-scheme: light;
@@ -15,46 +20,48 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 
-    --radius: 0.5rem;
+    /* Squared-off corners: the Church's inputs and buttons sit at 2–4px. */
+    --radius: 0.25rem;
 
-    /* paper + ink */
-    --background: #f7f7f6;
-    --foreground: #1b1e24;
+    /* white page, text120 ink */
+    --background: #ffffff;
+    --foreground: #212225;
     --card: #ffffff;
-    --card-foreground: #1b1e24;
+    --card-foreground: #212225;
     --popover: #ffffff;
-    --popover-foreground: #1b1e24;
+    --popover-foreground: #212225;
 
-    /* indexed blue */
-    --primary: #2c46b8;
+    /* info40 teal — the Church's link and button colour (5.3:1 on white) */
+    --primary: #157493;
     --primary-foreground: #ffffff;
+    /* info60, used for hovered links and buttons */
+    --primary-strong: #105970;
 
-    --secondary: #edf1fd;
-    --secondary-foreground: #1b1e24;
-    --muted: #eceef1;
-    --muted-foreground: #545b66;
+    /* grey2 panels (filter box, footer), grey40 secondary text */
+    --secondary: #e9f7fc;
+    --secondary-foreground: #212225;
+    --muted: #f7f8f8;
+    --muted-foreground: #53575b;
 
-    /* highlight blue */
-    --accent: #dbe4ff;
-    --accent-foreground: #1b1e24;
+    /* highlightBlue */
+    --accent: #e9f7fc;
+    --accent-foreground: #212225;
 
-    --destructive: #b3261e;
-    --border: #e2e5ea;
-    --input: #d3d7de;
-    --ring: #2c46b8;
-    /* One step darker than the old #7d8492, which only reached 3.76:1 on the
-       white input and missed AA. */
-    --placeholder: #6b7280;
+    --destructive: #b00504;
+    --border: #e0e2e2;
+    /* grey30 — the search field's 1px outline; clears 3:1 on white */
+    --input: #878a8c;
+    --ring: #157493;
+    --placeholder: #676b6e;
 
-    /* Cast shadows off the ink colour on paper; see .dark for the dark pass. */
-    --shadow-hero: 0 3px 10px rgba(27, 30, 36, 0.08);
-    --shadow-header: 0 2px 8px rgba(27, 30, 36, 0.06);
+    /* boxShadowDetached, for drop-down menus */
+    --shadow-popover: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
 
-    --chart-1: #2c46b8;
-    --chart-2: #6b7280;
-    --chart-3: #1b1e24;
-    --chart-4: #9aa1ad;
-    --chart-5: #b9c6f2;
+    --chart-1: #157493;
+    --chart-2: #878a8c;
+    --chart-3: #212225;
+    --chart-4: #bdc0c0;
+    --chart-5: #7de3f4;
 
     /* stats-page categorical series (CVD-validated order — keep fixed) */
     --series-1: #2a78d6;
@@ -63,21 +70,25 @@
     --series-4: #eda100;
     --series-5: #e87ba4;
     --series-6: #008300;
-    --chart-grid: #eceef1;
+    --chart-grid: #eff0f0;
 
-    --sidebar: #f7f7f6;
-    --sidebar-foreground: #1b1e24;
-    --sidebar-primary: #2c46b8;
+    --sidebar: #f7f8f8;
+    --sidebar-foreground: #212225;
+    --sidebar-primary: #157493;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #dbe4ff;
-    --sidebar-accent-foreground: #1b1e24;
-    --sidebar-border: #e2e5ea;
-    --sidebar-ring: #2c46b8;
+    --sidebar-accent: #e9f7fc;
+    --sidebar-accent-foreground: #212225;
+    --sidebar-border: #e0e2e2;
+    --sidebar-ring: #157493;
 }
 
 @theme inline {
-    --font-display: "EB Garamond", Georgia, serif;
-    --font-body: "EB Garamond", Georgia, "Times New Roman", serif;
+    /* display/serif = scripture and talk text and content headings;
+       body = everything else (the Church's UI is all sans). */
+    --font-display: "Source Serif 4", Palatino, "Palatino Linotype", Georgia, serif;
+    --font-serif: "Source Serif 4", Palatino, "Palatino Linotype", Georgia, serif;
+    --font-body: "Open Sans", Roboto, Arial, sans-serif;
+    --font-sans: "Open Sans", Roboto, Arial, sans-serif;
 
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
@@ -91,6 +102,7 @@
     --color-popover-foreground: var(--popover-foreground);
     --color-primary: var(--primary);
     --color-primary-foreground: var(--primary-foreground);
+    --color-primary-strong: var(--primary-strong);
     --color-secondary: var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
     --color-muted: var(--muted);
@@ -119,51 +131,50 @@
 .dark {
     color-scheme: dark;
 
-    --background: #15171c;
-    --foreground: #e7e8ec;
-    --card: #1c1f26;
-    --card-foreground: #e7e8ec;
-    --popover: #1c1f26;
-    --popover-foreground: #e7e8ec;
-
-    /* Indexed blue, lifted for the dark surface: --primary doubles as a text
-       colour (links, active filters, the source chips) and the light theme's
-       #2c46b8 only reaches 3.4:1 on #15171c. This tone clears 7:1 as text, so
+    /* Night reading surface built from the same greys. The teal is lifted
+       (#49b8dc, 7.8:1 on the page) since info40 only reaches ~3.4:1 here, so
        --primary-foreground flips to ink for the filled buttons. */
-    --primary: #8aa0ec;
-    --primary-foreground: #15171c;
+    --background: #17181a;
+    --foreground: #e6e7e8;
+    --card: #1f2022;
+    --card-foreground: #e6e7e8;
+    --popover: #1f2022;
+    --popover-foreground: #e6e7e8;
 
-    --secondary: #222c4b;
-    --secondary-foreground: #cdd7f7;
-    --muted: #23262e;
-    --muted-foreground: #aab1bc;
-    --accent: #2b3a66;
-    --accent-foreground: #dbe4ff;
-    --destructive: #e5726a;
+    --primary: #49b8dc;
+    --primary-foreground: #17181a;
+    --primary-strong: #7dcde8;
+
+    --secondary: #173a47;
+    --secondary-foreground: #e6e7e8;
+    --muted: #1f2022;
+    --muted-foreground: #a9adad;
+    --accent: #173a47;
+    --accent-foreground: #e6e7e8;
+    --destructive: #fc7473;
     --border: rgba(255, 255, 255, 0.12);
-    --input: rgba(255, 255, 255, 0.18);
-    --ring: #7b93e8;
-    --placeholder: #939aa6;
+    --input: #6b6f72;
+    --ring: #49b8dc;
+    --placeholder: #9da1a1;
 
     /* On a dark surface a cast shadow reads as depth only if it is near-black
-       and much stronger than the paper-theme equivalent. */
-    --shadow-hero: 0 3px 12px rgba(0, 0, 0, 0.5);
-    --shadow-header: 0 2px 10px rgba(0, 0, 0, 0.4);
+       and much stronger than the light-theme equivalent. */
+    --shadow-popover: 0 4px 12px 0 rgba(0, 0, 0, 0.55);
 
-    --chart-1: #8aa0ec;
-    --chart-2: #9aa1ad;
-    --chart-3: #e7e8ec;
-    --chart-4: #6b7280;
-    --chart-5: #3d4a7a;
+    --chart-1: #49b8dc;
+    --chart-2: #a9adad;
+    --chart-3: #e6e7e8;
+    --chart-4: #676b6e;
+    --chart-5: #1d5f75;
 
-    --sidebar: #1c1f26;
-    --sidebar-foreground: #e7e8ec;
-    --sidebar-primary: #8aa0ec;
-    --sidebar-primary-foreground: #15171c;
-    --sidebar-accent: #2b3a66;
-    --sidebar-accent-foreground: #dbe4ff;
+    --sidebar: #1f2022;
+    --sidebar-foreground: #e6e7e8;
+    --sidebar-primary: #49b8dc;
+    --sidebar-primary-foreground: #17181a;
+    --sidebar-accent: #173a47;
+    --sidebar-accent-foreground: #e6e7e8;
     --sidebar-border: rgba(255, 255, 255, 0.12);
-    --sidebar-ring: #7b93e8;
+    --sidebar-ring: #49b8dc;
 
     /* stats-page series, re-stepped for the dark surface */
     --series-1: #3987e5;
@@ -172,7 +183,7 @@
     --series-4: #c98500;
     --series-5: #d55181;
     --series-6: #229622;
-    --chart-grid: #242832;
+    --chart-grid: #26282b;
 }
 
 @keyframes gsFade {
@@ -199,6 +210,9 @@
     h3,
     .font-display {
         font-family: var(--font-display);
+    }
+    a {
+        text-underline-offset: 2px;
     }
     mark {
         background: var(--accent);

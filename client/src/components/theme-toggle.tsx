@@ -52,10 +52,10 @@ export default function ThemeToggle({ compact = false }: ThemeToggleProps) {
                 title={`Theme: ${current.label}`}
                 onClick={() => setOpen((v) => !v)}
                 className={cn(
-                    "inline-flex select-none items-center gap-2 rounded-full border-[1.5px] border-input bg-card text-muted-foreground transition-colors hover:text-foreground",
+                    "inline-flex select-none items-center gap-2 rounded-md border border-input bg-card text-foreground transition-colors hover:border-primary",
                     compact
-                        ? "px-2.5 py-2"
-                        : "px-4 py-2.5 text-sm font-medium shadow-sm",
+                        ? "px-2 py-1.5"
+                        : "px-3.5 py-2 text-sm",
                 )}
             >
                 <CurrentIcon className="h-4 w-4" />
@@ -76,7 +76,7 @@ export default function ThemeToggle({ compact = false }: ThemeToggleProps) {
                 <div
                     role="listbox"
                     aria-label="Theme"
-                    className="absolute right-0 z-20 mt-2 w-40 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-1.5 shadow-lg"
+                    className="absolute right-0 z-20 mt-2 w-40 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-1 shadow-[var(--shadow-popover)]"
                 >
                     {OPTIONS.map(({ key, label, Icon }) => {
                         const active = key === theme;
@@ -91,10 +91,10 @@ export default function ThemeToggle({ compact = false }: ThemeToggleProps) {
                                     setOpen(false);
                                 }}
                                 className={cn(
-                                    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
+                                    "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-sm transition-colors",
                                     active
-                                        ? "bg-primary/10 text-foreground"
-                                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                                        ? "bg-accent font-semibold text-foreground"
+                                        : "text-foreground hover:bg-muted",
                                 )}
                             >
                                 <Icon className="h-4 w-4 flex-none" />

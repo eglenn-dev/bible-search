@@ -52,7 +52,7 @@ export default function RenderResults({ results }: RenderResultsProps) {
     }
 
     return (
-        <div className="flex flex-col gap-9">
+        <div className="flex flex-col gap-7">
             {results.map((result, index) => {
                 const metaLine = [subtitleFor(result), dateLabelFor(result)]
                     .filter(Boolean)
@@ -60,24 +60,21 @@ export default function RenderResults({ results }: RenderResultsProps) {
                 return (
                     <article
                         key={`${result.source}-${index}`}
-                        className="flex flex-col gap-1.5"
+                        className="flex flex-col gap-1"
                         style={{
                             animation: `gsFade .4s ease ${Math.min(index, 8) * 45}ms both`,
                         }}
                     >
-                        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                            <a
-                                href={result.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-display text-2xl font-medium text-foreground transition-colors hover:text-primary hover:underline hover:underline-offset-[3px]"
-                            >
-                                {headingFor(result)}
-                            </a>
-                            <span className="relative -top-px shrink-0 rounded-full border border-primary/30 bg-secondary px-2.5 py-0.5 text-xs uppercase tracking-[0.12em] text-primary">
-                                {SOURCE_LABELS[result.source]}
+                        {/* Breadcrumb line over a teal, underlined title, as
+                            on the Church's own search results page. */}
+                        <div className="flex items-baseline gap-3 text-[13px] text-muted-foreground">
+                            <span>
+                                <span className="text-foreground">
+                                    {SOURCE_LABELS[result.source]}
+                                </span>
+                                {metaLine && ` / ${metaLine}`}
                             </span>
-                            <span className="ml-auto shrink-0 text-sm text-muted-foreground">
+                            <span className="ml-auto shrink-0 tabular-nums">
                                 {Math.round(
                                     Math.max(0, Math.min(1, result.score)) *
                                         100,
@@ -85,12 +82,15 @@ export default function RenderResults({ results }: RenderResultsProps) {
                                 %
                             </span>
                         </div>
-                        {metaLine && (
-                            <div className="text-[15px] text-muted-foreground">
-                                {metaLine}
-                            </div>
-                        )}
-                        <p className="max-w-2xl whitespace-pre-line text-lg line-clamp-5">
+                        <a
+                            href={result.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="self-start text-xl font-semibold leading-snug text-primary underline decoration-1 transition-colors hover:text-primary-strong"
+                        >
+                            {headingFor(result)}
+                        </a>
+                        <p className="mt-1 max-w-2xl whitespace-pre-line font-display text-lg leading-relaxed line-clamp-5">
                             {result.text}
                         </p>
                     </article>

@@ -36,7 +36,7 @@ interface FilterSidebarProps {
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
     return (
-        <div className="mb-0.5 text-[13px] uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="mb-0.5 text-sm font-bold text-foreground">
             {children}
         </div>
     );
@@ -60,17 +60,17 @@ function FilterLink({
             aria-checked={active}
             onClick={onClick}
             className={cn(
-                "group flex items-center gap-2.5 text-left text-base transition-colors",
-                active ? "text-primary" : "text-foreground/90 hover:text-primary",
+                "group flex items-center gap-2.5 text-left text-[15px] text-foreground transition-colors",
+                !active && "hover:text-primary",
             )}
         >
             <span
                 aria-hidden="true"
                 className={cn(
-                    "flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[4px] border-[1.5px] transition-colors",
+                    "flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[2px] border transition-colors",
                     active
                         ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input bg-card text-transparent group-hover:border-primary/50",
+                        : "border-input bg-card text-transparent group-hover:border-primary",
                 )}
             >
                 <Check className="h-3 w-3" strokeWidth={3.5} />
@@ -108,7 +108,7 @@ export default function FilterSidebar({
     };
 
     return (
-        <div className="flex flex-row flex-wrap gap-x-12 gap-y-8 md:flex-col md:flex-nowrap md:gap-9">
+        <div className="flex flex-row flex-wrap gap-x-12 gap-y-8 md:flex-col md:flex-nowrap md:gap-7">
             <div className="flex flex-col gap-2.5">
                 <GroupLabel>Source</GroupLabel>
                 <FilterLink

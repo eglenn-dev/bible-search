@@ -12,6 +12,7 @@ import SourcesFilter from "./components/sources-filter";
 import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
+import ConferenceBanner from "./components/conference-banner";
 import ThemeToggle from "./components/theme-toggle";
 import { cn } from "./lib/utils";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
@@ -327,6 +328,7 @@ export default function App() {
     return (
         <div className="flex min-h-screen flex-col">
             <main className="gs-fade flex w-full flex-grow flex-col items-center justify-center px-6 py-12">
+                <ConferenceBanner onSelect={() => setSources(["conference"])} />
                 <h1 className="mb-3 text-center font-display text-4xl text-foreground sm:text-5xl md:text-[56px]">
                     Gospel Help
                 </h1>

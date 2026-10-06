@@ -156,10 +156,14 @@ allowed_origins = (
     if _env_origins
     else _default_origins
 )
+# Any *.vercel.app origin, so Vercel preview deployments can reach the API.
+# Applied on top of ALLOWED_ORIGINS; Starlette fullmatches it against the Origin.
+VERCEL_ORIGIN_REGEX = r"https://[a-z0-9-]+\.vercel\.app"
 
 api.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=VERCEL_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET"],
     allow_headers=["*"],

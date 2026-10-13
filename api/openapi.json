@@ -485,7 +485,7 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Data",
-            "description": "Precomputed corpus analytics (speaker stats, word trends, citation counts, embedding clusters, \u2026) rendered by the frontend /stats page. Regenerated offline via `python -m ingest.stats`."
+            "description": "Precomputed corpus analytics (speaker stats, word trends, scripture trivia, embedding clusters, \u2026) rendered by the frontend /stats page. Regenerated offline via `python -m ingest.stats`."
           }
         },
         "type": "object",

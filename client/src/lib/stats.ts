@@ -35,15 +35,10 @@ export interface Cluster {
     examples: TalkRef[];
 }
 
-export interface CitedRef {
+export interface EchoedVerse {
     ref: string;
     count: number;
-    text?: string;
-}
-
-export interface BookCitations {
-    book: string;
-    count: number;
+    text: string;
     volume: string;
 }
 
@@ -80,12 +75,6 @@ export interface StatsData {
     word_trends: Record<string, Record<string, number>>;
     fingerprints: Record<string, { word: string; lift: number; count: number }[]>;
     readability_by_year: Record<string, { avg_sentence_len: number; flesch: number }>;
-    top_verses: CitedRef[];
-    book_citations: BookCitations[];
-    volume_citations: Record<string, number>;
-    top_verse_by_decade: Record<string, CitedRef[]>;
-    never_cited_books: string[];
-    least_cited_books: BookCitations[];
     shortest_verses: VerseExtreme[];
     longest_verses: VerseExtreme[];
     came_to_pass: { by_volume: Record<string, number>; bom_by_book: Record<string, number> };
@@ -97,7 +86,7 @@ export interface StatsData {
     twins_cross_era: TwinPair[];
     clusters: Cluster[];
     cluster_decade_totals: Record<string, number>;
-    verse_echo_strong: CitedRef[];
+    verse_echo_strong: EchoedVerse[];
     verse_echo_mean_sim: number;
 }
 
@@ -123,8 +112,3 @@ export const VOLUME_COLOR: Record<string, string> = {
     "Old Testament": "var(--series-4)",
     "Pearl of Great Price": "var(--series-5)",
 };
-
-export function volumeOfRef(ref: string, books: BookCitations[]): string {
-    const book = ref.replace(/ \d+:\d+$/, "");
-    return books.find((b) => b.book === book)?.volume ?? "Old Testament";
-}

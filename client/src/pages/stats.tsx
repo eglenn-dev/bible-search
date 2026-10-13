@@ -19,7 +19,6 @@ import {
     fetchStats,
     fmt,
     VOLUME_COLOR,
-    volumeOfRef,
     type StatsData,
     type StatsResponse,
     type TalkRef,
@@ -29,9 +28,8 @@ import {
 const SECTIONS: [string, string][] = [
     ["speakers", "§1 Speakers"],
     ["language", "§2 Language"],
-    ["citations", "§3 Citations"],
-    ["trivia", "§4 Trivia"],
-    ["semantic", "§5 Embeddings"],
+    ["trivia", "§3 Trivia"],
+    ["semantic", "§4 Embeddings"],
 ];
 
 function SectionHead({ no, title, note }: { no: string; title: string; note: string }) {
@@ -330,10 +328,10 @@ export default function StatsPage() {
                     <StatCard
                         className="mt-4"
                         title="Vocabulary fingerprints"
-                        sub="Words each speaker uses far more than everyone else combined (× lift over the corpus rate)."
+                        sub="Words each current apostle uses far more than conference speakers as a whole (× lift over the corpus rate)."
                     >
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {Object.entries(d.fingerprints).slice(0, 12).map(([speaker, words]) => (
+                            {Object.entries(d.fingerprints).map(([speaker, words]) => (
                                 <div key={speaker}>
                                     <div className="mb-1.5 font-display text-xl font-medium">
                                         {speaker}
@@ -357,103 +355,10 @@ export default function StatsPage() {
                     </StatCard>
                 </section>
 
-                {/* §3 Citations */}
-                <section id="citations" className="mt-16 scroll-mt-6">
-                    <SectionHead
-                        no="§ 3"
-                        title="What the Pulpit Quotes"
-                        note="Every explicit scripture citation (“Alma 32:21”, “1 Ne. 3:7”, “Matt. 5:48”) found in the body text of conference talks, colored by volume. Modern talks keep citations in footnotes, so counts lean toward earlier decades."
-                    />
-                    <div className="mb-3.5 flex flex-wrap gap-x-5 gap-y-1.5 text-[15px] text-muted-foreground">
-                        {Object.entries(VOLUME_COLOR).map(([name, color]) => (
-                            <span key={name}>
-                                <span
-                                    className="mr-1.5 inline-block h-[11px] w-[11px] rounded-[3px] align-[-1px]"
-                                    style={{ background: color }}
-                                />
-                                {name}
-                            </span>
-                        ))}
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <StatCard title="The most-quoted verses" sub="All-time citation count in conference talks.">
-                            <BarList
-                                rows={d.top_verses.slice(0, 20).map((r) => ({
-                                    label: r.ref,
-                                    value: r.count,
-                                    color: VOLUME_COLOR[volumeOfRef(r.ref, d.book_citations)],
-                                    tip: `<b>${r.ref}</b><br>cited ${r.count} times in conference`,
-                                }))}
-                            />
-                        </StatCard>
-                        <StatCard title="The most-quoted books" sub="Citations per book (top 25).">
-                            <BarList
-                                rows={d.book_citations.slice(0, 25).map((r) => ({
-                                    label: r.book,
-                                    value: r.count,
-                                    color: VOLUME_COLOR[r.volume],
-                                    tip: `<b>${r.book}</b> (${r.volume})<br>${fmt.format(r.count)} citations`,
-                                }))}
-                            />
-                        </StatCard>
-                        <StatCard title="Signature verse of each decade" sub="Top-cited verses by decade of conference.">
-                            <table className="w-full border-collapse text-[17px]">
-                                <thead>
-                                    <tr>
-                                        {["Decade", "Top verses"].map((h) => (
-                                            <th
-                                                key={h}
-                                                className="border-b border-border pb-2 pr-2.5 text-left text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
-                                            >
-                                                {h}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {Object.entries(d.top_verse_by_decade).map(([dec, list]) => (
-                                        <tr key={dec}>
-                                            <td className="border-b border-border/50 py-2 pr-2.5 font-semibold tabular-nums">
-                                                {dec}s
-                                            </td>
-                                            <td className="border-b border-border/50 py-2">
-                                                {list.slice(0, 3).map((v, i) => (
-                                                    <span key={v.ref}>
-                                                        {i > 0 && " · "}
-                                                        {v.ref}{" "}
-                                                        <span className="text-muted-foreground">({v.count})</span>
-                                                    </span>
-                                                ))}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </StatCard>
-                        <StatCard title="The uncited" sub={`Books never (or barely) cited from the pulpit since ${m.conference_years[0]}.`}>
-                            <div className="mb-3 rounded-lg bg-accent px-4 py-3 text-[17px] leading-relaxed">
-                                <b>Never cited:</b> {d.never_cited_books.join(", ") || "—"}
-                            </div>
-                            {d.least_cited_books.slice(0, 10).map((b) => (
-                                <div
-                                    key={b.book}
-                                    className="flex items-baseline justify-between border-b border-border/50 py-1.5 text-[17px] last:border-b-0"
-                                >
-                                    <span>
-                                        {b.book}{" "}
-                                        <span className="text-muted-foreground">· {b.volume}</span>
-                                    </span>
-                                    <span className="tabular-nums">{b.count}</span>
-                                </div>
-                            ))}
-                        </StatCard>
-                    </div>
-                </section>
-
-                {/* §4 Trivia */}
+                {/* §3 Trivia */}
                 <section id="trivia" className="mt-16 scroll-mt-6">
                     <SectionHead
-                        no="§ 4"
+                        no="§ 3"
                         title="Scripture Trivia"
                         note={`Classic concordance facts, computed across all ${fmt.format(verses)} verses of the standard works.`}
                     />
@@ -521,10 +426,10 @@ export default function StatsPage() {
                     </div>
                 </section>
 
-                {/* §5 Embeddings */}
+                {/* §4 Embeddings */}
                 <section id="semantic" className="mt-16 scroll-mt-6">
                     <SectionHead
-                        no="§ 5"
+                        no="§ 4"
                         title="What the Embeddings See"
                         note="These stats come from the same 384-dimensional vectors that power search — no keyword matching involved. Each talk is averaged into a single point; distance means semantic difference."
                     />
@@ -613,12 +518,23 @@ export default function StatsPage() {
                         title="The most echoed verses"
                         sub="For every conference passage, the semantically nearest verse of scripture (cosine > 0.6). These are the verses the pulpit orbits — cited or not."
                     >
+                        <div className="mb-3.5 flex flex-wrap gap-x-5 gap-y-1.5 text-[15px] text-muted-foreground">
+                            {Object.entries(VOLUME_COLOR).map(([name, color]) => (
+                                <span key={name}>
+                                    <span
+                                        className="mr-1.5 inline-block h-[11px] w-[11px] rounded-[3px] align-[-1px]"
+                                        style={{ background: color }}
+                                    />
+                                    {name}
+                                </span>
+                            ))}
+                        </div>
                         <BarList
                             rows={d.verse_echo_strong.slice(0, 15).map((r) => ({
                                 label: r.ref,
                                 value: r.count,
                                 valText: `${fmt.format(r.count)} passages`,
-                                color: VOLUME_COLOR[volumeOfRef(r.ref, d.book_citations)],
+                                color: VOLUME_COLOR[r.volume],
                                 tip: `<b>${r.ref}</b> is the nearest verse to ${r.count} conference passages${r.text ? `<br><i>“${r.text}…”</i>` : ""}`,
                             }))}
                         />

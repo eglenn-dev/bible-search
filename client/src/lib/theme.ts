@@ -57,8 +57,18 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
     return theme;
 }
 
+// --background in each theme; keep in sync with index.css and index.html.
+const THEME_COLORS: Record<ResolvedTheme, string> = {
+    light: "#ffffff",
+    dark: "#17181a",
+};
+
 export function applyResolvedTheme(resolved: ResolvedTheme): void {
     document.documentElement.classList.toggle("dark", resolved === "dark");
+    // The status bar / browser chrome follows the page, not the OS setting.
+    document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute("content", THEME_COLORS[resolved]);
 }
 
 /** Calls back whenever the OS preference flips. Returns an unsubscribe fn. */

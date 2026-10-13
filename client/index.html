@@ -9,7 +9,17 @@
        opaque 180×180 PNG. -->
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-title" content="Gospel Help" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Opened from the Home Screen, run full-screen like an app. -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <!-- Browser chrome / status bar colour. The pre-paint script and
+       src/lib/theme.ts keep this matched to the painted theme. -->
+  <meta name="theme-color" content="#ffffff" />
+  <!-- viewport-fit=cover lets the mobile shell draw under the notch and home
+       indicator; it pads itself back in with env(safe-area-inset-*). -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Gospel Help — Gospel Library Search</title>
   <meta name="description"
     content="gospel.help — semantic search across the Scriptures, General Conference addresses, BYU Speeches, and the General Handbook." />
@@ -28,7 +38,8 @@
     rel="stylesheet" />
   <!-- Paint the saved theme before first paint so a dark-mode load never
        flashes the light palette. Mirrors src/lib/theme.ts; keep the storage
-       key ("gs-theme") and the default ("system") in sync with it. -->
+       key ("gs-theme"), the default ("system") and the theme-color values in
+       sync with it. -->
   <script>
     (function () {
       try {
@@ -39,6 +50,10 @@
           (theme === "system" &&
             window.matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.classList.toggle("dark", dark);
+        if (dark)
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute("content", "#17181a");
       } catch (e) {
         /* storage unavailable — the ThemeProvider re-applies on mount */
       }

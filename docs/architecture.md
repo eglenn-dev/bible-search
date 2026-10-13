@@ -114,8 +114,20 @@ React 19 + Vite + Tailwind v4 + a few shadcn/ui primitives. Key pieces:
 | `src/components/render-results.tsx` | Result cards: source badge, metadata line, relevance bar, deep-link via `result.url`. |
 | `src/lib/types.ts` | `Source` union + `Result`/`ResultMetadata` types. |
 | `src/index.css` | "Classic & scholarly" theme tokens + serif fonts. |
+| `src/components/mobile/` | The phone layout (see below): `mobile-app.tsx` is the shell; the rest are its tab bar, sheets, cards and controls. |
+| `src/lib/bookmarks.ts` | Saved passages, kept in `localStorage` (`gs-bookmarks`). |
 
 The API base URL comes from `VITE_API_DOMAIN` (build/dev-time env). The frontend deep-links results straight to churchofjesuschrist.org using the `url` the backend stored, so it needs no per-source URL logic.
+
+### Mobile shell
+
+Below Tailwind's `md` breakpoint (`useIsMobile`, 48rem) `App.tsx` renders `MobileApp` instead of the desktop layouts. `App` still owns the search state and passes it down, so both are views of the same search and resizing the window keeps your results.
+
+- **Tabs:** Search, Saved, Settings, under a floating tab bar. The active tab is the `?tab=` query param.
+- **Results** are cards; tapping one opens the full passage in a bottom sheet with Save / Share / Read (the link out to the source).
+- **Bookmarks** are per-device: `lib/bookmarks.ts` stores each saved result whole in `localStorage`, so the Saved tab needs no API call. There are no accounts and nothing syncs.
+- **Liquid Glass** is CSS only: the `.glass` / `.glass-thick` classes and `--glass-*` tokens in `index.css` (translucent fill, `backdrop-filter` blur, a lit rim). It is used for floating controls, not for the result cards, and falls back to opaque panes where blur is unsupported or the user has asked for reduced transparency.
+- **Installable:** `public/manifest.webmanifest` plus the `apple-mobile-web-app-*` tags make "Add to Home Screen" open it full-screen. There is no service worker, so it does not work offline.
 
 ## Ingestion pipeline (`api/ingest/`)
 

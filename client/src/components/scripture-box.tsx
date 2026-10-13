@@ -3,6 +3,7 @@ import { runSearch } from "@/lib/search";
 import { useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Search as SearchIcon } from "lucide-react";
+import SearchField from "./mobile/search-field";
 
 interface ScriptureBoxProps {
     // Reference is lifted to App so it survives the hero <-> compact layout
@@ -14,6 +15,8 @@ interface ScriptureBoxProps {
     setResults: (results: Result[]) => void;
     // Compact mode renders a smaller pill for the post-search header.
     compact?: boolean;
+    // Inside the mobile shell: render the glass search field instead.
+    mobile?: boolean;
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -30,6 +33,7 @@ export default function ScriptureBox({
     resultCount,
     setResults,
     compact = false,
+    mobile = false,
 }: ScriptureBoxProps) {
     const [query, setQuery] = useState(parentRef);
     const [loading, setLoading] = useState(false);
@@ -111,6 +115,38 @@ export default function ScriptureBox({
             setLoading(false);
         }
     };
+
+    if (mobile) {
+        return (
+            <div>
+                <SearchField
+                    value={query}
+                    onChange={setQueryHandler}
+                    onSubmit={handleSubmit}
+                    placeholder="Alma 32:21 or D&C 4:2"
+                    loading={loading}
+                    disabled={!inputVerse}
+                />
+                {error && (
+                    <div className="mt-2 px-4 text-sm text-destructive">
+                        {error}
+                    </div>
+                )}
+                {inputVerse && (
+                    <div className="mt-2.5 rounded-[20px] border border-border/70 bg-[var(--app-card)] px-4 py-3">
+                        {verseSource && (
+                            <div className="mb-0.5 text-[13px] font-semibold text-muted-foreground">
+                                {SOURCE_LABELS[verseSource] || verseSource}
+                            </div>
+                        )}
+                        <div className="line-clamp-3 font-display text-[17px] leading-snug text-foreground">
+                            “{inputVerse}”
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     const searchBar = (
         <form

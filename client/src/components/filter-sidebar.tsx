@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { Source, SortKey, ResultCount } from "@/lib/types";
-import { RESULT_COUNTS } from "@/lib/types";
+import type { Source, SortKey } from "@/lib/types";
 import { Check } from "lucide-react";
 
 const SOURCE_OPTIONS: { key: Source; label: string }[] = [
@@ -27,11 +26,6 @@ interface FilterSidebarProps {
     // Per-source hit counts from the current result set.
     counts: Partial<Record<Source, number>>;
     total: number;
-    // When provided, renders a "Show" group with the results-per-search
-    // options (used by the collapsed mobile filter panel, where the header's
-    // results-count drop-down is hidden).
-    resultCount?: ResultCount;
-    onResultCountChange?: (next: ResultCount) => void;
 }
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
@@ -94,8 +88,6 @@ export default function FilterSidebar({
     onSortChange,
     counts,
     total,
-    resultCount,
-    onResultCountChange,
 }: FilterSidebarProps) {
     const isAll = sources.length === 0;
 
@@ -138,19 +130,6 @@ export default function FilterSidebar({
                     />
                 ))}
             </div>
-            {resultCount !== undefined && onResultCountChange && (
-                <div className="flex flex-col gap-2.5">
-                    <GroupLabel>Show</GroupLabel>
-                    {RESULT_COUNTS.map((n) => (
-                        <FilterLink
-                            key={n}
-                            active={resultCount === n}
-                            label={`${n} results`}
-                            onClick={() => onResultCountChange(n)}
-                        />
-                    ))}
-                </div>
-            )}
         </div>
     );
 }

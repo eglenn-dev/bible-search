@@ -80,6 +80,28 @@
     --sidebar-accent-foreground: #212225;
     --sidebar-border: #e0e2e2;
     --sidebar-ring: #157493;
+
+    /* Liquid Glass, used only by the mobile shell (components/mobile). The
+       fill is translucent so content shows through the blur; the stroke and
+       specular insets are the lit rim; the outer hairline in --glass-shadow
+       is what keeps a pane legible when it sits on plain white. */
+    --glass-fill: rgba(255, 255, 255, 0.56);
+    --glass-fill-thick: rgba(255, 255, 255, 0.8);
+    --glass-stroke: rgba(255, 255, 255, 0.8);
+    --glass-specular:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
+        inset 0 -1px 0 0 rgba(255, 255, 255, 0.45),
+        inset 0 0 14px 0 rgba(255, 255, 255, 0.3);
+    --glass-shadow:
+        0 0 0 0.5px rgba(33, 34, 37, 0.1), 0 2px 6px rgba(16, 60, 78, 0.06),
+        0 12px 32px rgba(16, 60, 78, 0.14);
+    /* Tint under the selected tab / segment. */
+    --glass-thumb: rgba(21, 116, 147, 0.13);
+    /* Soft teal wash behind the mobile shell so the glass has colour to pick
+       up; the desktop page stays plain white. */
+    --app-wash-1: rgba(21, 116, 147, 0.17);
+    --app-wash-2: rgba(125, 227, 244, 0.26);
+    --app-card: rgba(255, 255, 255, 0.84);
 }
 
 @theme inline {
@@ -184,6 +206,21 @@
     --series-5: #d55181;
     --series-6: #229622;
     --chart-grid: #26282b;
+
+    --glass-fill: rgba(52, 55, 60, 0.5);
+    --glass-fill-thick: rgba(32, 34, 37, 0.8);
+    --glass-stroke: rgba(255, 255, 255, 0.13);
+    --glass-specular:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
+        inset 0 -1px 0 0 rgba(255, 255, 255, 0.06),
+        inset 0 0 14px 0 rgba(255, 255, 255, 0.04);
+    --glass-shadow:
+        0 0 0 0.5px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3),
+        0 12px 32px rgba(0, 0, 0, 0.5);
+    --glass-thumb: rgba(73, 184, 220, 0.2);
+    --app-wash-1: rgba(73, 184, 220, 0.16);
+    --app-wash-2: rgba(21, 116, 147, 0.2);
+    --app-card: rgba(38, 40, 43, 0.82);
 }
 
 @keyframes gsFade {
@@ -204,6 +241,9 @@
     body {
         @apply bg-background text-foreground;
         font-family: var(--font-body);
+        /* viewport-fit=cover: keep content clear of the notch in landscape. */
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
     }
     h1,
     h2,
@@ -227,5 +267,129 @@
 @layer utilities {
     .gs-fade {
         animation: gsFade 0.45s ease both;
+    }
+}
+
+/* ---- Mobile shell: Liquid Glass ------------------------------------------
+   Glass is for the floating control layer only (tab bar, search field,
+   sheets, toasts). Result cards are plain translucent surfaces: a
+   backdrop-filter on every row of a long list makes iOS scrolling stutter. */
+@layer components {
+    .glass,
+    .glass-thick {
+        border: 1px solid var(--glass-stroke);
+        box-shadow: var(--glass-specular), var(--glass-shadow);
+    }
+    .glass {
+        background: var(--glass-fill);
+        -webkit-backdrop-filter: blur(22px) saturate(180%);
+        backdrop-filter: blur(22px) saturate(180%);
+    }
+    /* Sheets: more fill and more blur, since body text sits on them. */
+    .glass-thick {
+        background: var(--glass-fill-thick);
+        -webkit-backdrop-filter: blur(40px) saturate(190%);
+        backdrop-filter: blur(40px) saturate(190%);
+    }
+
+    /* iOS 26's scroll-edge effect: instead of a bar with a hard bottom line,
+       content blurs and fades out as it slides under the floating controls. */
+    .glass-edge-top {
+        isolation: isolate;
+    }
+    .glass-edge-top::before {
+        content: "";
+        position: absolute;
+        /* Reaches up behind the status bar and a little below the controls. */
+        inset: calc(-1 * env(safe-area-inset-top)) 0 -1.5rem 0;
+        z-index: -1;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        background: linear-gradient(
+            to bottom,
+            color-mix(in srgb, var(--background) 82%, transparent) 35%,
+            transparent
+        );
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+        -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+        mask-image: linear-gradient(to bottom, #000 62%, transparent);
+    }
+    .glass-edge-top[data-stuck="true"]::before {
+        opacity: 1;
+    }
+
+    .app-wash {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            radial-gradient(
+                120% 55% at 0% 0%,
+                var(--app-wash-1),
+                transparent 62%
+            ),
+            radial-gradient(
+                90% 45% at 100% 18%,
+                var(--app-wash-2),
+                transparent 60%
+            ),
+            radial-gradient(
+                110% 50% at 50% 100%,
+                var(--app-wash-1),
+                transparent 65%
+            ),
+            var(--background);
+    }
+
+    /* App chrome shouldn't flash grey on tap or start a text selection. */
+    .mobile-app {
+        -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-app button,
+    .mobile-app [role="tablist"] {
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+    }
+
+    /* No blur available: fall back to a near-opaque pane rather than
+       unreadable text over whatever is underneath. */
+    @supports not (
+        (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+    ) {
+        .glass {
+            background: var(--glass-fill-thick);
+        }
+        .glass-thick {
+            background: var(--popover);
+        }
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+        .glass,
+        .glass-thick {
+            background: var(--popover);
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+        }
+        .glass-edge-top::before {
+            background: var(--background);
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            -webkit-mask-image: none;
+            mask-image: none;
+            bottom: 0;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mobile-app *,
+    .mobile-sheet {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
     }
 }

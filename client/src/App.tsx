@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Result, Source, SortKey } from "./lib/types";
 import { SOURCES, RESULT_COUNTS, DEFAULT_RESULT_COUNT } from "./lib/types";
 import { sortResults } from "./lib/result-date";
@@ -14,8 +14,9 @@ import Footer from "./components/footer";
 import Landing from "./components/landing";
 import ConferenceBanner from "./components/conference-banner";
 import ThemeToggle from "./components/theme-toggle";
+import MobileApp from "./components/mobile/mobile-app";
+import { useIsMobile } from "./lib/use-is-mobile";
 import { cn } from "./lib/utils";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import {
     useQueryState,
     parseAsString,
@@ -30,9 +31,9 @@ export default function App() {
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
     const [scriptureRef, setScriptureRef] = useState<string>("");
-    // Mobile-only: whether the collapsed filter panel (source/sort/count) is
-    // expanded. Desktop always shows the sidebar and ignores this.
-    const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
+    // Phones get the app-style shell (components/mobile) in place of the
+    // layouts below; the search state in this component drives both.
+    const isMobile = useIsMobile();
 
     // Every shareable/refresh-safe setting lives in the URL via nuqs: each
     // hook returns a [value, setValue] pair backed directly by the query
@@ -110,7 +111,10 @@ export default function App() {
         }
     };
 
-    const sortedResults = sortResults(results, sortBy);
+    const sortedResults = useMemo(
+        () => sortResults(results, sortBy),
+        [results, sortBy],
+    );
 
     // Per-source hit counts for the sidebar, from the current result set.
     const sourceCounts: Partial<Record<Source, number>> = {};
@@ -186,6 +190,7 @@ export default function App() {
                 setParams={setQuery}
                 setResults={handleResults}
                 compact={hasSearched}
+                mobile={isMobile}
             />
         ) : (
             <ScriptureBox
@@ -195,8 +200,35 @@ export default function App() {
                 resultCount={resultCount}
                 setResults={handleResults}
                 compact={hasSearched}
+                mobile={isMobile}
             />
         );
+
+    if (isMobile) {
+        return (
+            <MobileApp
+                hasSearched={hasSearched}
+                results={sortedResults}
+                activeQuery={activeQuery}
+                queryType={queryType}
+                onQueryTypeChange={setQueryType}
+                searchInput={searchInput}
+                sources={sources}
+                // Before the first search a filter change is only a setting;
+                // after it, it re-runs the query like the desktop sidebar.
+                onSourcesChange={hasSearched ? handleSidebarSources : setSources}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                resultCount={resultCount}
+                onResultCountChange={setResultCount}
+                sourceCounts={sourceCounts}
+                canLoadMore={canLoadMore}
+                loadingMore={loadingMore}
+                onLoadMore={handleLoadMore}
+                onGoHome={goHome}
+            />
+        );
+    }
 
     if (hasSearched) {
         const countLabel =
@@ -220,30 +252,6 @@ export default function App() {
                         </div>
                         <div className="flex w-full flex-row items-center justify-between gap-1.5 md:w-auto md:justify-start md:gap-3">
                             {modeToggle(true)}
-                            <button
-                                type="button"
-                                aria-expanded={filtersOpen}
-                                onClick={() => setFiltersOpen((v) => !v)}
-                                className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-1 text-sm text-foreground md:hidden"
-                            >
-                                <SlidersHorizontal className="h-4 w-4" />
-                                {/* Visually dropped on the narrowest phones so
-                                    this row fits in 320px; still announced. */}
-                                <span className="max-[374px]:sr-only">
-                                    Filters
-                                </span>
-                                {sources.length > 0 && (
-                                    <span className="text-sm text-primary">
-                                        · {sources.length}
-                                    </span>
-                                )}
-                                <ChevronDown
-                                    className={cn(
-                                        "h-4 w-4 transition-transform",
-                                        filtersOpen && "rotate-180",
-                                    )}
-                                />
-                            </button>
                             <div className="hidden md:block">
                                 <ResultsCount
                                     value={resultCount}
@@ -256,20 +264,6 @@ export default function App() {
                     </div>
                 </header>
                 <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col md:flex-row md:items-stretch">
-                    {filtersOpen && (
-                        <div className="gs-fade border-b border-border px-5 pb-6 pt-5 md:hidden">
-                            <FilterSidebar
-                                sources={sources}
-                                onSourcesChange={handleSidebarSources}
-                                sortBy={sortBy}
-                                onSortChange={setSortBy}
-                                counts={sourceCounts}
-                                total={results.length}
-                                resultCount={resultCount}
-                                onResultCountChange={setResultCount}
-                            />
-                        </div>
-                    )}
                     {/* Boxed like the Church's "Filter Results" panel. */}
                     <aside className="hidden w-full flex-none px-5 py-8 md:block md:w-64 md:py-10 md:pl-5 md:pr-0">
                         <div className="border border-border bg-muted p-4">

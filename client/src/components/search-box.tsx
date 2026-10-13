@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import type { Result, Source, ResultCount } from "@/lib/types";
 import { runSearch } from "@/lib/search";
 import { Search as SearchIcon } from "lucide-react";
+import SearchField from "./mobile/search-field";
 
 interface SearchBoxProps {
     parentQuery: string;
@@ -12,6 +13,8 @@ interface SearchBoxProps {
     setResults: (results: Result[]) => void;
     // Compact mode renders a smaller pill for the post-search header.
     compact?: boolean;
+    // Inside the mobile shell: render the glass search field instead.
+    mobile?: boolean;
 }
 
 export default function SearchBox({
@@ -21,6 +24,7 @@ export default function SearchBox({
     setParams,
     setResults,
     compact = false,
+    mobile = false,
 }: SearchBoxProps) {
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
@@ -31,7 +35,10 @@ export default function SearchBox({
         setQuery(parentQuery);
     }, [parentQuery]);
 
+    // Type-anywhere-to-search is a desktop nicety; on a phone it would pull
+    // focus (and the keyboard) away from sheets.
     useEffect(() => {
+        if (mobile) return;
         const handleKeyDown = () => {
             inputRef.current?.focus();
         };
@@ -39,7 +46,7 @@ export default function SearchBox({
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, []);
+    }, [mobile]);
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -71,6 +78,28 @@ export default function SearchBox({
         setQuery(newQuery);
         setParams(newQuery);
     };
+
+    if (mobile) {
+        return (
+            <div>
+                <SearchField
+                    value={query}
+                    onChange={(value) => {
+                        setQuery(value);
+                        setParams(value);
+                    }}
+                    onSubmit={handleSubmit}
+                    placeholder="seek, and ye shall find…"
+                    loading={loading}
+                />
+                {error && (
+                    <div className="mt-2 px-4 text-sm text-destructive">
+                        {error}
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     const searchBar = (
         <form

@@ -12,7 +12,13 @@ import {
 
 const TOOLS = ["search", "search_by_reference", "get_verse", "health"];
 
-export default function McpDialog() {
+interface McpDialogProps {
+    // Replaces the default outline button (the mobile Settings tab passes a
+    // list row).
+    trigger?: React.ReactNode;
+}
+
+export default function McpDialog({ trigger }: McpDialogProps) {
     const [copied, setCopied] = useState(false);
     const apiDomain = import.meta.env.VITE_API_DOMAIN ?? "";
     const mcpUrl = `${apiDomain}/mcp`;
@@ -30,10 +36,12 @@ export default function McpDialog() {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                    <Plug className="h-4 w-4" />
-                    Use with AI agents
-                </Button>
+                {trigger ?? (
+                    <Button variant="outline" size="sm" className="gap-2">
+                        <Plug className="h-4 w-4" />
+                        Use with AI agents
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>

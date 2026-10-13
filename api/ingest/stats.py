@@ -1,7 +1,7 @@
 """Precompute the /stats page payload and store it in MongoDB.
 
-Computes corpus-wide analytics (speaker stats, word trends, scripture-citation
-counts, trivia, and embedding-based stats like talk twins and k-means clusters)
+Computes corpus-wide analytics (speaker stats, word trends, scripture trivia,
+and embedding-based stats like talk twins and k-means clusters)
 and upserts a single document into the ``stats`` collection:
 
     { "_id": "site_stats", "generated_at": <ISO-8601 UTC>, "data": { ... } }
@@ -27,6 +27,32 @@ from datetime import UTC, datetime
 import numpy as np
 
 import db
+
+# --- Current apostles -----------------------------------------------------
+
+# The First Presidency and Quorum of the Twelve, in seniority order — the
+# "Vocabulary fingerprints" card shows exactly these speakers, in this order.
+# Update the list when the quorum changes, then re-run this script. Names must
+# match the conference byline once `norm_speaker` has stripped the title.
+CURRENT_APOSTLES = [
+    # First Presidency
+    "Dallin H. Oaks",
+    "Henry B. Eyring",
+    "D. Todd Christofferson",
+    # Quorum of the Twelve
+    "Dieter F. Uchtdorf",
+    "David A. Bednar",
+    "Quentin L. Cook",
+    "Neil L. Andersen",
+    "Ronald A. Rasband",
+    "Gary E. Stevenson",
+    "Dale G. Renlund",
+    "Gerrit W. Gong",
+    "Ulisses Soares",
+    "Patrick Kearon",
+    "Gérald Caussé",
+    "Clark G. Gilbert",
+]
 
 # --- Speaker normalization & procedural-talk filter -----------------------
 
@@ -55,74 +81,6 @@ _PROC_RE = re.compile(
 
 def is_procedural(title: str | None) -> bool:
     return bool(_PROC_RE.search(title or ""))
-
-
-# --- Scripture-citation matching ------------------------------------------
-# Talks cite both full names ("Alma 32:21") and standard LDS abbreviations
-# ("1 Ne. 3:7", "Matt. 5:48"), usually with a non-breaking space between the
-# leading numeral and the book name.
-
-BOM_BOOKS = ["1 Nephi", "2 Nephi", "Jacob", "Enos", "Jarom", "Omni", "Words of Mormon",
-             "Mosiah", "Alma", "Helaman", "3 Nephi", "4 Nephi", "Mormon", "Ether", "Moroni"]
-OT = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
-      "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra",
-      "Nehemiah", "Esther", "Job", "Psalm", "Psalms", "Proverbs", "Ecclesiastes",
-      "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea",
-      "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zephaniah",
-      "Haggai", "Zechariah", "Malachi"]
-NT = ["Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
-      "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians",
-      "2 Thessalonians", "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James",
-      "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"]
-PGP = ["Moses", "Abraham", "Joseph Smith—History", "Joseph Smith—Matthew", "Articles of Faith"]
-DC = ["D&C", "Doctrine and Covenants"]
-
-ABBREV = {
-    "1 Ne.": "1 Nephi", "2 Ne.": "2 Nephi", "Hel.": "Helaman", "3 Ne.": "3 Nephi",
-    "4 Ne.": "4 Nephi", "W of M": "Words of Mormon", "Morm.": "Mormon", "Moro.": "Moroni",
-    "Gen.": "Genesis", "Ex.": "Exodus", "Lev.": "Leviticus", "Num.": "Numbers",
-    "Deut.": "Deuteronomy", "Josh.": "Joshua", "Judg.": "Judges", "1 Sam.": "1 Samuel",
-    "2 Sam.": "2 Samuel", "1 Kgs.": "1 Kings", "2 Kgs.": "2 Kings", "1 Chr.": "1 Chronicles",
-    "2 Chr.": "2 Chronicles", "Neh.": "Nehemiah", "Esth.": "Esther", "Ps.": "Psalm",
-    "Pss.": "Psalm", "Prov.": "Proverbs", "Eccl.": "Ecclesiastes", "Song.": "Song of Solomon",
-    "Isa.": "Isaiah", "Jer.": "Jeremiah", "Lam.": "Lamentations", "Ezek.": "Ezekiel",
-    "Dan.": "Daniel", "Obad.": "Obadiah", "Hab.": "Habakkuk", "Zeph.": "Zephaniah",
-    "Hag.": "Haggai", "Zech.": "Zechariah", "Mal.": "Malachi", "Matt.": "Matthew",
-    "Rom.": "Romans", "1 Cor.": "1 Corinthians", "2 Cor.": "2 Corinthians",
-    "Gal.": "Galatians", "Eph.": "Ephesians", "Philip.": "Philippians", "Phil.": "Philippians",
-    "Col.": "Colossians", "1 Thes.": "1 Thessalonians", "2 Thes.": "2 Thessalonians",
-    "1 Thess.": "1 Thessalonians", "2 Thess.": "2 Thessalonians", "1 Tim.": "1 Timothy",
-    "2 Tim.": "2 Timothy", "Philem.": "Philemon", "Heb.": "Hebrews", "1 Pet.": "1 Peter",
-    "2 Pet.": "2 Peter", "1 Jn.": "1 John", "2 Jn.": "2 John", "3 Jn.": "3 John",
-    "Rev.": "Revelation", "Abr.": "Abraham", "JS—H": "Joseph Smith—History",
-    "JS—M": "Joseph Smith—Matthew", "JS-H": "Joseph Smith—History",
-    "JS-M": "Joseph Smith—Matthew", "A of F": "Articles of Faith",
-}
-CANON = {"Psalms": "Psalm", "Doctrine and Covenants": "D&C"}
-
-BOOK_VOLUME: dict[str, str] = {}
-for _b in BOM_BOOKS:
-    BOOK_VOLUME[_b] = "Book of Mormon"
-for _b in OT:
-    BOOK_VOLUME[_b] = "Old Testament"
-for _b in NT:
-    BOOK_VOLUME[_b] = "New Testament"
-for _b in PGP:
-    BOOK_VOLUME[_b] = "Pearl of Great Price"
-for _b in DC:
-    BOOK_VOLUME[_b] = "Doctrine and Covenants"
-
-_alts = sorted((re.escape(b) for b in set(BOM_BOOKS + OT + NT + PGP + DC + list(ABBREV))),
-               key=len, reverse=True)
-CITE_RE = re.compile(r"(?<![A-Za-z])(" + "|".join(_alts) + r")\s+(\d{1,3}):(\d{1,3})")
-
-
-def find_citations(text: str):
-    """Yield (book, chapter, verse) canonical citations found in text."""
-    text = text.replace(" ", " ").replace("‑", "-")
-    for m in CITE_RE.finditer(text):
-        book = ABBREV.get(m.group(1), m.group(1))
-        yield CANON.get(book, book), m.group(2), m.group(3)
 
 
 # --- Extraction -----------------------------------------------------------
@@ -191,6 +149,12 @@ def _calling_group(c: str) -> str:
     if "young men" in c:
         return "Young Men"
     return "Other"
+
+
+def _volume_of(d: dict) -> str:
+    if d["source"] == "bible":
+        return "Old Testament" if d["metadata"]["testament"] == "ot" else "New Testament"
+    return d["metadata"]["volume"]
 
 
 def _syllables(word: str) -> int:
@@ -329,33 +293,48 @@ def compute_text_stats(conference, byu, scriptures, handbook) -> dict:
                 for y in sorted(year_blob)}
         for label, pat in WORD_TREND_TERMS.items()}
 
-    # vocabulary fingerprints
-    speaker_tf = {s: Counter() for s, ts in by_speaker.items() if len(ts) >= 8}
+    # vocabulary fingerprints (current apostles, sermons only)
+    speaker_tf = {s: Counter() for s in CURRENT_APOSTLES}
+    talk_words: dict[tuple[str, str], set[str]] = defaultdict(set)
     all_tf: Counter = Counter()
     for d in conference:
+        if is_procedural(d.get("title")):
+            continue
         s = norm_speaker(d["metadata"].get("speaker") or "")
         words = [w for w in re.findall(r"[a-z']{3,}", d["text"].lower()) if w not in STOP]
         all_tf.update(words)
         if s in speaker_tf:
             speaker_tf[s].update(words)
+            talk_words[(s, d["metadata"]["talk_uri"])].update(words)
     total_all = sum(all_tf.values())
+    talks_using = {s: Counter() for s in CURRENT_APOSTLES}
+    for (s, _), ws in talk_words.items():
+        talks_using[s].update(ws)
     fingerprints = {}
-    for s, tf in speaker_tf.items():
+    for s in CURRENT_APOSTLES:
+        tf = speaker_tf[s]
         total_s = sum(tf.values())
-        if total_s < 20000:
-            continue
+        n_talks = len(by_speaker.get(s, []))
+        # The newest apostles have only a handful of talks, so the count floor
+        # scales with how much each has said. Requiring a word to recur across
+        # talks keeps one-off story vocabulary (names, props) from dominating.
+        min_count = max(4, min(12, round(total_s / 2500)))
+        min_talks = min(n_talks, 3 if n_talks >= 8 else 2)
+        own_name = set(re.findall(r"[a-z']{3,}", s.lower()))
         scored = []
         for w, c in tf.items():
-            if c < 12:
+            if c < min_count or talks_using[s][w] < min_talks or w in own_name:
                 continue
             lift = (c / total_s) / (all_tf[w] / total_all)
             if lift > 2.2:
                 scored.append((lift * math.log1p(c), w, round(lift, 1), c))
         scored.sort(reverse=True)
+        if not scored:
+            print(f"warning: no fingerprint for {s!r} ({n_talks} talks) — "
+                  "check the spelling in CURRENT_APOSTLES", flush=True)
+            continue
         fingerprints[s] = [{"word": w, "lift": l, "count": c} for _, w, l, c in scored[:10]]
-    stats["fingerprints"] = {
-        p["speaker"]: fingerprints[p["speaker"]]
-        for p in prolific[:20] if p["speaker"] in fingerprints}
+    stats["fingerprints"] = fingerprints
 
     # readability
     read_by_year = {}
@@ -372,40 +351,7 @@ def compute_text_stats(conference, byu, scriptures, handbook) -> dict:
             "flesch": round(206.835 - 1.015 * asl - 84.6 * asw, 1)}
     stats["readability_by_year"] = read_by_year
 
-    # scripture citations in conference
-    verse_counts: Counter = Counter()
-    book_counts: Counter = Counter()
-    volume_counts: Counter = Counter()
-    verse_by_decade: dict[int, Counter] = defaultdict(Counter)
-    for d in conference:
-        decade = (d["metadata"]["year"] // 10) * 10
-        for book, ch, v in find_citations(d["text"]):
-            ref = f"{book} {ch}:{v}"
-            verse_counts[ref] += 1
-            book_counts[book] += 1
-            volume_counts[BOOK_VOLUME[book]] += 1
-            verse_by_decade[decade][ref] += 1
-    stats["top_verses"] = [{"ref": r, "count": c} for r, c in verse_counts.most_common(30)]
-    stats["book_citations"] = [
-        {"book": b, "count": c, "volume": BOOK_VOLUME.get(b, "?")}
-        for b, c in book_counts.most_common()]
-    stats["volume_citations"] = dict(volume_counts.most_common())
-    stats["top_verse_by_decade"] = {
-        str(d): [{"ref": r, "count": c} for r, c in vc.most_common(5)]
-        for d, vc in sorted(verse_by_decade.items())}
-    stats["never_cited_books"] = [
-        b for b in BOM_BOOKS + OT + NT + PGP
-        if b != "Psalms" and b not in book_counts]
-    stats["least_cited_books"] = [
-        {"book": b, "count": c, "volume": BOOK_VOLUME.get(b, "?")}
-        for b, c in book_counts.most_common()[:-16:-1]]
-
     # scripture trivia
-    def _volume_of(d):
-        if d["source"] == "bible":
-            return "Old Testament" if d["metadata"]["testament"] == "ot" else "New Testament"
-        return d["metadata"]["volume"]
-
     all_verses = bible + bom + dnc + pogp
     vs = sorted(all_verses, key=lambda d: _wc(d["text"]))
     stats["shortest_verses"] = [
@@ -577,9 +523,11 @@ def compute_embedding_stats(conference, conf_emb, scriptures, scripture_embs) ->
             echo[ref] += 1
             if s_ > 0.6:
                 strong[ref] += 1
-    text_of = {d["reference"]: d["text"] for d in verse_docs}
+    verse_of = {d["reference"]: d for d in verse_docs}
     stats["verse_echo_strong"] = [
-        {"ref": r, "count": c, "text": text_of[r][:160]} for r, c in strong.most_common(25)]
+        {"ref": r, "count": c, "text": verse_of[r]["text"][:160],
+         "volume": _volume_of(verse_of[r])}
+        for r, c in strong.most_common(25)]
     stats["verse_echo_mean_sim"] = round(best_sim_sum / len(E), 3)
     return stats
 

@@ -93,8 +93,8 @@ class StatsResponse(BaseModel):
     data: dict[str, Any] = Field(
         ...,
         description=(
-            "Precomputed corpus analytics (speaker stats, word trends, citation "
-            "counts, embedding clusters, …) rendered by the frontend /stats page. "
+            "Precomputed corpus analytics (speaker stats, word trends, scripture "
+            "trivia, embedding clusters, …) rendered by the frontend /stats page. "
             "Regenerated offline via `python -m ingest.stats`."
         ),
     )

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import type { Result, Source, ResultCount } from "@/lib/types";
+import type { Result, Source, ResultCount, SearchFilters } from "@/lib/types";
 import { runSearch } from "@/lib/search";
 import { Search as SearchIcon } from "lucide-react";
 import SearchField from "./mobile/search-field";
@@ -8,6 +8,7 @@ import SearchField from "./mobile/search-field";
 interface SearchBoxProps {
     parentQuery: string;
     sources: Source[];
+    filters: SearchFilters;
     resultCount: ResultCount;
     setParams: (content: string) => void;
     setResults: (results: Result[]) => void;
@@ -20,6 +21,7 @@ interface SearchBoxProps {
 export default function SearchBox({
     parentQuery,
     sources,
+    filters,
     resultCount,
     setParams,
     setResults,
@@ -39,7 +41,14 @@ export default function SearchBox({
     // focus (and the keyboard) away from sheets.
     useEffect(() => {
         if (mobile) return;
-        const handleKeyDown = () => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Leave other fields (the speaker picker, year selects) alone.
+            const target = e.target as HTMLElement | null;
+            if (
+                target?.isContentEditable ||
+                target?.closest("input, textarea, select")
+            )
+                return;
             inputRef.current?.focus();
         };
         window.addEventListener("keydown", handleKeyDown);
@@ -63,12 +72,17 @@ export default function SearchBox({
                 query,
                 resultCount,
                 sources,
+                filters,
             });
             setResults(results);
             setLoading(false);
         } catch (error) {
             console.error("Error fetching results:", error);
-            setError("Failed to fetch results.");
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to fetch results.",
+            );
             setLoading(false);
         }
     };

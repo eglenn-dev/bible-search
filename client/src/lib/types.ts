@@ -26,6 +26,33 @@ export const SOURCES: Source[] = [
     "handbook",
 ];
 
+// Speaker + year-range filters. They only match the dated, attributed
+// sources (conference, byu-speeches); null means "not filtered".
+export interface SearchFilters {
+    speaker: string | null;
+    yearFrom: number | null;
+    yearTo: number | null;
+}
+
+export const NO_FILTERS: SearchFilters = {
+    speaker: null,
+    yearFrom: null,
+    yearTo: null,
+};
+
+// The earliest dated talk in the corpus (a 1937 BYU speech); bounds the
+// year pickers.
+export const FIRST_YEAR = 1937;
+
+// One entry from GET /speakers (requested without the raw variants).
+export interface SpeakerOption {
+    name: string;
+    talks: number;
+    sources: Source[];
+    first_year: number | null;
+    last_year: number | null;
+}
+
 export interface ResultMetadata {
     // scriptures (bible + other standard works)
     book?: string;

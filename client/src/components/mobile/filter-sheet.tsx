@@ -1,8 +1,9 @@
 import { Check } from "lucide-react";
-import type { ResultCount, SortKey, Source } from "@/lib/types";
+import type { ResultCount, SearchFilters, SortKey, Source } from "@/lib/types";
 import { RESULT_COUNTS, SOURCES } from "@/lib/types";
 import { SOURCE_LABELS } from "@/lib/result-display";
 import { cn } from "@/lib/utils";
+import { SpeakerPicker, YearRange } from "../speaker-year-filter";
 import Segmented from "./segmented";
 import Sheet from "./sheet";
 
@@ -18,6 +19,9 @@ interface FilterSheetProps {
     onResultCountChange: (next: ResultCount) => void;
     // Per-source hit counts from the current result set.
     counts: Partial<Record<Source, number>>;
+    // Speaker + year range (conference / BYU Speeches only).
+    filters: SearchFilters;
+    onFiltersChange: (next: SearchFilters) => void;
 }
 
 const SORT_OPTIONS = [
@@ -83,7 +87,10 @@ function Chip({
     );
 }
 
-/** Source, sort and result-count controls — the desktop sidebar as a sheet. */
+/**
+ * Source, speaker, year, sort and result-count controls — the desktop
+ * sidebar as a sheet.
+ */
 export default function FilterSheet({
     open,
     onOpenChange,
@@ -94,6 +101,8 @@ export default function FilterSheet({
     resultCount,
     onResultCountChange,
     counts,
+    filters,
+    onFiltersChange,
 }: FilterSheetProps) {
     const isAll = sources.length === 0;
 
@@ -124,6 +133,29 @@ export default function FilterSheet({
                             </Chip>
                         ))}
                     </div>
+                </Group>
+                <Group label="Speaker">
+                    <SpeakerPicker
+                        variant="sheet"
+                        value={filters.speaker}
+                        onChange={(speaker) =>
+                            onFiltersChange({ ...filters, speaker })
+                        }
+                    />
+                </Group>
+                <Group label="Years">
+                    <YearRange
+                        variant="sheet"
+                        from={filters.yearFrom}
+                        to={filters.yearTo}
+                        onChange={(years) =>
+                            onFiltersChange({ ...filters, ...years })
+                        }
+                    />
+                    <p className="mt-2 text-[13px] leading-snug text-muted-foreground">
+                        Speaker and year filters only match Conference and
+                        BYU Speeches.
+                    </p>
                 </Group>
                 <Group label="Sort by">
                     <Segmented

@@ -29,12 +29,14 @@ import re
 from typing import Any
 
 import db
+import embeddings
 
 # Upper bound on neighbours per side, so one request can't pull a whole chapter.
 MAX_NEIGHBORS = 10
 
 # Everything but the vector, which is large and useless to a reader.
-_PROJECTION = {"embedding": 0}
+# Never ship stored vectors (any embedding version) in context responses.
+_PROJECTION = {v.field: 0 for v in embeddings.VERSIONS.values()}
 
 _SCRIPTURE_SOURCES = {
     "bible",

@@ -1,6 +1,7 @@
 import os
 from typing import Any, Literal
 
+from bson.binary import Binary
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastmcp import FastMCP
@@ -15,7 +16,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount
 
 import db
-import encoder
+import embeddings
 import passages
 import speakers
 
@@ -309,7 +310,7 @@ api.add_middleware(
 def _filter_not_indexed(request: Request, exc: db.FilterNotIndexedError):
     """Speaker/year filters before the index has their fields: 503, not 500.
 
-    The filter fields are added by ``ingest.common.VECTOR_INDEX_DEFINITION``;
+    The filter fields are added by ``embeddings.index_definition``;
     until that definition is applied to Atlas (and finishes rebuilding) a
     filtered ``$vectorSearch`` fails, so say so plainly. Searches without these
     filters are unaffected.
@@ -326,9 +327,9 @@ def _filter_not_indexed(request: Request, exc: db.FilterNotIndexedError):
     )
 
 
-def _encode(text: str) -> list[float]:
-    """Encode a query string to a normalized 384-dim vector (ONNX; loads lazily)."""
-    return encoder.encode(text)
+def _encode(text: str) -> list[float] | Binary:
+    """Encode a query with the active embedding version (ONNX; loads lazily)."""
+    return embeddings.encode_query(text)
 
 
 def _parse_sources(sources: str | None) -> list[str] | None:
@@ -543,8 +544,14 @@ def search_by_reference(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Unknown reference: {reference}")
 
+    query_vector = embeddings.stored_query_vector(doc)
+    if query_vector is None:
+        # Only possible mid-migration, before this passage has been re-embedded.
+        raise HTTPException(
+            status_code=503,
+            detail=f"No embedding stored yet for {doc['reference']}; try again later.",
+        )
     parsed_sources = _parse_sources(sources)
-    query_vector = db.embedding_to_list(doc["embedding"])
     # Fetch one extra so we can drop the self-match.
     hits = db.vector_search(
         query_vector,
@@ -658,8 +665,15 @@ def search_similar(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Unknown id: {doc_id}")
 
+    query_vector = embeddings.stored_query_vector(doc)
+    doc.pop(embeddings.ACTIVE.field, None)
+    if query_vector is None:
+        # Only possible mid-migration, before this passage has been re-embedded.
+        raise HTTPException(
+            status_code=503,
+            detail=f"No embedding stored yet for {doc_id}; try again later.",
+        )
     parsed_sources = _parse_sources(sources)
-    query_vector = db.embedding_to_list(doc.pop("embedding"))
     # Results are already one chunk per document, so at most one hit is from the
     # seed's own document; fetch one extra to make up for dropping it. Without
     # de-duplication any number of its chunks could rank, so fetch a margin.

@@ -41,6 +41,8 @@ A record of how `bible-search` became **Gospel Library Search**, the decisions b
 - **"Solomon's Song".** The KJV dataset names that book "Solomon's Song", not "Song of Solomon" — 117 verses had empty deep-links until we added the alias to `urls.OT_CHAPTER_MAP`.
 - **M0 512 MB cap.** Early worst-case math suggested risk, but `binData` float32 vectors + scalar-quantized index + ~3-paragraph chunking landed the full ~93k-doc corpus at **~193 MB**. No mitigation beyond those was needed.
 - **Resumability proved out.** The Conference scrape's chained second Handbook pass ingested **0** (correctly skipping all already-present chapters).
+- **The v1 corpus mixes two truncation lengths.** Vectors embedded with sentence-transformers (before the ONNX switch, most of Conference) were truncated at the model's 128-token `max_seq_length`. The ONNX encoder truncates at the tokenizer's 512, so the "identical embeddings" claim held only for texts under 128 tokens. Re-embedding the v1 sample both ways barely moved retrieval on the eval. The v2 re-embed is consistent at 512.
+- **Model upgrade, October 2026 (embedding versions).** The corpus had grown to ~137k docs and ~356 MB. A float32 second vector field would have broken the 512 MB cap, so v2 (`e5-small-v2`) is stored as int8 in its own field and index. Separately, `transformers` was dropped for plain `tokenizers` and inference was serialized. That cut the API's peak RSS from ~460 MB to ~360 MB on v1, measured on macOS. See [embedding-migration.md](./embedding-migration.md).
 
 ## Final state (verified)
 

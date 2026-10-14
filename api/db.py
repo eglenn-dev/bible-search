@@ -1,9 +1,11 @@
 """MongoDB Atlas access layer for the Gospel Library search API.
 
-All corpora (bible, conference, handbook) live in a single collection with a
-384-dim ``embedding`` field indexed for Atlas Vector Search. The API never loads
-the dataset or the embeddings into process memory; it only issues
-``$vectorSearch`` aggregations against Atlas.
+All corpora (bible, conference, handbook) live in a single collection whose
+documents carry one 384-dim vector field per embedding version (``embedding``
+for v1, ``embedding_v2`` for v2), each with its own Atlas Vector Search index.
+The active version (see ``embeddings.py``) decides which field/index is queried.
+The API never loads the dataset or the embeddings into process memory; it only
+issues ``$vectorSearch`` aggregations against Atlas.
 """
 
 import logging
@@ -19,6 +21,8 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.errors import OperationFailure
 
+import embeddings
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -26,7 +30,9 @@ logger = logging.getLogger(__name__)
 MONGODB_URI = os.getenv("MONGODB_URI", "")
 MONGODB_DB = os.getenv("MONGODB_DB", "gospel_library")
 MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "documents")
-VECTOR_INDEX_NAME = os.getenv("VECTOR_INDEX_NAME", "vector_index")
+# The active embedding version's vector field + index (see embeddings.py).
+EMBEDDING_FIELD = embeddings.ACTIVE.field
+VECTOR_INDEX_NAME = embeddings.ACTIVE.index
 MONGODB_QUERY_LOG_COLLECTION = os.getenv("MONGODB_QUERY_LOG_COLLECTION", "query_logs")
 MONGODB_STATS_COLLECTION = os.getenv("MONGODB_STATS_COLLECTION", "stats")
 LOG_QUERIES = os.getenv("LOG_QUERIES", "1").strip().lower() not in {
@@ -54,8 +60,9 @@ def _env_float(name: str, default: float) -> float:
 # _recency_factor): a passage ``RECENCY_HALFLIFE_YEARS`` old is neutral, newer
 # ones are lifted up to ×(1+RECENCY_WEIGHT), older ones lowered toward
 # ×(1-RECENCY_WEIGHT). Tuned so recent talks surface without burying the
-# undated scriptures. Set RECENCY_WEIGHT=0 to disable.
-RECENCY_WEIGHT = _env_float("RECENCY_WEIGHT", 0.06)
+# undated scriptures. The default is per embedding version (each model spreads
+# its scores differently); RECENCY_WEIGHT overrides it, and 0 disables the lift.
+RECENCY_WEIGHT = _env_float("RECENCY_WEIGHT", embeddings.ACTIVE.recency_weight)
 RECENCY_HALFLIFE_YEARS = _env_float("RECENCY_HALFLIFE_YEARS", 8.0)
 DEDUPE_RESULTS = os.getenv("DEDUPE_RESULTS", "1").strip().lower() not in {
     "0",
@@ -125,7 +132,7 @@ class FilterNotIndexedError(RuntimeError):
     """A ``$vectorSearch`` filter used a path the vector index doesn't cover.
 
     Raised when the live Atlas index predates the ``metadata.speaker`` /
-    ``metadata.year`` filter fields (see ``ingest.common.VECTOR_INDEX_DEFINITION``).
+    ``metadata.year`` filter fields (see ``embeddings.index_definition``).
     """
 
     def __init__(self, path: str):
@@ -232,7 +239,7 @@ def _build_filter(
 
 
 def vector_search(
-    query_vector: list[float],
+    query_vector: list[float] | Binary,
     k: int = 10,
     sources: list[str] | None = None,
     limit: int | None = None,
@@ -242,7 +249,8 @@ def vector_search(
 ) -> list[dict[str, Any]]:
     """Run an Atlas ``$vectorSearch`` and return re-ranked, de-duplicated hits.
 
-    - ``query_vector``: normalized 384-dim query embedding.
+    - ``query_vector``: normalized 384-dim query embedding for the active
+      version: a float list (float32 versions) or an int8 binData vector.
     - ``sources``: optional subset of ``VALID_SOURCES`` to filter on.
     - ``limit``: number of hits to return (defaults to ``k``); callers that need
       to drop a self-match request one extra.
@@ -267,7 +275,7 @@ def vector_search(
 
     vector_stage: dict[str, Any] = {
         "index": VECTOR_INDEX_NAME,
-        "path": "embedding",
+        "path": EMBEDDING_FIELD,
         "queryVector": query_vector,
         "limit": fetch_limit,
     }
@@ -338,25 +346,25 @@ def speaker_talk_counts() -> list[dict[str, Any]]:
 
 
 def find_by_reference(reference: str) -> dict[str, Any] | None:
-    """Fetch a single document (with its stored embedding) by exact reference."""
-    return get_collection().find_one({"reference": reference})
-
-
-def find_verse(reference: str) -> dict[str, Any] | None:
-    """Look up a passage by exact reference for display (no embedding/_id)."""
+    """Fetch a document's reference + active stored embedding by exact reference."""
     return get_collection().find_one(
-        {"reference": reference}, {"embedding": 0, "_id": 0}
+        {"reference": reference}, {"reference": 1, EMBEDDING_FIELD: 1}
     )
 
 
 def find_by_id(doc_id: str, *, with_embedding: bool = False) -> dict[str, Any] | None:
     """Fetch a single document by its deterministic ``_id``.
 
-    The stored embedding is left out unless ``with_embedding`` is set (it's only
-    needed to search from the document's vector).
+    Stored embeddings are left out unless ``with_embedding`` is set, which keeps
+    only the active version's (it's needed to search from the document's
+    vector; see ``embeddings.stored_query_vector``).
     """
-    projection = None if with_embedding else {"embedding": 0}
-    return get_collection().find_one({"_id": doc_id}, projection)
+    hidden = {
+        v.field: 0
+        for v in embeddings.VERSIONS.values()
+        if not (with_embedding and v is embeddings.ACTIVE)
+    }
+    return get_collection().find_one({"_id": doc_id}, hidden)
 
 
 def same_document(a: dict[str, Any], b: dict[str, Any]) -> bool:
@@ -364,11 +372,10 @@ def same_document(a: dict[str, Any], b: dict[str, Any]) -> bool:
     return _group_key(a) == _group_key(b)
 
 
-def embedding_to_list(embedding: Any) -> list[float]:
-    """Normalize a stored embedding (BSON binData vector or array) to a list."""
-    if isinstance(embedding, Binary):
-        return list(embedding.as_vector().data)
-    return list(embedding)
+def find_verse(reference: str) -> dict[str, Any] | None:
+    """Look up a passage by exact reference for display (no embeddings/_id)."""
+    hidden = {v.field: 0 for v in embeddings.VERSIONS.values()}
+    return get_collection().find_one({"reference": reference}, {**hidden, "_id": 0})
 
 
 def get_query_log_collection() -> Collection:

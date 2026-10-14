@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 import numpy as np
 
 import db
+import embeddings
 from speakers import norm_speaker
 
 # --- Current apostles -----------------------------------------------------
@@ -80,18 +81,21 @@ SCRIPTURE_SOURCES = ["bible", "book-of-mormon", "doctrine-and-covenants", "pearl
 
 
 def _fetch(source: str, with_embeddings: bool) -> tuple[list[dict], np.ndarray | None]:
-    """Pull one corpus into memory; optionally decode binData embeddings."""
+    """Pull one corpus into memory; optionally decode the active version's embeddings."""
     col = db.get_collection()
+    # Never pull the vectors we won't use (every version's field is ~0.4-1.5 KB/doc).
+    hidden = {
+        v.field: 0
+        for v in embeddings.VERSIONS.values()
+        if not (with_embeddings and v.field == db.EMBEDDING_FIELD)
+    }
     docs, embs = [], []
-    for d in col.find({"source": source}, batch_size=500):
-        emb = d.pop("embedding", None)
+    for d in col.find({"source": source}, hidden, batch_size=500):
+        emb = d.pop(db.EMBEDDING_FIELD, None)
         if with_embeddings and emb is not None:
-            embs.append(np.array(emb.as_vector().data, dtype=np.float32))
+            embs.append(embeddings.stored_to_array(emb))
         docs.append(d)
-    arr = None
-    if embs:
-        arr = np.vstack(embs)
-        arr /= np.linalg.norm(arr, axis=1, keepdims=True)
+    arr = np.vstack(embs) if embs else None
     return docs, arr
 
 

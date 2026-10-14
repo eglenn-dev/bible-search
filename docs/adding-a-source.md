@@ -181,7 +181,7 @@ If the index was just created (first source ever), wait for it to be `READY` bef
 
 ## Gotchas
 
-- **Same embedding model, always.** New sources must use `paraphrase-MiniLM-L3-v2` (the shared `embed_texts`). Mixing models/dimensions breaks similarity. Switching models means re-embedding every source.
+- **Same embedding model, always.** New sources must go through the shared `embed_and_upsert` / `embed_records`, which write every version in `EMBEDDING_WRITE_VERSIONS` (see `api/embeddings.py`). Mixing models or dimensions within a version breaks similarity. Switching models means a new version and re-embedding every source (see [embedding-migration.md](./embedding-migration.md)).
 - **Deterministic, unique `_id`s.** Re-running upserts instead of duplicating. Make the key stable (a reference, or `uri:anchor`).
 - **Mind the M0 cap.** ~93k docs ≈ 193 MB today. Check `--stats` after large ingests; chunk coarser or move to Atlas Flex if you approach 512 MB.
 - **Be polite when scraping.** Keep `church.py`'s rate-limit and `User-Agent`; rely on its on-disk cache so re-runs don't re-hit the site.

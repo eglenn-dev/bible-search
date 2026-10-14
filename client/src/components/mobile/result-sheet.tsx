@@ -1,13 +1,22 @@
 import { useState } from "react";
 import {
     Bookmark as BookmarkIcon,
+    ChevronDown,
+    ChevronUp,
     ExternalLink,
     Share as ShareIcon,
+    Sparkles,
 } from "lucide-react";
 import type { Result } from "@/lib/types";
-import { bookmarkId } from "@/lib/bookmarks";
-import { SOURCE_LABELS, headingFor, metaLineFor } from "@/lib/result-display";
+import { isSaved } from "@/lib/bookmarks";
+import {
+    SOURCE_LABELS,
+    contextLabel,
+    headingFor,
+    metaLineFor,
+} from "@/lib/result-display";
 import { cn } from "@/lib/utils";
+import PassageContext from "../passage-context";
 import Sheet from "./sheet";
 
 interface ResultSheetProps {
@@ -17,6 +26,8 @@ interface ResultSheetProps {
     onClose: () => void;
     onToggleSaved: (result: Result) => void;
     onNotify: (message: string) => void;
+    /** "More like this": search from this passage. */
+    onMoreLike: (result: Result) => void;
 }
 
 /** Full text of one passage, with bookmark / share / open-source actions. */
@@ -26,14 +37,20 @@ export default function ResultSheet({
     onClose,
     onToggleSaved,
     onNotify,
+    onMoreLike,
 }: ResultSheetProps) {
     // Hold on to the last passage so the sheet still has content to show
     // while it animates out after `result` goes back to null.
     const [result, setResult] = useState(current);
+    // Which passage is showing its surroundings; a newly opened one starts
+    // collapsed.
+    const [expandedFor, setExpandedFor] = useState<Result | null>(null);
     if (current && current !== result) setResult(current);
     if (!result) return null;
 
-    const saved = savedIds.has(bookmarkId(result));
+    const saved = isSaved(savedIds, result);
+    const { id } = result;
+    const expanded = !!id && expandedFor === result;
     const heading = headingFor(result);
     const metaLine = metaLineFor(result);
 
@@ -57,6 +74,8 @@ export default function ResultSheet({
 
     const action =
         "flex h-12 flex-1 items-center justify-center gap-2 rounded-full text-[15px] font-semibold transition-transform active:scale-95";
+    const pill =
+        "flex h-10 items-center gap-1.5 rounded-full bg-foreground/[0.08] px-4 text-[15px] font-semibold text-primary transition-transform active:scale-95";
 
     return (
         <Sheet
@@ -118,9 +137,46 @@ export default function ResultSheet({
                 </div>
             }
         >
-            <p className="select-text whitespace-pre-line font-display text-[19px] leading-[1.65]">
-                {result.text}
-            </p>
+            {expanded && id ? (
+                <div className="select-text">
+                    <PassageContext
+                        result={{ ...result, id }}
+                        textClassName="text-[19px] leading-[1.65]"
+                        scrollToTarget
+                    />
+                </div>
+            ) : (
+                <p className="select-text whitespace-pre-line font-display text-[19px] leading-[1.65]">
+                    {result.text}
+                </p>
+            )}
+            {/* Both need the passage's id, which bookmarks saved before the
+                API returned one don't have. */}
+            {id && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setExpandedFor(expanded ? null : result)}
+                        aria-expanded={expanded}
+                        className={pill}
+                    >
+                        {expanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                        ) : (
+                            <ChevronDown className="h-4 w-4" />
+                        )}
+                        {expanded ? "Hide context" : contextLabel(result)}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onMoreLike(result)}
+                        className={pill}
+                    >
+                        <Sparkles className="h-4 w-4" />
+                        More like this
+                    </button>
+                </div>
+            )}
         </Sheet>
     );
 }

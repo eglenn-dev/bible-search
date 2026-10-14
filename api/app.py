@@ -4,7 +4,7 @@ from typing import Any, Literal
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastmcp import FastMCP
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -15,6 +15,7 @@ from starlette.routing import Mount
 
 import db
 import encoder
+import passages
 
 # --- Schemas -------------------------------------------------------------
 
@@ -29,32 +30,46 @@ SourceLiteral = Literal[
 ]
 
 
-class SearchResult(BaseModel):
+class Passage(BaseModel):
+    id: str = Field(
+        ...,
+        # Read from the document's Mongo `_id`; always serialized as `id`.
+        validation_alias=AliasChoices("id", "_id"),
+        description=(
+            "Stable document id (e.g. `bible:John 3:16`, "
+            "`conference:<talk uri>:<paragraph id>`). Pass it to "
+            "/search/similar or /passage/context."
+        ),
+    )
     source: SourceLiteral = Field(
-        ..., description="Which corpus the result belongs to."
+        ..., description="Which corpus the passage belongs to."
     )
     reference: str = Field(
         ...,
         description="Human label: verse reference, talk title, or handbook section.",
     )
-    text: str = Field(..., description="The matched passage text.")
+    text: str = Field(..., description="The passage text.")
     title: str | None = Field(
         None, description="Talk/chapter title; null for scripture verses."
     )
     url: str = Field(
         ..., description="Deep link to the passage on churchofjesuschrist.org."
     )
-    score: float = Field(
-        ..., description="Cosine similarity in [0, 1] — higher is more relevant."
-    )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Source-specific metadata (speaker, book, section, …).",
     )
 
+
+class SearchResult(Passage):
+    score: float = Field(
+        ..., description="Cosine similarity in [0, 1] — higher is more relevant."
+    )
+
     model_config = {
         "json_schema_extra": {
             "example": {
+                "id": "bible:1 John 4:8",
                 "source": "bible",
                 "reference": "1 John 4:8",
                 "text": "He that loveth not knoweth not God; for God is love.",
@@ -76,6 +91,73 @@ class SearchResult(BaseModel):
 class SearchResponse(BaseModel):
     query: str = Field(..., description="The query that was searched (echoed back).")
     results: list[SearchResult]
+
+
+class SimilarResponse(SearchResponse):
+    seed: Passage = Field(
+        ..., description="The passage the results were found from (not in `results`)."
+    )
+
+
+class ContextPassage(Passage):
+    is_target: bool = Field(
+        ..., description="True for the requested passage; false for its neighbours."
+    )
+
+
+class PassageContextResponse(BaseModel):
+    id: str = Field(..., description="The requested passage's id (echoed back).")
+    passages: list[ContextPassage] = Field(
+        ...,
+        description=(
+            "The passage and its neighbours in reading order: adjacent verses of "
+            "the same chapter, or adjacent chunks of the same talk / speech / "
+            "handbook section."
+        ),
+    )
+    more_before: bool = Field(
+        ..., description="More of the chapter/talk precedes the first passage."
+    )
+    more_after: bool = Field(
+        ..., description="More of the chapter/talk follows the last passage."
+    )
+    note: str | None = Field(
+        None,
+        description="Why the context is narrower than asked, when it is.",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "bible:John 3:16",
+                "passages": [
+                    {
+                        "id": "bible:John 3:15",
+                        "source": "bible",
+                        "reference": "John 3:15",
+                        "text": "That whosoever believeth in him should not perish, but have eternal life.",
+                        "title": None,
+                        "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/john/3?id=p15#p15",
+                        "metadata": {"book": "John", "chapter": 3, "verse": 15},
+                        "is_target": False,
+                    },
+                    {
+                        "id": "bible:John 3:16",
+                        "source": "bible",
+                        "reference": "John 3:16",
+                        "text": "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.",
+                        "title": None,
+                        "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/john/3?id=p16#p16",
+                        "metadata": {"book": "John", "chapter": 3, "verse": 16},
+                        "is_target": True,
+                    },
+                ],
+                "more_before": True,
+                "more_after": True,
+                "note": None,
+            }
+        }
+    }
 
 
 class VerseResponse(BaseModel):
@@ -127,6 +209,10 @@ Search. Every result links back to the passage on churchofjesuschrist.org.
 
 tags_metadata = [
     {"name": "Search", "description": "Semantic vector search across the corpora."},
+    {
+        "name": "Passages",
+        "description": "Look up passages and read them in their surrounding context.",
+    },
     {"name": "Stats", "description": "Precomputed corpus analytics for the stats page."},
     {"name": "Health", "description": "Service and database status."},
 ]
@@ -305,6 +391,112 @@ def search_by_reference(
         result_ids,
     )
     return {"query": doc["reference"], "results": hits}
+
+
+@api.get(
+    "/search/similar",
+    response_model=SimilarResponse,
+    tags=["Search"],
+    operation_id="search_similar",
+    summary="Find passages similar to any result (\"more like this\")",
+    responses={404: {"model": ErrorResponse, "description": "Unknown id."}},
+)
+def search_similar(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    doc_id: str = Query(
+        ...,
+        alias="id",
+        description=(
+            "A passage `id` from a previous result (any source: verse, talk "
+            "chunk, speech chunk, or handbook section)."
+        ),
+        examples=["conference:/general-conference/2016/10/if-ye-had-known-me:p21"],
+    ),
+    k: int = Query(10, ge=1, le=50, description="Number of results to return."),
+    sources: str | None = Query(
+        None,
+        description="Optional comma-separated source filter (see /search).",
+        examples=["bible,book-of-mormon"],
+    ),
+):
+    """Return passages semantically similar to the passage with this `id`.
+
+    Reuses the passage's **stored** embedding (no re-encoding). Unlike
+    /search/by-reference it works for every source, and it excludes not only the
+    passage itself but every other chunk of the same talk, speech, or handbook
+    chapter — so the results point somewhere new. `seed` echoes the passage.
+    """
+    doc = db.find_by_id(doc_id.strip(), with_embedding=True)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Unknown id: {doc_id}")
+
+    parsed_sources = _parse_sources(sources)
+    query_vector = db.embedding_to_list(doc.pop("embedding"))
+    # Results are already one chunk per document, so at most one hit is from the
+    # seed's own document; fetch one extra to make up for dropping it. Without
+    # de-duplication any number of its chunks could rank, so fetch a margin.
+    extra = 1 if db.DEDUPE_RESULTS else 20
+    hits = db.vector_search(
+        query_vector, k=k, sources=parsed_sources, limit=k + extra
+    )
+    hits = [h for h in hits if not db.same_document(h, doc)][:k]
+    result_ids = [h["_id"] for h in hits if h.get("_id")]
+    _log_query(
+        request,
+        background_tasks,
+        "search_similar",
+        doc["_id"],
+        k,
+        parsed_sources,
+        len(hits),
+        result_ids,
+    )
+    return {"query": doc["reference"], "results": hits, "seed": doc}
+
+
+@api.get(
+    "/passage/context",
+    response_model=PassageContextResponse,
+    tags=["Passages"],
+    operation_id="get_passage_context",
+    summary="Read a passage with its surrounding verses or paragraphs",
+    responses={404: {"model": ErrorResponse, "description": "Unknown id."}},
+)
+def get_passage_context(
+    doc_id: str = Query(
+        ...,
+        alias="id",
+        description="A passage `id` from a search result.",
+        examples=["bible:John 3:16"],
+    ),
+    before: int = Query(
+        2,
+        ge=0,
+        le=passages.MAX_NEIGHBORS,
+        description="How many neighbouring verses/chunks to include before it.",
+    ),
+    after: int = Query(
+        2,
+        ge=0,
+        le=passages.MAX_NEIGHBORS,
+        description="How many neighbouring verses/chunks to include after it.",
+    ),
+):
+    """Return a passage plus its neighbours, in reading order.
+
+    Scripture: the adjacent verses of the same chapter. Conference / BYU
+    Speeches: the adjacent chunks (~3 paragraphs each) of the same talk.
+    Handbook: the adjacent chunks of the same section. Each passage is flagged
+    `is_target`; `more_before` / `more_after` say whether the chapter or talk
+    continues past the window (call again with a neighbour's `id` to keep
+    reading). When the stored data can't order a document's chunks, only the
+    passage itself is returned and `note` says why.
+    """
+    doc = db.find_by_id(doc_id.strip())
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Unknown id: {doc_id}")
+    return passages.passage_context(doc, before=before, after=after)
 
 
 @api.get(

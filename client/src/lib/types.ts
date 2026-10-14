@@ -41,6 +41,8 @@ export interface ResultMetadata {
     month?: string;
     talk_uri?: string;
     paragraph_id?: string;
+    // conference + handbook: reading order within the talk/chapter
+    chunk_index?: number;
     // byu-speeches
     position?: string | null;
     date?: string | null;
@@ -55,6 +57,9 @@ export interface ResultMetadata {
 }
 
 export interface Result {
+    /** Stable document id from the API. Absent on bookmarks saved before the
+     *  API returned one. */
+    id?: string;
     source: Source;
     reference: string;
     text: string;
@@ -62,6 +67,22 @@ export interface Result {
     url: string;
     score: number;
     metadata?: ResultMetadata;
+}
+
+/** One passage of a /passage/context response. */
+export interface ContextPassage extends Omit<Result, "score" | "id"> {
+    id: string;
+    is_target: boolean;
+}
+
+export interface PassageContext {
+    id: string;
+    /** The passage and its neighbours, in reading order. */
+    passages: ContextPassage[];
+    more_before: boolean;
+    more_after: boolean;
+    /** Why the context is narrower than asked, when it is. */
+    note: string | null;
 }
 
 export interface BibleVerse {

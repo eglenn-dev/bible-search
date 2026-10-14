@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
-import type { Result, Source, SortKey } from "./lib/types";
+import { useState, useEffect, useMemo, useRef } from "react";
+import type { Result, ResultCount, Source, SortKey } from "./lib/types";
 import { SOURCES, RESULT_COUNTS, DEFAULT_RESULT_COUNT } from "./lib/types";
 import { sortResults } from "./lib/result-date";
 import { runSearch } from "./lib/search";
+import { runSimilar } from "./lib/passages";
+import { headingFor } from "./lib/result-display";
 import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
@@ -17,6 +19,7 @@ import ThemeToggle from "./components/theme-toggle";
 import MobileApp from "./components/mobile/mobile-app";
 import { useIsMobile } from "./lib/use-is-mobile";
 import { cn } from "./lib/utils";
+import { Sparkles, X } from "lucide-react";
 import {
     useQueryState,
     parseAsString,
@@ -63,12 +66,25 @@ export default function App() {
         "k",
         parseAsNumberLiteral(RESULT_COUNTS).withDefault(DEFAULT_RESULT_COUNT),
     );
+    // "More like this": the id of the passage the results were found from.
+    // While set it replaces the query as what's on screen, so a shared or
+    // reloaded link shows the same results; clearing it (the banner's close
+    // button, or Back) returns to the query's own results.
+    const [similar, setSimilar] = useQueryState("similar", parseAsString);
+    const [similarSeed, setSimilarSeed] = useState<Result | null>(null);
+    // The `similar` id currently on screen, so the effect below can tell a
+    // URL change it must act on (a click, Back/Forward, a reload) from one it
+    // made itself.
+    const shownSimilar = useRef<string | null>(null);
+    // Only the latest similar request may land (fast clicks race).
+    const similarRequest = useRef(0);
 
     // Switching to scripture mode drops the ?q text (scripture mode uses its
     // own reference input and ignores ?q).
     const setQueryType = (type: "natural" | "scripture") => {
         setQueryTypeState(type);
         if (type === "scripture") setQuery(null);
+        leaveSimilar();
     };
 
     // Switching search mode clears the old results but stays in whichever
@@ -84,28 +100,106 @@ export default function App() {
         setHasSearched(true);
     };
 
+    // Drops "more like this" without touching the results (the caller is
+    // about to replace them).
+    function leaveSimilar() {
+        shownSimilar.current = null;
+        similarRequest.current++;
+        setSimilarSeed(null);
+        setSimilar(null);
+    }
+
+    // A search from either input box ends any "more like this" view.
+    const handleSearchResults = (next: Result[]) => {
+        leaveSimilar();
+        handleResults(next);
+    };
+
     // Clicking the title acts like Google's logo: back to the centered hero.
     const goHome = () => {
+        leaveSimilar();
         setResults([]);
         setHasSearched(false);
     };
 
     const activeQuery = queryType === "scripture" ? scriptureRef : query;
 
+    // Fetches and shows the passages similar to `id`; throws on failure. A
+    // response overtaken by a newer request is dropped.
+    const loadSimilar = async (
+        id: string,
+        count: ResultCount,
+        nextSources: Source[],
+    ) => {
+        const request = ++similarRequest.current;
+        const { seed, results: next } = await runSimilar({
+            id,
+            resultCount: count,
+            sources: nextSources,
+        });
+        if (request !== similarRequest.current) return;
+        setSimilarSeed(seed);
+        handleResults(next);
+    };
+
+    // Re-runs whatever is on screen with new settings: the similar search
+    // while one is showing, otherwise the query.
+    const rerun = async (count: ResultCount, nextSources: Source[]) => {
+        if (similar) return loadSimilar(similar, count, nextSources);
+        handleResults(
+            await runSearch({
+                queryType,
+                query: activeQuery,
+                resultCount: count,
+                sources: nextSources,
+            }),
+        );
+    };
+
+    // Follows `?similar=` wherever it changes: "More like this" (which only
+    // sets the param), Back/Forward, and a reload or shared link once the
+    // backend is up.
+    useEffect(() => {
+        if (!backendRunning || similar === shownSimilar.current) return;
+        const previous = shownSimilar.current;
+        shownSimilar.current = similar;
+        if (similar) {
+            loadSimilar(similar, resultCount, sources).catch((e) => {
+                console.error("Error fetching similar passages:", e);
+                // An unknown or stale id (say, an old shared link): drop it
+                // and leave the page as it was.
+                if (shownSimilar.current === similar) leaveSimilar();
+            });
+        } else if (previous) {
+            // Left via Back or the banner: return to the query's own results.
+            similarRequest.current++;
+            setSimilarSeed(null);
+            if (activeQuery) {
+                rerun(resultCount, sources).catch((e) =>
+                    console.error("Error re-running search:", e),
+                );
+            } else {
+                goHome();
+            }
+        }
+        // Only when the param (or backend readiness) changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [similar, backendRunning]);
+
+    // Pushed (not replaced) so Back returns to the results it came from.
+    const showSimilar = (result: Result) => {
+        if (!result.id) return;
+        void setSimilar(result.id, { history: "push" });
+        window.scrollTo({ top: 0 });
+    };
+
     // Toggling a source in the sidebar re-runs the current search so the
     // result list reflects the new filter immediately.
     const handleSidebarSources = async (next: Source[]) => {
         setSources(next);
-        if (!activeQuery) return;
+        if (!activeQuery && !similar) return;
         try {
-            handleResults(
-                await runSearch({
-                    queryType,
-                    query: activeQuery,
-                    resultCount,
-                    sources: next,
-                }),
-            );
+            await rerun(resultCount, next);
         } catch (e) {
             console.error("Error re-running search:", e);
         }
@@ -132,18 +226,11 @@ export default function App() {
 
     const handleLoadMore = async () => {
         if (!nextCount || loadingMore) return;
-        if (!activeQuery) return;
+        if (!activeQuery && !similar) return;
         setLoadingMore(true);
         try {
             setResultCount(nextCount);
-            handleResults(
-                await runSearch({
-                    queryType,
-                    query: activeQuery,
-                    resultCount: nextCount,
-                    sources,
-                }),
-            );
+            await rerun(nextCount, sources);
         } catch (e) {
             console.error("Error loading more results:", e);
         } finally {
@@ -188,7 +275,7 @@ export default function App() {
                 sources={sources}
                 resultCount={resultCount}
                 setParams={setQuery}
-                setResults={handleResults}
+                setResults={handleSearchResults}
                 compact={hasSearched}
                 mobile={isMobile}
             />
@@ -198,7 +285,7 @@ export default function App() {
                 setParentRef={setScriptureRef}
                 sources={sources}
                 resultCount={resultCount}
-                setResults={handleResults}
+                setResults={handleSearchResults}
                 compact={hasSearched}
                 mobile={isMobile}
             />
@@ -226,16 +313,23 @@ export default function App() {
                 loadingMore={loadingMore}
                 onLoadMore={handleLoadMore}
                 onGoHome={goHome}
+                similarSeed={similarSeed}
+                onMoreLike={showSimilar}
+                onLeaveSimilar={() => setSimilar(null)}
             />
         );
     }
 
     if (hasSearched) {
         const countLabel =
-            sortedResults.length === 1
+            (sortedResults.length === 1
                 ? "1 result"
-                : `${sortedResults.length} results` +
-                  (queryType === "scripture" ? " — reference lookup" : "");
+                : `${sortedResults.length} results`) +
+            (similarSeed
+                ? " — more like this"
+                : queryType === "scripture"
+                  ? " — reference lookup"
+                  : "");
         return (
             <div className="gs-fade flex min-h-screen flex-col">
                 <header className="sticky top-0 z-30 border-b border-border bg-background">
@@ -281,15 +375,43 @@ export default function App() {
                         </div>
                     </aside>
                     <main className="flex max-w-3xl flex-1 flex-col gap-7 px-5 pb-24 pt-8 md:px-10 md:pt-10">
+                        {similarSeed && (
+                            <div className="flex items-start gap-3 border border-border bg-muted px-4 py-3">
+                                <Sparkles
+                                    className="mt-0.5 h-5 w-5 flex-none text-primary"
+                                    aria-hidden="true"
+                                />
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-[13px] text-muted-foreground">
+                                        More like
+                                    </div>
+                                    <div className="font-semibold text-foreground">
+                                        {headingFor(similarSeed)}
+                                    </div>
+                                </div>
+                                {/* Clearing the param brings back the
+                                    query's results (see the effect above). */}
+                                <button
+                                    type="button"
+                                    onClick={() => setSimilar(null)}
+                                    className="inline-flex flex-none items-center gap-1 text-sm font-semibold text-primary transition-colors hover:text-primary-strong"
+                                >
+                                    <X className="h-4 w-4" aria-hidden="true" />
+                                    {activeQuery ? "Back to results" : "Clear"}
+                                </button>
+                            </div>
+                        )}
                         <div className="text-sm text-muted-foreground">
                             {countLabel}
                         </div>
                         {results.length === 0 ? (
                             <p className="text-lg text-foreground/80">
                                 No results
-                                {activeQuery
-                                    ? ` for “${activeQuery}”`
-                                    : ""}.{" "}
+                                {similarSeed
+                                    ? ` like “${headingFor(similarSeed)}”`
+                                    : activeQuery
+                                      ? ` for “${activeQuery}”`
+                                      : ""}.{" "}
                                 <span className="text-muted-foreground">
                                     Try fewer or different words, or switch
                                     search mode.
@@ -297,7 +419,10 @@ export default function App() {
                             </p>
                         ) : (
                             <>
-                                <RenderResults results={sortedResults} />
+                                <RenderResults
+                                    results={sortedResults}
+                                    onMoreLike={showSimilar}
+                                />
                                 {canLoadMore && (
                                     <button
                                         type="button"

@@ -14,7 +14,7 @@
         │  $vectorSearch  (optionally filtered by source)
  FastAPI  (api/)
    loads paraphrase-MiniLM-L3-v2 to encode QUERIES only — never the dataset
-   GET /search · GET /search/by-reference · GET /
+   GET /search · /search/by-reference · /search/similar · /passage/context · /verse · /
         ▲
         │  fetch
  React + Vite + Tailwind  (client/)
@@ -77,7 +77,8 @@ Atlas builds the index **asynchronously**; new documents are indexed automatical
 | File | Responsibility |
 |---|---|
 | `app.py` | The FastAPI REST app (`api`), the FastMCP server, per-IP rate limiting, and the composite ASGI app (`app`) that serves both. The query-encoder model loads lazily on first search. |
-| `db.py` | Atlas access layer: client singleton, `vector_search()`, `find_by_reference()`, `embedding_to_list()`, `log_query()` (best-effort search analytics), `VALID_SOURCES`, config. |
+| `db.py` | Atlas access layer: client singleton, `vector_search()`, `find_by_reference()`, `find_by_id()`, `same_document()`, `embedding_to_list()`, `log_query()` (best-effort search analytics), `VALID_SOURCES`, config. |
+| `passages.py` | Reading context for `/passage/context`: finds a passage's neighbours in reading order through the `_id` index (computed verse ids, or an anchored `_id` prefix scan per talk/speech/chapter). |
 | `export_openapi.py` | Writes the committed `openapi.json`. |
 
 `app.py` composes two things into one ASGI app served by `uvicorn app:app`:
@@ -88,13 +89,15 @@ Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (requir
 
 ### Query logging (analytics)
 
-`/search` and `/search/by-reference` record each user search into a **separate** `query_logs` collection — kept apart from `documents` so it never touches the vector index. Each log doc holds `endpoint`, `query`, the filter params `k` and `sources`, `result_count`, `result_ids` (the deterministic `_id` of each returned passage, in result order), `ip`, `user_agent`, and a UTC `created_at`. The write is scheduled as a **FastAPI background task** (runs after the response is sent, so it adds no latency to search) and is **best-effort**: `db.log_query()` swallows and logs any error so a logging hiccup can never break a search. The `/verse` preview lookup is *not* logged (it fires on every keystroke while typing a reference). Toggle the whole feature with `LOG_QUERIES`.
+`/search`, `/search/by-reference` and `/search/similar` record each user search into a **separate** `query_logs` collection — kept apart from `documents` so it never touches the vector index. Each log doc holds `endpoint`, `query`, the filter params `k` and `sources`, `result_count`, `result_ids` (the deterministic `_id` of each returned passage, in result order), `ip`, `user_agent`, and a UTC `created_at`. The write is scheduled as a **FastAPI background task** (runs after the response is sent, so it adds no latency to search) and is **best-effort**: `db.log_query()` swallows and logs any error so a logging hiccup can never break a search. The `/verse` preview lookup is *not* logged (it fires on every keystroke while typing a reference), nor is `/passage/context` (a read, not a search). For `/search/similar` the logged `query` is the seed passage's id. Toggle the whole feature with `LOG_QUERIES`.
 
 ### Endpoints
 
 - **`GET /`** — health check; also pings Atlas. Returns `{"message": "Online!"}` or 503.
 - **`GET /search?query=<text>&k=10&sources=<csv>`** — encodes the query, runs `$vectorSearch`. `sources` is an optional comma-separated subset (`bible,conference,…`); omit for all. Returns `{ query, results: [...] }`.
 - **`GET /search/by-reference?reference=<ref>&k=10&sources=<csv>`** — looks up a document by exact `reference`, **reuses its stored embedding** (no re-encode), and drops the self-match. Powers the "Scripture Reference" mode.
+- **`GET /search/similar?id=<id>&k=10&sources=<csv>`** — "more like this" from any result. Every result carries its document `id` (the deterministic `_id`); this loads that document's stored embedding, runs `vector_search`, and drops the seed **and every other chunk of the same talk/speech/handbook chapter** (`db.same_document`, the same grouping the de-duplication uses). `/search/by-reference` can't do this for talks: their `reference` is the talk title, shared by every chunk. Returns the usual `{query, results}` plus `seed` (the passage searched from). 404 on an unknown id.
+- **`GET /passage/context?id=<id>&before=2&after=2`** — the passage plus its neighbours in reading order, each flagged `is_target` (adjacent verses of the chapter, or adjacent chunks of the talk/speech/handbook section). Uses only the built-in `_id` index; see [api.md](./api.md#reading-context-get-passagecontext) for the per-source rules and why new-format conference talks return only the passage for now.
 - **`GET /verse?reference=<ref>`** — returns a single passage's text + deep link by exact reference (any Standard Work). Used by the frontend to validate/preview a reference.
 - **`/docs`, `/redoc`, `/openapi.json`** — Swagger UI, ReDoc, and the OpenAPI spec.
 - **`/mcp`** — the MCP server (Streamable HTTP) for AI agents.
@@ -107,11 +110,13 @@ React 19 + Vite + Tailwind v4 + a few shadcn/ui primitives. Key pieces:
 
 | File | Responsibility |
 |---|---|
-| `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`. |
+| `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`, and the "more like this" view (`?similar=<id>`, pushed to history so Back returns to the query's results; a reload or shared link re-runs it). |
 | `src/components/sources-filter.tsx` | The All / Bible / … filter chips. |
 | `src/components/search-box.tsx` | Natural-language search → `GET /search`. |
 | `src/components/scripture-box.tsx` | Verse-reference search → `GET /search/by-reference`; validates/previews the reference (any Standard Work) via `GET /verse`, debounced. |
-| `src/components/render-results.tsx` | Result cards: source badge, metadata line, relevance bar, deep-link via `result.url`. |
+| `src/components/render-results.tsx` | Result cards: source badge, metadata line, relevance bar, deep-link via `result.url`; "Show context" / "Read surrounding verses" and "More like this" actions. |
+| `src/components/passage-context.tsx` | A result expanded in place: fetches `GET /passage/context` on first open and renders the neighbours around the matched passage (marked by a rule in the margin). Shared by the desktop list and the mobile sheet. |
+| `src/lib/passages.ts` | `runSimilar` (`GET /search/similar`) and `fetchPassageContext` (cached per passage). |
 | `src/lib/types.ts` | `Source` union + `Result`/`ResultMetadata` types. |
 | `src/index.css` | "Classic & scholarly" theme tokens + serif fonts. |
 | `src/components/mobile/` | The phone layout (see below): `mobile-app.tsx` is the shell; the rest are its tab bar, sheets, cards and controls. |
@@ -124,8 +129,8 @@ The API base URL comes from `VITE_API_DOMAIN` (build/dev-time env). The frontend
 Below Tailwind's `md` breakpoint (`useIsMobile`, 48rem) `App.tsx` renders `MobileApp` instead of the desktop layouts. `App` still owns the search state and passes it down, so both are views of the same search and resizing the window keeps your results.
 
 - **Tabs:** Search, Saved, Settings, under a floating tab bar. The active tab is the `?tab=` query param.
-- **Results** are cards; tapping one opens the full passage in a bottom sheet with Save / Share / Read (the link out to the source).
-- **Bookmarks** are per-device: `lib/bookmarks.ts` stores each saved result whole in `localStorage`, so the Saved tab needs no API call. There are no accounts and nothing syncs.
+- **Results** are cards; tapping one opens the full passage in a bottom sheet with Save / Share / Read (the link out to the source), plus "Read surrounding verses" / "Show context" (expands the passage in place) and "More like this".
+- **Bookmarks** are per-device: `lib/bookmarks.ts` stores each saved result whole in `localStorage`, so the Saved tab needs no API call. There are no accounts and nothing syncs. A bookmark is keyed by the result's API `id`; ones saved before results carried ids keep their older url+text-hash key, and `isSaved` / `findBookmark` match either.
 - **Liquid Glass** is CSS only: the `.glass` / `.glass-thick` classes and `--glass-*` tokens in `index.css` (translucent fill, `backdrop-filter` blur, a lit rim). It is used for floating controls, not for the result cards, and falls back to opaque panes where blur is unsupported or the user has asked for reduced transparency.
 - **Installable:** `public/manifest.webmanifest` plus the `apple-mobile-web-app-*` tags make "Add to Home Screen" open it full-screen. There is no service worker, so it does not work offline.
 

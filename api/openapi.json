@@ -206,6 +206,185 @@
         }
       }
     },
+    "/search/similar": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Find passages similar to any result (\"more like this\")",
+        "description": "Return passages semantically similar to the passage with this `id`.\n\nReuses the passage's **stored** embedding (no re-encoding). Unlike\n/search/by-reference it works for every source, and it excludes not only the\npassage itself but every other chunk of the same talk, speech, or handbook\nchapter \u2014 so the results point somewhere new. `seed` echoes the passage.",
+        "operationId": "search_similar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A passage `id` from a previous result (any source: verse, talk chunk, speech chunk, or handbook section).",
+              "examples": [
+                "conference:/general-conference/2016/10/if-ye-had-known-me:p21"
+              ],
+              "title": "Id"
+            },
+            "description": "A passage `id` from a previous result (any source: verse, talk chunk, speech chunk, or handbook section)."
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Number of results to return.",
+              "default": 10,
+              "title": "K"
+            },
+            "description": "Number of results to return."
+          },
+          {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional comma-separated source filter (see /search).",
+              "examples": [
+                "bible,book-of-mormon"
+              ],
+              "title": "Sources"
+            },
+            "description": "Optional comma-separated source filter (see /search)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/passage/context": {
+      "get": {
+        "tags": [
+          "Passages"
+        ],
+        "summary": "Read a passage with its surrounding verses or paragraphs",
+        "description": "Return a passage plus its neighbours, in reading order.\n\nScripture: the adjacent verses of the same chapter. Conference / BYU\nSpeeches: the adjacent chunks (~3 paragraphs each) of the same talk.\nHandbook: the adjacent chunks of the same section. Each passage is flagged\n`is_target`; `more_before` / `more_after` say whether the chapter or talk\ncontinues past the window (call again with a neighbour's `id` to keep\nreading). When the stored data can't order a document's chunks, only the\npassage itself is returned and `note` says why.",
+        "operationId": "get_passage_context",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A passage `id` from a search result.",
+              "examples": [
+                "bible:John 3:16"
+              ],
+              "title": "Id"
+            },
+            "description": "A passage `id` from a search result."
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 0,
+              "description": "How many neighbouring verses/chunks to include before it.",
+              "default": 2,
+              "title": "Before"
+            },
+            "description": "How many neighbouring verses/chunks to include before it."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 0,
+              "description": "How many neighbouring verses/chunks to include after it.",
+              "default": 2,
+              "title": "After"
+            },
+            "description": "How many neighbouring verses/chunks to include after it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassageContextResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/verse": {
       "get": {
         "tags": [
@@ -331,6 +510,77 @@
   },
   "components": {
     "schemas": {
+      "ContextPassage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable document id (e.g. `bible:John 3:16`, `conference:<talk uri>:<paragraph id>`). Pass it to /search/similar or /passage/context."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "bible",
+              "book-of-mormon",
+              "doctrine-and-covenants",
+              "pearl-of-great-price",
+              "conference",
+              "byu-speeches",
+              "handbook"
+            ],
+            "title": "Source",
+            "description": "Which corpus the passage belongs to."
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference",
+            "description": "Human label: verse reference, talk title, or handbook section."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The passage text."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Talk/chapter title; null for scripture verses."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Deep link to the passage on churchofjesuschrist.org."
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "description": "Source-specific metadata (speaker, book, section, \u2026)."
+          },
+          "is_target": {
+            "type": "boolean",
+            "title": "Is Target",
+            "description": "True for the requested passage; false for its neighbours."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "reference",
+          "text",
+          "url",
+          "is_target"
+        ],
+        "title": "ContextPassage"
+      },
       "ErrorResponse": {
         "properties": {
           "detail": {
@@ -373,6 +623,151 @@
         ],
         "title": "HealthResponse"
       },
+      "Passage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable document id (e.g. `bible:John 3:16`, `conference:<talk uri>:<paragraph id>`). Pass it to /search/similar or /passage/context."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "bible",
+              "book-of-mormon",
+              "doctrine-and-covenants",
+              "pearl-of-great-price",
+              "conference",
+              "byu-speeches",
+              "handbook"
+            ],
+            "title": "Source",
+            "description": "Which corpus the passage belongs to."
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference",
+            "description": "Human label: verse reference, talk title, or handbook section."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The passage text."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Talk/chapter title; null for scripture verses."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Deep link to the passage on churchofjesuschrist.org."
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "description": "Source-specific metadata (speaker, book, section, \u2026)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "reference",
+          "text",
+          "url"
+        ],
+        "title": "Passage"
+      },
+      "PassageContextResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The requested passage's id (echoed back)."
+          },
+          "passages": {
+            "items": {
+              "$ref": "#/components/schemas/ContextPassage"
+            },
+            "type": "array",
+            "title": "Passages",
+            "description": "The passage and its neighbours in reading order: adjacent verses of the same chapter, or adjacent chunks of the same talk / speech / handbook section."
+          },
+          "more_before": {
+            "type": "boolean",
+            "title": "More Before",
+            "description": "More of the chapter/talk precedes the first passage."
+          },
+          "more_after": {
+            "type": "boolean",
+            "title": "More After",
+            "description": "More of the chapter/talk follows the last passage."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Why the context is narrower than asked, when it is."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "passages",
+          "more_before",
+          "more_after"
+        ],
+        "title": "PassageContextResponse",
+        "example": {
+          "id": "bible:John 3:16",
+          "more_after": true,
+          "more_before": true,
+          "passages": [
+            {
+              "id": "bible:John 3:15",
+              "is_target": false,
+              "metadata": {
+                "book": "John",
+                "chapter": 3,
+                "verse": 15
+              },
+              "reference": "John 3:15",
+              "source": "bible",
+              "text": "That whosoever believeth in him should not perish, but have eternal life.",
+              "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/john/3?id=p15#p15"
+            },
+            {
+              "id": "bible:John 3:16",
+              "is_target": true,
+              "metadata": {
+                "book": "John",
+                "chapter": 3,
+                "verse": 16
+              },
+              "reference": "John 3:16",
+              "source": "bible",
+              "text": "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.",
+              "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/john/3?id=p16#p16"
+            }
+          ]
+        }
+      },
       "SearchResponse": {
         "properties": {
           "query": {
@@ -397,6 +792,11 @@
       },
       "SearchResult": {
         "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable document id (e.g. `bible:John 3:16`, `conference:<talk uri>:<paragraph id>`). Pass it to /search/similar or /passage/context."
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -409,7 +809,7 @@
               "handbook"
             ],
             "title": "Source",
-            "description": "Which corpus the result belongs to."
+            "description": "Which corpus the passage belongs to."
           },
           "reference": {
             "type": "string",
@@ -419,7 +819,7 @@
           "text": {
             "type": "string",
             "title": "Text",
-            "description": "The matched passage text."
+            "description": "The passage text."
           },
           "title": {
             "anyOf": [
@@ -438,20 +838,21 @@
             "title": "Url",
             "description": "Deep link to the passage on churchofjesuschrist.org."
           },
-          "score": {
-            "type": "number",
-            "title": "Score",
-            "description": "Cosine similarity in [0, 1] \u2014 higher is more relevant."
-          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata",
             "description": "Source-specific metadata (speaker, book, section, \u2026)."
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Cosine similarity in [0, 1] \u2014 higher is more relevant."
           }
         },
         "type": "object",
         "required": [
+          "id",
           "source",
           "reference",
           "text",
@@ -460,6 +861,7 @@
         ],
         "title": "SearchResult",
         "example": {
+          "id": "bible:1 John 4:8",
           "metadata": {
             "book": "1 John",
             "chapter": 4,
@@ -473,6 +875,33 @@
           "text": "He that loveth not knoweth not God; for God is love.",
           "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/1-jn/4?id=p8#p8"
         }
+      },
+      "SimilarResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "The query that was searched (echoed back)."
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "seed": {
+            "$ref": "#/components/schemas/Passage",
+            "description": "The passage the results were found from (not in `results`)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "results",
+          "seed"
+        ],
+        "title": "SimilarResponse"
       },
       "StatsResponse": {
         "properties": {
@@ -589,6 +1018,10 @@
     {
       "name": "Search",
       "description": "Semantic vector search across the corpora."
+    },
+    {
+      "name": "Passages",
+      "description": "Look up passages and read them in their surrounding context."
     },
     {
       "name": "Stats",

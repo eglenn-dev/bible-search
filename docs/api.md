@@ -61,10 +61,12 @@ You can also import `api/openapi.json` into Postman/Insomnia, or generate a type
 | `GET /` | Health check (pings Atlas) | — |
 | `GET /search` | Semantic search across all corpora | `query` (req), `k` (1–50, default 10), `sources` (CSV) |
 | `GET /search/by-reference` | Passages similar to a known verse | `reference` (req), `k`, `sources` |
+| `GET /search/similar` | "More like this": passages similar to any result, by its `id`. Excludes the passage and every other chunk of the same talk/speech/handbook chapter. Returns `SimilarResponse` (`SearchResponse` + `seed`, the passage searched from). | `id` (req), `k`, `sources` |
+| `GET /passage/context` | A passage plus its neighbours in reading order, each flagged `is_target` (see below) | `id` (req), `before` / `after` (0–10, default 2) |
 | `GET /verse` | Look up a passage's text + link by exact reference | `reference` (req) |
 | `GET /stats` | Precomputed corpus analytics for the frontend `/stats` page (`{generated_at, data}`). Regenerate offline with `uv run python -m ingest.stats` — it is never computed per-request. | — |
 
-`sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `handbook`. Omit it to search everything.
+`sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `byu-speeches`, `handbook`. Omit it to search everything.
 
 ### Response shape (`SearchResponse`)
 ```jsonc
@@ -72,6 +74,7 @@ You can also import `api/openapi.json` into Postman/Insomnia, or generate a type
   "query": "charity never faileth",
   "results": [
     {
+      "id": "bible:1 Corinthians 13:4",   // stable document id → /search/similar, /passage/context
       "source": "bible",
       "reference": "1 Corinthians 13:4",
       "text": "Charity suffereth long, and is kind; …",
@@ -84,4 +87,37 @@ You can also import `api/openapi.json` into Postman/Insomnia, or generate a type
 }
 ```
 
-Schemas (`SearchResponse`, `SearchResult`, `HealthResponse`, `ErrorResponse`) are defined as Pydantic models in `api/app.py`; FastAPI derives the OpenAPI `components.schemas` from them.
+`id` is the document's deterministic Mongo `_id` (`bible:John 3:16`, `conference:<talk uri>:<paragraph id>`, `byu-speeches:<path>:<paragraph index>`, `handbook:<chapter uri>:<anchor>:<offset>` — see [data-sources.md](./data-sources.md)). It is stable across re-ingests, so it is safe to store (the client keys bookmarks on it).
+
+### Reading context (`GET /passage/context`)
+
+```jsonc
+// GET /passage/context?id=bible:John%203:16&before=1&after=1
+{
+  "id": "bible:John 3:16",
+  "passages": [
+    { "id": "bible:John 3:15", "reference": "John 3:15", "text": "…", "is_target": false, /* + source, title, url, metadata */ },
+    { "id": "bible:John 3:16", "reference": "John 3:16", "text": "…", "is_target": true },
+    { "id": "bible:John 3:17", "reference": "John 3:17", "text": "…", "is_target": false }
+  ],
+  "more_before": true,   // the chapter/talk continues past the window
+  "more_after": true,
+  "note": null           // set when the context is narrower than asked
+}
+```
+
+What counts as a neighbour, and how they're found (all through the built-in `_id` index; no extra indexes):
+
+| Source | Neighbours | Query |
+|---|---|---|
+| Scripture | Adjacent verses of the same chapter (never crosses a chapter) | The neighbours' ids are computed (`bible:John 3:15`, …) and fetched with one `$in`. |
+| BYU Speeches | Adjacent ~3-paragraph chunks of the speech, by the paragraph index in the id | Anchored prefix regex `^byu-speeches:<path>:` — an index-only range scan — then `$in` for the window. |
+| Conference (ids `p12`, pre-late-2024) | Adjacent chunks of the talk, by paragraph number (numerically: `p3` < `p12`) | Same prefix scan on `^conference:<talk uri>:`. |
+| Conference (ids `p_aB3dE`, late 2024 on) | **Just the passage**, with a `note`: the new ids are random and nothing stored records the paragraph order (insertion order was checked and isn't reliable). | — |
+| Handbook | Adjacent chunks of the **same section** (the id's offset orders them), with a `note`; sections aren't ordered relative to each other in the stored data. | Prefix scan on `^handbook:<chapter uri>:`. |
+
+The conference and handbook ingesters now also write `metadata.chunk_index` (reading order within the talk / chapter). When a passage has it, neighbours come from one range query on the `_id` prefix plus `chunk_index`, and the limits above go away: the handbook picks it up on its next full sync; existing new-format conference talks need a forced re-ingest (`python -m ingest.run --source conference --force`) to get it.
+
+Measured against the production cluster, every one of these queries runs in **0 ms** server-side (`explain`: `IXSCAN` on `_id_` with tight bounds; the id-only scan is `PROJECTION_COVERED`, i.e. it reads no documents); an endpoint call is dominated by network round trips.
+
+Schemas (`SearchResponse`, `SearchResult`, `SimilarResponse`, `PassageContextResponse`, `HealthResponse`, `ErrorResponse`, …) are defined as Pydantic models in `api/app.py`; FastAPI derives the OpenAPI `components.schemas` from them.

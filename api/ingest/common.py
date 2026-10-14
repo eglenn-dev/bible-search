@@ -59,35 +59,82 @@ def already_ingested(query: dict[str, Any]) -> bool:
     return db.get_collection().count_documents(query, limit=1) > 0
 
 
-def ensure_vector_index() -> None:
-    """Create the Atlas Vector Search index if it does not already exist."""
-    collection = db.get_collection()
-    existing = {ix["name"] for ix in collection.list_search_indexes()}
-    if db.VECTOR_INDEX_NAME in existing:
-        print(f"Vector index '{db.VECTOR_INDEX_NAME}' already exists.")
-        return
-
-    model = SearchIndexModel(
-        name=db.VECTOR_INDEX_NAME,
-        type="vectorSearch",
-        definition={
-            "fields": [
-                {
-                    "type": "vector",
-                    "path": "embedding",
-                    "numDimensions": EMBED_DIM,
-                    "similarity": "cosine",
-                    "quantization": "scalar",
-                },
-                {"type": "filter", "path": "source"},
-            ]
+# The Atlas Vector Search index. Every path the API filters `$vectorSearch` on
+# must be listed as a "filter" field, or Atlas rejects the query ("Path …
+# needs to be indexed as filter"): `source` for the corpus chips, and the
+# speaker / year of the dated sources (conference, byu-speeches) for the
+# speaker and year-range filters.
+VECTOR_INDEX_DEFINITION: dict[str, Any] = {
+    "fields": [
+        {
+            "type": "vector",
+            "path": "embedding",
+            "numDimensions": EMBED_DIM,
+            "similarity": "cosine",
+            "quantization": "scalar",
         },
+        {"type": "filter", "path": "source"},
+        {"type": "filter", "path": "metadata.speaker"},
+        {"type": "filter", "path": "metadata.year"},
+    ]
+}
+
+
+def _same_fields(live: dict[str, Any] | None, wanted: dict[str, Any]) -> bool:
+    """True if a live index definition has exactly the wanted fields.
+
+    Order-insensitive, and tolerant of keys Atlas adds to a field on its own:
+    each wanted field must match one live field on every key it sets.
+    """
+    live_fields = (live or {}).get("fields", [])
+    wanted_fields = wanted["fields"]
+    if len(live_fields) != len(wanted_fields):
+        return False
+    return all(
+        any(all(lf.get(k) == v for k, v in wf.items()) for lf in live_fields)
+        for wf in wanted_fields
     )
-    collection.create_search_index(model)
+
+
+def ensure_vector_index() -> str:
+    """Create the Atlas Vector Search index, or update it if its definition differs.
+
+    Returns ``"created"``, ``"updated"`` or ``"unchanged"``. Either change makes
+    Atlas (re)build the index asynchronously; during an update the old
+    definition keeps serving queries until the rebuild finishes and Atlas swaps
+    it in, so filters on newly added paths only work once it reports READY.
+    """
+    collection = db.get_collection()
+    existing = {ix["name"]: ix for ix in collection.list_search_indexes()}
+    current = existing.get(db.VECTOR_INDEX_NAME)
+
+    if current is None:
+        model = SearchIndexModel(
+            name=db.VECTOR_INDEX_NAME,
+            type="vectorSearch",
+            definition=VECTOR_INDEX_DEFINITION,
+        )
+        collection.create_search_index(model)
+        print(
+            f"Created vector index '{db.VECTOR_INDEX_NAME}'. "
+            "Atlas builds it asynchronously; wait until it is READY before querying."
+        )
+        return "created"
+
+    live = current.get("latestDefinition")
+    if _same_fields(live, VECTOR_INDEX_DEFINITION):
+        print(f"Vector index '{db.VECTOR_INDEX_NAME}' is up to date.")
+        return "unchanged"
+
+    live_paths = sorted(f.get("path", "?") for f in (live or {}).get("fields", []))
+    new_paths = sorted(f["path"] for f in VECTOR_INDEX_DEFINITION["fields"])
+    collection.update_search_index(db.VECTOR_INDEX_NAME, VECTOR_INDEX_DEFINITION)
     print(
-        f"Created vector index '{db.VECTOR_INDEX_NAME}'. "
-        "Atlas builds it asynchronously; wait until it is READY before querying."
+        f"Updating vector index '{db.VECTOR_INDEX_NAME}': fields {live_paths} -> "
+        f"{new_paths}. Atlas rebuilds it in the background and keeps serving the "
+        "old definition until the new one is READY."
     )
+    return "updated"
 
 
 def storage_stats() -> dict[str, float]:

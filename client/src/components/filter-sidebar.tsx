@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
-import type { Source, SortKey } from "@/lib/types";
+import type { Source, SortKey, SearchFilters } from "@/lib/types";
 import { Check } from "lucide-react";
+import { SpeakerPicker, YearRange } from "./speaker-year-filter";
 
 const SOURCE_OPTIONS: { key: Source; label: string }[] = [
     { key: "bible", label: "Bible" },
@@ -26,6 +27,9 @@ interface FilterSidebarProps {
     // Per-source hit counts from the current result set.
     counts: Partial<Record<Source, number>>;
     total: number;
+    // Speaker + year range (conference / BYU Speeches only).
+    filters: SearchFilters;
+    onFiltersChange: (next: SearchFilters) => void;
 }
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
@@ -88,6 +92,8 @@ export default function FilterSidebar({
     onSortChange,
     counts,
     total,
+    filters,
+    onFiltersChange,
 }: FilterSidebarProps) {
     const isAll = sources.length === 0;
 
@@ -118,6 +124,29 @@ export default function FilterSidebar({
                         onClick={() => toggleSource(key)}
                     />
                 ))}
+            </div>
+            <div className="flex flex-col gap-2.5">
+                <GroupLabel>Speaker</GroupLabel>
+                <SpeakerPicker
+                    value={filters.speaker}
+                    onChange={(speaker) =>
+                        onFiltersChange({ ...filters, speaker })
+                    }
+                />
+            </div>
+            <div className="flex flex-col gap-2.5">
+                <GroupLabel>Years</GroupLabel>
+                <YearRange
+                    from={filters.yearFrom}
+                    to={filters.yearTo}
+                    onChange={(years) =>
+                        onFiltersChange({ ...filters, ...years })
+                    }
+                />
+                <p className="text-xs leading-snug text-muted-foreground">
+                    Speaker and year filters only match Conference and BYU
+                    Speeches.
+                </p>
             </div>
             <div className="flex flex-col gap-2.5">
                 <GroupLabel>Sort</GroupLabel>

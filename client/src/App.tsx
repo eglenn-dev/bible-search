@@ -1,10 +1,18 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import type { Result, ResultCount, Source, SortKey } from "./lib/types";
+import type {
+    Result,
+    ResultCount,
+    Source,
+    SortKey,
+    SearchFilters,
+} from "./lib/types";
 import { SOURCES, RESULT_COUNTS, DEFAULT_RESULT_COUNT } from "./lib/types";
 import { sortResults } from "./lib/result-date";
 import { runSearch } from "./lib/search";
 import { runSimilar } from "./lib/passages";
 import { headingFor } from "./lib/result-display";
+import { hasFilters } from "./lib/speakers";
+import { ActiveFilters } from "./components/speaker-year-filter";
 import SearchBox from "./components/search-box";
 import ScriptureBox from "./components/scripture-box";
 import RenderResults from "./components/render-results";
@@ -31,6 +39,7 @@ import {
     parseAsStringEnum,
     parseAsArrayOf,
     parseAsNumberLiteral,
+    parseAsInteger,
 } from "nuqs";
 
 export default function App() {
@@ -39,6 +48,9 @@ export default function App() {
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
     const [backendRunning, setBackendRunning] = useState<boolean>(false);
     const [scriptureRef, setScriptureRef] = useState<string>("");
+    // Why the last filter-driven re-run failed (e.g. the API's "filters not
+    // available yet" 503), shown above the now-stale results.
+    const [searchError, setSearchError] = useState<string | null>(null);
     // Phones get the app-style shell (components/mobile) in place of the
     // layouts below; the search state in this component drives both.
     const isMobile = useIsMobile();
@@ -92,6 +104,14 @@ export default function App() {
     const shownSimilar = useRef<string | null>(null);
     // Only the latest similar request may land (fast clicks race).
     const similarRequest = useRef(0);
+    // Speaker (a normalized name from /speakers) and an inclusive year range.
+    const [speaker, setSpeaker] = useQueryState("speaker", parseAsString);
+    const [yearFrom, setYearFrom] = useQueryState("from", parseAsInteger);
+    const [yearTo, setYearTo] = useQueryState("to", parseAsInteger);
+    const filters = useMemo<SearchFilters>(
+        () => ({ speaker, yearFrom, yearTo }),
+        [speaker, yearFrom, yearTo],
+    );
 
     // Switching to scripture mode drops the ?q text (scripture mode uses its
     // own reference input and ignores ?q).
@@ -112,6 +132,7 @@ export default function App() {
     const handleResults = (next: Result[]) => {
         setResults(next);
         setHasSearched(true);
+        setSearchError(null);
     };
 
     // Drops "more like this" without touching the results (the caller is
@@ -144,12 +165,14 @@ export default function App() {
         id: string,
         count: ResultCount,
         nextSources: Source[],
+        nextFilters: SearchFilters,
     ) => {
         const request = ++similarRequest.current;
         const { seed, results: next } = await runSimilar({
             id,
             resultCount: count,
             sources: nextSources,
+            filters: nextFilters,
         });
         if (request !== similarRequest.current) return;
         setSimilarSeed(seed);
@@ -158,14 +181,19 @@ export default function App() {
 
     // Re-runs whatever is on screen with new settings: the similar search
     // while one is showing, otherwise the query.
-    const rerun = async (count: ResultCount, nextSources: Source[]) => {
-        if (similar) return loadSimilar(similar, count, nextSources);
+    const rerun = async (
+        count: ResultCount,
+        nextSources: Source[],
+        nextFilters: SearchFilters = filters,
+    ) => {
+        if (similar) return loadSimilar(similar, count, nextSources, nextFilters);
         handleResults(
             await runSearch({
                 queryType,
                 query: activeQuery,
                 resultCount: count,
                 sources: nextSources,
+                filters: nextFilters,
             }),
         );
     };
@@ -178,7 +206,7 @@ export default function App() {
         const previous = shownSimilar.current;
         shownSimilar.current = similar;
         if (similar) {
-            loadSimilar(similar, resultCount, sources).catch((e) => {
+            loadSimilar(similar, resultCount, sources, filters).catch((e) => {
                 console.error("Error fetching similar passages:", e);
                 // An unknown or stale id (say, an old shared link): drop it
                 // and leave the page as it was.
@@ -207,16 +235,37 @@ export default function App() {
         window.scrollTo({ top: 0 });
     };
 
-    // Toggling a source in the sidebar re-runs the current search so the
-    // result list reflects the new filter immediately.
-    const handleSidebarSources = async (next: Source[]) => {
-        setSources(next);
+    // Changing a source, speaker or year filter re-runs whatever is on screen
+    // (the query, or "more like this") so the list reflects it immediately.
+    const rerunSearch = async (
+        nextSources: Source[],
+        nextFilters: SearchFilters,
+    ) => {
         if (!activeQuery && !similar) return;
         try {
-            await rerun(resultCount, next);
+            await rerun(resultCount, nextSources, nextFilters);
         } catch (e) {
             console.error("Error re-running search:", e);
+            setSearchError(
+                e instanceof Error ? e.message : "Failed to fetch results.",
+            );
         }
+    };
+
+    const handleSidebarSources = async (next: Source[]) => {
+        setSources(next);
+        await rerunSearch(next, filters);
+    };
+
+    const setFilters = (next: SearchFilters) => {
+        setSpeaker(next.speaker);
+        setYearFrom(next.yearFrom);
+        setYearTo(next.yearTo);
+    };
+
+    const handleFiltersChange = async (next: SearchFilters) => {
+        setFilters(next);
+        await rerunSearch(sources, next);
     };
 
     const sortedResults = useMemo(
@@ -247,6 +296,9 @@ export default function App() {
             await rerun(nextCount, sources);
         } catch (e) {
             console.error("Error loading more results:", e);
+            setSearchError(
+                e instanceof Error ? e.message : "Failed to fetch results.",
+            );
         } finally {
             setLoadingMore(false);
         }
@@ -315,6 +367,7 @@ export default function App() {
             <SearchBox
                 parentQuery={query}
                 sources={sources}
+                filters={filters}
                 resultCount={resultCount}
                 setParams={setQuery}
                 setResults={handleSearchResults}
@@ -326,6 +379,7 @@ export default function App() {
                 parentRef={scriptureRef}
                 setParentRef={setScriptureRef}
                 sources={sources}
+                filters={filters}
                 resultCount={resultCount}
                 setResults={handleSearchResults}
                 compact={hasSearched}
@@ -351,6 +405,9 @@ export default function App() {
                 resultCount={resultCount}
                 onResultCountChange={setResultCount}
                 sourceCounts={sourceCounts}
+                filters={filters}
+                onFiltersChange={hasSearched ? handleFiltersChange : setFilters}
+                searchError={searchError}
                 canLoadMore={canLoadMore}
                 loadingMore={loadingMore}
                 onLoadMore={handleLoadMore}
@@ -418,6 +475,8 @@ export default function App() {
                                 onSortChange={setSortBy}
                                 counts={sourceCounts}
                                 total={results.length}
+                                filters={filters}
+                                onFiltersChange={handleFiltersChange}
                             />
                         </div>
                     </aside>
@@ -448,8 +507,22 @@ export default function App() {
                                 </button>
                             </div>
                         )}
-                        <div className="text-sm text-muted-foreground">
-                            {countLabel}
+                        <div className="flex flex-col gap-3">
+                            <div className="text-sm text-muted-foreground">
+                                {countLabel}
+                            </div>
+                            <ActiveFilters
+                                filters={filters}
+                                onChange={handleFiltersChange}
+                            />
+                            {searchError && (
+                                <p
+                                    role="alert"
+                                    className="text-sm text-destructive"
+                                >
+                                    {searchError}
+                                </p>
+                            )}
                         </div>
                         {results.length === 0 ? (
                             <p className="text-lg text-foreground/80">
@@ -460,8 +533,9 @@ export default function App() {
                                       ? ` for “${activeQuery}”`
                                       : ""}.{" "}
                                 <span className="text-muted-foreground">
-                                    Try fewer or different words, or switch
-                                    search mode.
+                                    {hasFilters(filters)
+                                        ? "Speaker and year filters only match Conference and BYU Speeches; try loosening them."
+                                        : "Try fewer or different words, or switch search mode."}
                                 </span>
                             </p>
                         ) : (
@@ -518,6 +592,14 @@ export default function App() {
                     />
                     <ThemeToggle />
                 </div>
+
+                {/* Speaker/year filters are set from the results sidebar; if
+                    the URL carries some, show them so they're not a surprise. */}
+                <ActiveFilters
+                    filters={filters}
+                    onChange={setFilters}
+                    className="mt-4 justify-center"
+                />
 
                 <div className="mt-8 flex justify-center">
                     <McpDialog />

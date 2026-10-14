@@ -7,7 +7,13 @@ import {
     X,
 } from "lucide-react";
 import { parseAsStringEnum, useQueryState } from "nuqs";
-import type { Result, ResultCount, SortKey, Source } from "@/lib/types";
+import type {
+    Result,
+    ResultCount,
+    SearchFilters,
+    SortKey,
+    Source,
+} from "@/lib/types";
 import {
     bookmarkId,
     clearBookmarks,
@@ -19,8 +25,10 @@ import {
     useBookmarks,
 } from "@/lib/bookmarks";
 import { headingFor } from "@/lib/result-display";
+import { hasFilters } from "@/lib/speakers";
 import { cn } from "@/lib/utils";
 import ConferenceBanner from "../conference-banner";
+import { ActiveFilters } from "../speaker-year-filter";
 import FilterSheet from "./filter-sheet";
 import ResultCard from "./result-card";
 import ResultSheet from "./result-sheet";
@@ -45,6 +53,10 @@ interface MobileAppProps {
     resultCount: ResultCount;
     onResultCountChange: (next: ResultCount) => void;
     sourceCounts: Partial<Record<Source, number>>;
+    filters: SearchFilters;
+    onFiltersChange: (next: SearchFilters) => void;
+    /** Why the last filter change couldn't re-run the search, if it failed. */
+    searchError: string | null;
     canLoadMore: boolean;
     loadingMore: boolean;
     onLoadMore: () => void;
@@ -88,6 +100,9 @@ export default function MobileApp({
     resultCount,
     onResultCountChange,
     sourceCounts,
+    filters,
+    onFiltersChange,
+    searchError,
     canLoadMore,
     loadingMore,
     onLoadMore,
@@ -199,6 +214,12 @@ export default function MobileApp({
         );
     };
 
+    // Sources, speaker and year range each count as one active filter.
+    const filterCount =
+        sources.length +
+        (filters.speaker ? 1 : 0) +
+        (filters.yearFrom !== null || filters.yearTo !== null ? 1 : 0);
+
     const countLabel =
         (results.length === 1 ? "1 result" : `${results.length} results`) +
         (similarSeed
@@ -284,16 +305,16 @@ export default function MobileApp({
                             type="button"
                             onClick={() => setFiltersOpen(true)}
                             aria-label={
-                                sources.length > 0
-                                    ? `Filters, ${sources.length} sources selected`
+                                filterCount > 0
+                                    ? `Filters, ${filterCount} active`
                                     : "Filters"
                             }
                             className="glass relative flex h-11 w-11 flex-none items-center justify-center rounded-full text-foreground transition-transform active:scale-90"
                         >
                             <SlidersHorizontal className="h-5 w-5" />
-                            {sources.length > 0 && (
+                            {filterCount > 0 && (
                                 <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold leading-none text-primary-foreground">
-                                    {sources.length}
+                                    {filterCount}
                                 </span>
                             )}
                         </button>
@@ -301,6 +322,20 @@ export default function MobileApp({
                 </div>
 
                 <div className="px-4 pt-1">
+                    <ActiveFilters
+                        variant="sheet"
+                        filters={filters}
+                        onChange={onFiltersChange}
+                        className="px-1 pb-2"
+                    />
+                    {searchError && (
+                        <p
+                            role="alert"
+                            className="px-1 pb-2 text-[15px] text-destructive"
+                        >
+                            {searchError}
+                        </p>
+                    )}
                     {!hasSearched ? (
                         <div className="gs-fade flex flex-col">
                             <div className="mt-3 flex justify-center">
@@ -367,8 +402,9 @@ export default function MobileApp({
                                       : ""}
                                 .{" "}
                                 <span className="text-muted-foreground">
-                                    Try fewer or different words, or switch
-                                    search mode.
+                                    {hasFilters(filters)
+                                        ? "Speaker and year filters only match Conference and BYU Speeches; try loosening them."
+                                        : "Try fewer or different words, or switch search mode."}
                                 </span>
                             </p>
                         </>
@@ -458,6 +494,8 @@ export default function MobileApp({
                 resultCount={resultCount}
                 onResultCountChange={onResultCountChange}
                 counts={sourceCounts}
+                filters={filters}
+                onFiltersChange={onFiltersChange}
             />
 
             <ResultSheet

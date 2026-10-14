@@ -8,6 +8,7 @@ the dataset or the embeddings into process memory; it only issues
 
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
@@ -16,6 +17,7 @@ from bson.binary import Binary
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.collection import Collection
+from pymongo.errors import OperationFailure
 
 load_dotenv()
 
@@ -119,6 +121,22 @@ def ping() -> bool:
     return True
 
 
+class FilterNotIndexedError(RuntimeError):
+    """A ``$vectorSearch`` filter used a path the vector index doesn't cover.
+
+    Raised when the live Atlas index predates the ``metadata.speaker`` /
+    ``metadata.year`` filter fields (see ``ingest.common.VECTOR_INDEX_DEFINITION``).
+    """
+
+    def __init__(self, path: str):
+        self.path = path
+        super().__init__(f"Path {path!r} is not indexed as a vector-search filter.")
+
+
+# Atlas's error text for a filter on a path missing from the index definition.
+_NOT_INDEXED_RE = re.compile(r"Path '([^']+)' needs to be indexed as filter")
+
+
 def _clean_sources(sources: list[str] | None) -> list[str] | None:
     if not sources:
         return None
@@ -189,18 +207,52 @@ def _rerank_and_dedupe(
     return out
 
 
+def _build_filter(
+    sources: list[str] | None,
+    speakers: list[str] | None,
+    year_from: int | None,
+    year_to: int | None,
+) -> dict[str, Any] | None:
+    """Combine the optional pre-filters into one ``$vectorSearch`` ``filter``."""
+    clauses: list[dict[str, Any]] = []
+    if sources:
+        clauses.append({"source": {"$in": sources}})
+    if speakers:
+        clauses.append({"metadata.speaker": {"$in": speakers}})
+    years: dict[str, int] = {}
+    if year_from is not None:
+        years["$gte"] = year_from
+    if year_to is not None:
+        years["$lte"] = year_to
+    if years:
+        clauses.append({"metadata.year": years})
+    if not clauses:
+        return None
+    return clauses[0] if len(clauses) == 1 else {"$and": clauses}
+
+
 def vector_search(
     query_vector: list[float],
     k: int = 10,
     sources: list[str] | None = None,
     limit: int | None = None,
+    speakers: list[str] | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
 ) -> list[dict[str, Any]]:
     """Run an Atlas ``$vectorSearch`` and return re-ranked, de-duplicated hits.
 
     - ``query_vector``: normalized 384-dim query embedding.
-    - ``sources``: optional subset of {bible, conference, handbook} to filter on.
+    - ``sources``: optional subset of ``VALID_SOURCES`` to filter on.
     - ``limit``: number of hits to return (defaults to ``k``); callers that need
       to drop a self-match request one extra.
+    - ``speakers``: raw ``metadata.speaker`` strings to keep (one person's
+      variants, from ``speakers.SpeakerIndex.resolve``).
+    - ``year_from`` / ``year_to``: inclusive ``metadata.year`` bounds.
+
+    Speaker and year filters only ever match the dated sources (conference,
+    byu-speeches): scripture and handbook passages have neither field. Raises
+    ``FilterNotIndexedError`` if the live index lacks one of the filter paths.
 
     Raw chunks are over-fetched, lifted by a recency factor (see
     ``_recency_factor``), then collapsed to one hit per source document (see
@@ -217,18 +269,72 @@ def vector_search(
         "index": VECTOR_INDEX_NAME,
         "path": "embedding",
         "queryVector": query_vector,
-        "numCandidates": num_candidates,
         "limit": fetch_limit,
     }
-    if cleaned:
-        vector_stage["filter"] = {"source": {"$in": cleaned}}
+    if speakers:
+        # One person's talks are a sliver of the corpus. Atlas recommends exact
+        # (ENN) search for pre-filters matching < 5% of documents: it scores
+        # every matching chunk rather than hoping the approximate graph walk
+        # reaches enough of them.
+        vector_stage["exact"] = True
+    else:
+        vector_stage["numCandidates"] = num_candidates
+    search_filter = _build_filter(cleaned, speakers, year_from, year_to)
+    if search_filter:
+        vector_stage["filter"] = search_filter
 
     pipeline = [
         {"$vectorSearch": vector_stage},
         {"$project": _PROJECTION},
     ]
-    hits = list(get_collection().aggregate(pipeline))
+    try:
+        hits = list(get_collection().aggregate(pipeline))
+    except OperationFailure as exc:
+        match = _NOT_INDEXED_RE.search(str(exc))
+        if match:
+            raise FilterNotIndexedError(match.group(1)) from exc
+        raise
     return _rerank_and_dedupe(hits, limit)
+
+
+def speaker_talk_counts() -> list[dict[str, Any]]:
+    """Talk count and year span per distinct raw ``metadata.speaker`` × source.
+
+    A read-only aggregation over the dated sources (~1 s on the full corpus)
+    that groups chunks into talks/speeches first, so counts are of talks, not
+    chunks. Feeds ``speakers.build_speaker_index``, which caches the result.
+    """
+    pipeline = [
+        {"$match": {"source": {"$in": ["conference", "byu-speeches"]}}},
+        {
+            "$group": {
+                "_id": {
+                    "speaker": "$metadata.speaker",
+                    "source": "$source",
+                    "doc": {"$ifNull": ["$metadata.talk_uri", "$metadata.speech_path"]},
+                },
+                "year": {"$first": "$metadata.year"},
+            }
+        },
+        {
+            "$group": {
+                "_id": {"speaker": "$_id.speaker", "source": "$_id.source"},
+                "talks": {"$sum": 1},
+                "first": {"$min": "$year"},
+                "last": {"$max": "$year"},
+            }
+        },
+    ]
+    return [
+        {
+            "speaker": row["_id"].get("speaker"),
+            "source": row["_id"]["source"],
+            "talks": row["talks"],
+            "first": row.get("first"),
+            "last": row.get("last"),
+        }
+        for row in get_collection().aggregate(pipeline)
+    ]
 
 
 def find_by_reference(reference: str) -> dict[str, Any] | None:
@@ -295,10 +401,12 @@ def log_query(
     result_ids: list[str] | None = None,
     ip: str | None = None,
     user_agent: str | None = None,
+    filters: dict[str, Any] | None = None,
 ) -> None:
     """Record a user search for analytics. Best-effort: never raises.
 
-    ``sources`` and ``k`` capture the filter params applied to the search, and
+    ``sources``, ``k`` and ``filters`` (speaker / year range, only when set)
+    capture the filter params applied to the search, and
     ``result_ids`` records the deterministic ``_id`` of each returned passage, in
     result order, so we can see which documents surfaced for a query/filter combo.
 
@@ -315,6 +423,7 @@ def log_query(
                 "query": query,
                 "k": k,
                 "sources": sources,
+                "filters": filters,
                 "result_count": result_count,
                 "result_ids": result_ids,
                 "ip": ip,

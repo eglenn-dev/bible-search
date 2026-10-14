@@ -1,4 +1,11 @@
-import type { PassageContext, Result, ResultCount, Source } from "./types";
+import type {
+    PassageContext,
+    Result,
+    ResultCount,
+    SearchFilters,
+    Source,
+} from "./types";
+import { apiError, filtersParam } from "./search";
 
 // Requests that start from one passage (by its stable API id) rather than from
 // a query: "More like this" and its surrounding context.
@@ -10,14 +17,17 @@ export async function runSimilar(params: {
     id: string;
     resultCount: ResultCount;
     sources: Source[];
+    filters?: SearchFilters;
 }): Promise<{ seed: Result; results: Result[] }> {
-    const { id, resultCount, sources } = params;
+    const { id, resultCount, sources, filters } = params;
     const response = await fetch(
         `${import.meta.env.VITE_API_DOMAIN}/search/similar?id=${encodeURIComponent(
             id,
-        )}&k=${resultCount}${sources.length ? `&sources=${sources.join(",")}` : ""}`,
+        )}&k=${resultCount}${sources.length ? `&sources=${sources.join(",")}` : ""}` +
+            filtersParam(filters),
     );
-    if (!response.ok) throw new Error("Failed to fetch similar passages.");
+    if (!response.ok)
+        throw await apiError(response, "Failed to fetch similar passages.");
     const data = await response.json();
     return {
         // The seed is a passage, not a hit; it has no score of its own.

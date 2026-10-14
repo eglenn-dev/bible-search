@@ -516,7 +516,8 @@ export default function StatsPage() {
                     <StatCard
                         className="mt-4"
                         title="The most echoed verses"
-                        sub="For every conference passage, the semantically nearest verse of scripture (cosine > 0.6). These are the verses the pulpit orbits — cited or not."
+                        // Stats generated before the threshold was recorded used 0.6.
+                        sub={`For every conference passage, the semantically nearest verse of scripture (cosine > ${d.verse_echo_threshold ?? 0.6}). These are the verses the pulpit orbits — cited or not.`}
                     >
                         <div className="mb-3.5 flex flex-wrap gap-x-5 gap-y-1.5 text-[15px] text-muted-foreground">
                             {Object.entries(VOLUME_COLOR).map(([name, color]) => (

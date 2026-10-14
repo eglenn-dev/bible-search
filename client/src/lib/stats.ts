@@ -88,6 +88,8 @@ export interface StatsData {
     cluster_decade_totals: Record<string, number>;
     verse_echo_strong: EchoedVerse[];
     verse_echo_mean_sim: number;
+    /** Cosine cutoff for a "strong" echo; depends on the embedding model. */
+    verse_echo_threshold?: number;
 }
 
 export interface StatsResponse {

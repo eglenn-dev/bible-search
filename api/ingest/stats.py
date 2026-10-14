@@ -56,6 +56,15 @@ CURRENT_APOSTLES = [
     "Clark G. Gilbert",
 ]
 
+# --- Verse-echo threshold ------------------------------------------------
+
+# A conference passage "strongly echoes" its nearest verse above this cosine.
+# Cosine scales differ by embedding model (e5's sit much higher than MiniLM's),
+# so each version gets its own cutoff. v2's was calibrated on the full corpus to
+# mark the same share of passages as v1's 0.6 (53%): median nearest-verse
+# cosine is 0.61 on v1 and 0.87 on v2.
+STRONG_ECHO_COSINE = {"v1": 0.6, "v2": 0.867}
+
 # --- Procedural-talk filter -----------------------------------------------
 
 # Speaker names are normalized by `speakers.norm_speaker` (imported above),
@@ -506,6 +515,7 @@ def compute_embedding_stats(conference, conf_emb, scriptures, scripture_embs) ->
     E = conf_emb[keep]
     echo: Counter = Counter()
     strong: Counter = Counter()
+    threshold = STRONG_ECHO_COSINE[embeddings.ACTIVE.name]
     best_sim_sum = 0.0
     B = 2000
     for start in range(0, len(E), B):
@@ -516,7 +526,7 @@ def compute_embedding_stats(conference, conf_emb, scriptures, scripture_embs) ->
         for a, s_ in zip(arg, mx):
             ref = verse_docs[a]["reference"]
             echo[ref] += 1
-            if s_ > 0.6:
+            if s_ > threshold:
                 strong[ref] += 1
     verse_of = {d["reference"]: d for d in verse_docs}
     stats["verse_echo_strong"] = [
@@ -524,6 +534,7 @@ def compute_embedding_stats(conference, conf_emb, scriptures, scripture_embs) ->
          "volume": _volume_of(verse_of[r])}
         for r, c in strong.most_common(25)]
     stats["verse_echo_mean_sim"] = round(best_sim_sum / len(E), 3)
+    stats["verse_echo_threshold"] = threshold
     return stats
 
 

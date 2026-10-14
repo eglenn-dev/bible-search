@@ -68,7 +68,9 @@ VERSIONS: dict[str, EmbeddingVersion] = {
         field="embedding_v2",
         index=os.getenv("VECTOR_INDEX_NAME_V2", "vector_index_v2"),
         dtype="int8",
-        recency_weight=0.02,
+        # Tuned against the live v2 index: at 0.02 recent BYU talks outrank
+        # D&C 138:8 for "spirit prison"; at 0.008 relevant recent talks drop out.
+        recency_weight=0.012,
     ),
 }
 

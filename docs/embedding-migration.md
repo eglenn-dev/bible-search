@@ -10,7 +10,7 @@ How the API can switch from `paraphrase-MiniLM-L3-v2` (**v1**) to `intfloat/e5-s
 | Passage-side ONNX (ingest) | `onnx/model.onnx` | `model.onnx` (fp32, 133 MB) |
 | Field | `embedding` (float32 binData, ~1.55 KB/doc) | `embedding_v2` (int8 binData, ~405 B/doc) |
 | Index | `vector_index` (cosine, scalar quantization) | `vector_index_v2` (cosine, no `quantization` because the vectors are already int8) |
-| Recency-lift default | `0.06` | `0.02` |
+| Recency-lift default | `0.06` | `0.012` |
 
 Everything is defined in `api/embeddings.py` (versions) and `api/encoder.py` (models).
 
@@ -85,7 +85,7 @@ Before step 5, try v2 locally against the real index: `EMBEDDING_VERSION=v2 LOG_
   ```
 
   If it prints well under ~0.99, set `EMBED_ONNX_FILE` to another int8 build. The fp32 file is the fallback, but at ~465 MB it would not fit a 512 MB host.
-* **Scores look different.** e5's cosines bunch together: a typical top hit is ~0.94 in the API's (1+cos)/2 scale, versus ~0.82 for v1. The "% match" bar will read high for everything. That is also why v2's default recency weight is 0.02 rather than 0.06. With 0.06, recency outweighs relevance (e.g. 2025–26 talks rank above D&C 138 for "spirit prison"). `RECENCY_WEIGHT` still overrides it.
+* **Scores look different.** e5's cosines bunch together: a typical top hit is ~0.94 in the API's (1+cos)/2 scale, versus ~0.82 for v1. The "% match" bar will read high for everything. That is also why v2's default recency weight is 0.012 rather than 0.06: the top hits sit within ~0.01 of each other, so a larger lift overrides relevance. Tuned on the live v2 index: at 0.02, 2024–25 BYU talks rank above D&C 138:8 for "spirit prison"; at 0.008, the most relevant recent talk for "what happens after we die" drops out of the top 5. `RECENCY_WEIGHT` still overrides it.
 * **`ingest.stats`** uses the active version's vectors. Its "strong verse echo" threshold (`> 0.6` cosine) was tuned for v1 and needs re-tuning for v2.
 * **v1's stored vectors are inconsistent.** Corpora embedded before the ONNX switch (most of Conference) were truncated at 128 tokens by sentence-transformers. Later ones (BYU Speeches, the handbook, newer talks) used 512. The re-embed makes v2 consistent at 512.
 * **Long queries cost more on v2.** The API now runs one inference at a time. A ~512-token query took ~70–85 ms single-threaded on an M4 (vs ~20 ms on v1), so expect a few hundred ms on a small shared vCPU. Short queries cost a few ms either way.

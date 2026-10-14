@@ -5,7 +5,7 @@ The API doubles as a **remote MCP server** so AI agents can search the corpora a
 - **Endpoint:** `https://<your-api-host>/mcp` (e.g. `https://api.bible.eglenn.dev/mcp`)
 - **Transport:** Streamable HTTP (the current remote-MCP standard)
 - **Auth:** none (public), with per-IP rate limiting
-- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `get_verse`, `health`
+- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `list_speakers`, `get_verse`, `get_stats`, `health`
 
 ## How it's built
 
@@ -54,12 +54,16 @@ Any agent framework with a Streamable-HTTP MCP client works the same way — poi
 
 | Tool | Args | Returns |
 |---|---|---|
-| `search` | `query` (required), `k` (1–50), `sources` (CSV) | Top semantic matches across the chosen corpora |
-| `search_by_reference` | `reference` (required), `k`, `sources` | Passages similar to a known verse (self-match excluded) |
+| `search` | `query` (required), `k` (1–50), `sources` (CSV), `speaker`, `year_from`, `year_to` | Top semantic matches across the chosen corpora |
+| `search_by_reference` | `reference` (required), `k`, `sources`, `speaker`, `year_from`, `year_to` | Passages similar to a known verse (self-match excluded) |
+| `list_speakers` | `q` (words to match, e.g. `holland`), `variants` | Normalized conference/BYU speakers with talk counts and year spans |
 | `get_verse` | `reference` (required) | A single passage's text + deep link by exact reference |
+| `get_stats` | — | Precomputed corpus analytics |
 | `health` | — | Service/DB status |
 
-`sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `handbook`.
+`sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `byu-speeches`, `handbook`.
+
+For "what has Elder X said about faith, 2010–2020?" an agent calls `search` with `query="faith"`, `speaker="<name>"`, `year_from=2010`, `year_to=2020`. A unique partial name works (`"Uchtdorf"`); an ambiguous one (`"Holland"`) comes back as an error listing the candidates, and `list_speakers` with `q` finds the exact name. Speaker/year filters only match `conference` and `byu-speeches`. See [api.md](./api.md#speaker-and-year-filters).
 
 ## Access & limits
 

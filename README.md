@@ -42,15 +42,16 @@ A single collection (`documents`) holds every corpus. Each document:
 }
 ```
 
-The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cosine, scalar quantization) with `source` as a filter field.
+The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cosine, scalar quantization) with `source`, `metadata.speaker` and `metadata.year` as filter fields (the latter two back the speaker / year filters; see [Applying an index definition change](./docs/architecture.md#applying-an-index-definition-change)).
 
 ### Backend API (`api/`)
 
 - **ONNX runtime** (`paraphrase-MiniLM-L3-v2` via onnxruntime + a HF tokenizer — no torch): encodes the user's **query** to a normalized 384-dim vector. (The corpora are embedded once, at ingest time.) Keeps the image small enough for a 512 MB host.
-- **MongoDB Atlas Vector Search**: a `$vectorSearch` aggregation finds the nearest passages, optionally filtered by `source`.
+- **MongoDB Atlas Vector Search**: a `$vectorSearch` aggregation finds the nearest passages, optionally filtered by `source`, speaker and year.
 - **FastAPI** exposes:
-  - `GET /search?query=<text>&k=10&sources=bible,conference,handbook`
-  - `GET /search/by-reference?reference=John%203:16&k=10&sources=...` — reuses a verse's stored embedding
+  - `GET /search?query=<text>&k=10&sources=bible,conference,handbook` — add `&speaker=<name>&year_from=2010&year_to=2020` to narrow conference / BYU results to one speaker and a span of years
+  - `GET /search/by-reference?reference=John%203:16&k=10&sources=...` — reuses a verse's stored embedding (same speaker/year params)
+  - `GET /speakers?q=<words>` — normalized speaker names (bylines differ across eras) with talk counts, year spans and the raw byline variants each covers
   - `GET /` — health check (also pings Atlas)
   - `/docs` — Swagger UI; `/openapi.json` — OpenAPI spec
   - `/mcp` — remote **MCP server** for AI agents (Streamable HTTP, tools auto-generated from the spec via FastMCP)
@@ -58,11 +59,11 @@ The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cos
 
 ### MCP server
 
-The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search` / `search_by_reference` as tools. Add the URL (e.g. `https://api.bible.eglenn.dev/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
+The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search` / `search_by_reference` / `list_speakers` as tools. Add the URL (e.g. `https://api.bible.eglenn.dev/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
 
 ### Frontend Client (`client/`)
 
-React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), and source-tagged result cards that deep-link back to churchofjesuschrist.org.
+React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), a **speaker picker and year range** for Conference / BYU Speeches results, and source-tagged result cards that deep-link back to churchofjesuschrist.org.
 
 ## Getting Started Locally
 
@@ -100,7 +101,7 @@ What it does, per source:
 - **General Conference** & **BYU Speeches** — **incremental**. It re-fetches the listing pages (so newly published talks/speeches aren't hidden by the scrape cache) and ingests only what isn't already stored.
 - **General Handbook** — **replaced in full** every run (the Church revises it a few times a year). Fetched fresh, then the old handbook is deleted and the new one inserted — the delete only happens *after* a successful fetch, so a network hiccup can't leave it wiped.
 
-It then ensures the Atlas vector index exists and prints a **before/after diff** plus a **summary of work done** (new talks/speeches, handbook chapters replaced, storage used). Useful flags: `--force-foundational` (re-ingest the Standard Works even if present), `--fresh-years N` (how many recent Conference years to re-check, default 2), and `--skip-conference` / `--skip-byu` / `--skip-handbook`.
+It then ensures the Atlas vector index exists and matches `VECTOR_INDEX_DEFINITION` in `api/ingest/common.py` (updating it in place, which triggers an Atlas rebuild, if the definition changed) and prints a **before/after diff** plus a **summary of work done** (new talks/speeches, handbook chapters replaced, storage used). Useful flags: `--force-foundational` (re-ingest the Standard Works even if present), `--fresh-years N` (how many recent Conference years to re-check, default 2), and `--skip-conference` / `--skip-byu` / `--skip-handbook`.
 
 #### Per-source / lower-level commands
 

@@ -58,26 +58,49 @@ One MongoDB collection — `gospel_library.documents` — holds every source. Ea
 - Net effect: ~93k docs fit in **~193 MB**, well under the M0 **512 MB** cap. `embedding_to_list()` in `db.py` converts a stored `binData` vector back to a plain list (used by `/search/by-reference`).
 
 ### The vector index
-Created by `api/ingest/common.py::ensure_vector_index()` (idempotent — skips if it already exists):
+Defined by `VECTOR_INDEX_DEFINITION` in `api/ingest/common.py` and applied by `ensure_vector_index()`, which creates the index if it's missing, **updates it in place** (`update_search_index`) if the live definition's fields differ, and otherwise does nothing:
 
 ```jsonc
 {
   "fields": [
     { "type": "vector", "path": "embedding", "numDimensions": 384,
       "similarity": "cosine", "quantization": "scalar" },
-    { "type": "filter", "path": "source" }   // enables fast source filtering inside $vectorSearch
+    { "type": "filter", "path": "source" },            // corpus chips
+    { "type": "filter", "path": "metadata.speaker" },  // speaker filter (raw bylines)
+    { "type": "filter", "path": "metadata.year" }      // year-range filter
   ]
 }
 ```
 
-Atlas builds the index **asynchronously**; new documents are indexed automatically as they're inserted (no rebuild needed when you add a source). Wait until it reports `READY`/`queryable` before querying a fresh index.
+Every path used in a `$vectorSearch` `filter` must be listed here as a `filter` field; otherwise Atlas rejects the query with `Path '…' needs to be indexed as filter`. Atlas builds the index **asynchronously**; new documents are indexed automatically as they're inserted (no rebuild needed when you add a source). Wait until it reports `READY`/`queryable` before querying a fresh index.
+
+#### Applying an index definition change
+`ensure_vector_index()` runs at the end of every `python -m ingest.sync` and `python -m ingest.run --create-index` (or `--source …`), so the **next sync applies a changed definition automatically**. To apply it on its own:
+
+```bash
+cd api
+uv run python -c "from ingest.common import ensure_vector_index; print(ensure_vector_index())"
+```
+
+It prints the old and new field paths and returns `updated`. (The Atlas UI — *Atlas Search → vector_index → Edit With JSON Editor* — works too.) Atlas then rebuilds the index in the background. Per the [Atlas Vector Search index docs](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/): *"While the index rebuilds, you can continue to run MongoDB Vector Search queries by using the old index definition. When the index finishes rebuilding, MongoDB Vector Search automatically replaces the old index."* So unfiltered search keeps working throughout, but the speaker/year filters keep returning **503** until the rebuild finishes and the index is `READY` again. Check progress with `db.get_collection().list_search_indexes()` (the `status` / `latestDefinition` fields) or in the Atlas UI. Two extra filter fields add little to the index, but the old and new copies may coexist while it rebuilds (not verified for the M0 tier), so check headroom under the 512 MB cap first (`python -m ingest.run --stats`).
+
+### Speaker and year filters
+`metadata.speaker` is stored exactly as each source printed it, and the same person appears many ways ("By Elder M. Russell Ballard", "M. Russell Ballard, Jr.", "By President …", a non-breaking space after an initial, joint BYU bylines like "Jeffrey R. Holland , Patricia T. Holland"). Instead of rewriting stored documents, `api/speakers.py` groups them at read time:
+
+- `norm_speaker()` strips byline titles (shared with `ingest.stats`, unchanged).
+- `speaker_key()` folds case, accents and punctuation; generational suffixes are kept (LeGrand R. Curtis and LeGrand R. Curtis Jr. are two people).
+- A spelling missing a middle initial joins the **one** spelling that has it ("Charles Didier" → "Charles A. Didier"); `SPEAKER_ALIASES` covers the rest by hand ("Wm. Grant Bangerter", "M. Russell Ballard, Jr.", "Brad Wilcox" → "Bradley R. Wilcox", …). Add to it when `GET /speakers` shows a person split in two.
+- Joint bylines count toward each person they name.
+
+`GET /speakers` serves the result: one read-only aggregation (`db.speaker_talk_counts()`, ~1 s) builds the index, cached in-process for `SPEAKERS_CACHE_SECONDS` (default 6 h). A search's `speaker` param is resolved against it (any spelling, or a unique partial name) and expanded to that person's raw bylines for a `metadata.speaker: {$in: [...]}` pre-filter; `year_from`/`year_to` become `metadata.year: {$gte, $lte}`. Both are `$and`-ed with the `source` filter, and since only conference and BYU speeches carry these fields, setting either narrows results to those two sources. Speaker-filtered searches use exact (ENN) `$vectorSearch`, which Atlas recommends for pre-filters matching under 5% of documents. If the live index lacks a filter field, `db.vector_search()` raises `FilterNotIndexedError` and the API answers **503** with an explanation instead of a 500.
 
 ## Backend API (`api/`)
 
 | File | Responsibility |
 |---|---|
 | `app.py` | The FastAPI REST app (`api`), the FastMCP server, per-IP rate limiting, and the composite ASGI app (`app`) that serves both. The query-encoder model loads lazily on first search. |
-| `db.py` | Atlas access layer: client singleton, `vector_search()`, `find_by_reference()`, `embedding_to_list()`, `log_query()` (best-effort search analytics), `VALID_SOURCES`, config. |
+| `db.py` | Atlas access layer: client singleton, `vector_search()`, `find_by_reference()`, `embedding_to_list()`, `log_query()` (best-effort search analytics), `speaker_talk_counts()`, `VALID_SOURCES`, config. |
+| `speakers.py` | Speaker-name normalization (`norm_speaker`, `speaker_key`, `SPEAKER_ALIASES`), the cached speaker index behind `GET /speakers` and the `speaker` search filter. Also used by `ingest.stats`. |
 | `export_openapi.py` | Writes the committed `openapi.json`. |
 
 `app.py` composes two things into one ASGI app served by `uvicorn app:app`:
@@ -88,18 +111,19 @@ Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (requir
 
 ### Query logging (analytics)
 
-`/search` and `/search/by-reference` record each user search into a **separate** `query_logs` collection — kept apart from `documents` so it never touches the vector index. Each log doc holds `endpoint`, `query`, the filter params `k` and `sources`, `result_count`, `result_ids` (the deterministic `_id` of each returned passage, in result order), `ip`, `user_agent`, and a UTC `created_at`. The write is scheduled as a **FastAPI background task** (runs after the response is sent, so it adds no latency to search) and is **best-effort**: `db.log_query()` swallows and logs any error so a logging hiccup can never break a search. The `/verse` preview lookup is *not* logged (it fires on every keystroke while typing a reference). Toggle the whole feature with `LOG_QUERIES`.
+`/search` and `/search/by-reference` record each user search into a **separate** `query_logs` collection — kept apart from `documents` so it never touches the vector index. Each log doc holds `endpoint`, `query`, the filter params `k`, `sources` and `filters` (`{speaker, year_from, year_to}` when any is set, else null), `result_count`, `result_ids` (the deterministic `_id` of each returned passage, in result order), `ip`, `user_agent`, and a UTC `created_at`. The write is scheduled as a **FastAPI background task** (runs after the response is sent, so it adds no latency to search) and is **best-effort**: `db.log_query()` swallows and logs any error so a logging hiccup can never break a search. The `/verse` preview lookup is *not* logged (it fires on every keystroke while typing a reference). Toggle the whole feature with `LOG_QUERIES`.
 
 ### Endpoints
 
 - **`GET /`** — health check; also pings Atlas. Returns `{"message": "Online!"}` or 503.
-- **`GET /search?query=<text>&k=10&sources=<csv>`** — encodes the query, runs `$vectorSearch`. `sources` is an optional comma-separated subset (`bible,conference,…`); omit for all. Returns `{ query, results: [...] }`.
-- **`GET /search/by-reference?reference=<ref>&k=10&sources=<csv>`** — looks up a document by exact `reference`, **reuses its stored embedding** (no re-encode), and drops the self-match. Powers the "Scripture Reference" mode.
+- **`GET /search?query=<text>&k=10&sources=<csv>&speaker=<name>&year_from=<yyyy>&year_to=<yyyy>`** — encodes the query, runs `$vectorSearch`. `sources` is an optional comma-separated subset (`bible,conference,…`); omit for all. `speaker` / `year_from` / `year_to` are optional (see [Speaker and year filters](#speaker-and-year-filters)). Returns `{ query, results: [...], filters }`.
+- **`GET /search/by-reference?reference=<ref>&k=10&sources=<csv>`** — looks up a document by exact `reference`, **reuses its stored embedding** (no re-encode), and drops the self-match. Takes the same speaker/year params. Powers the "Scripture Reference" mode.
+- **`GET /speakers?q=<words>&variants=true`** — normalized conference/BYU speakers with talk counts, sources, year span and the raw byline variants each covers. Cached in-process.
 - **`GET /verse?reference=<ref>`** — returns a single passage's text + deep link by exact reference (any Standard Work). Used by the frontend to validate/preview a reference.
 - **`/docs`, `/redoc`, `/openapi.json`** — Swagger UI, ReDoc, and the OpenAPI spec.
 - **`/mcp`** — the MCP server (Streamable HTTP) for AI agents.
 
-`db.vector_search()` builds the aggregation: a `$vectorSearch` stage (`numCandidates = clamp(limit*20, 150, 10000)`, optional `filter: { source: { $in: [...] } }`) followed by a `$project` that returns `source, reference, text, title, url, metadata` and `score: { $meta: "vectorSearchScore" }`. Only sources in `VALID_SOURCES` are honored as filters.
+`db.vector_search()` builds the aggregation: a `$vectorSearch` stage (`numCandidates = clamp(limit*20, 150, 10000)`, or `exact: true` when filtering by speaker; optional `filter` combining `source: { $in }`, `metadata.speaker: { $in }` and `metadata.year: { $gte, $lte }`) followed by a `$project` that returns `source, reference, text, title, url, metadata` and `score: { $meta: "vectorSearchScore" }`. Only sources in `VALID_SOURCES` are honored as filters.
 
 ## Frontend (`client/`)
 
@@ -112,7 +136,8 @@ React 19 + Vite + Tailwind v4 + a few shadcn/ui primitives. Key pieces:
 | `src/components/search-box.tsx` | Natural-language search → `GET /search`. |
 | `src/components/scripture-box.tsx` | Verse-reference search → `GET /search/by-reference`; validates/previews the reference (any Standard Work) via `GET /verse`, debounced. |
 | `src/components/render-results.tsx` | Result cards: source badge, metadata line, relevance bar, deep-link via `result.url`. |
-| `src/lib/types.ts` | `Source` union + `Result`/`ResultMetadata` types. |
+| `src/lib/types.ts` | `Source` union + `Result`/`ResultMetadata` types, `SearchFilters`. |
+| `src/components/speaker-year-filter.tsx` | Speaker combobox (fed by `GET /speakers`, via `src/lib/speakers.ts`), year-range selects and the removable active-filter chips; used by the desktop sidebar and the mobile filter sheet. State lives in the URL (`speaker`, `from`, `to`). |
 | `src/index.css` | "Classic & scholarly" theme tokens + serif fonts. |
 | `src/components/mobile/` | The phone layout (see below): `mobile-app.tsx` is the shell; the rest are its tab bar, sheets, cards and controls. |
 | `src/lib/bookmarks.ts` | Saved passages, kept in `localStorage` (`gs-bookmarks`). |

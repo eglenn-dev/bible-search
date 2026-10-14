@@ -24,8 +24,12 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Put the project virtualenv on PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Pre-cache the ONNX model + tokenizer at build time (no torch needed)
-RUN python -c "from huggingface_hub import hf_hub_download; hf_hub_download('sentence-transformers/paraphrase-MiniLM-L3-v2', 'onnx/model.onnx'); from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('sentence-transformers/paraphrase-MiniLM-L3-v2')"
+# Pre-cache the query-side ONNX model + tokenizer.json of each embedding version
+# (see api/embeddings.py) at build time. Baking in both v1 and v2 means switching
+# EMBEDDING_VERSION — or rolling it back — is a restart, not a rebuild.
+ARG PREFETCH_EMBEDDING_VERSIONS=v1,v2
+COPY api/embeddings.py api/encoder.py ./
+RUN python -m embeddings --prefetch "$PREFETCH_EMBEDDING_VERSIONS"
 # Everything is cached now — run fully offline so cold starts don't fetch
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 

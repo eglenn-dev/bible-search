@@ -138,8 +138,15 @@ def _spec(model: str) -> ModelSpec:
         raise ValueError(f"Unknown embedding model {model!r}; known: {sorted(MODELS)}") from None
 
 
+# `functools.cache` doesn't stop two threads from computing the same value at
+# once, and FastAPI runs sync endpoints on a thread pool: after a cold start, a
+# burst of first requests would each build their own ONNX session (measured
+# ~+200 MB, pushing a 512 MB host to its limit). Build each encoder under a lock.
+_load_lock = threading.Lock()
+
+
 @cache
-def _query_encoder(model: str) -> Encoder:
+def _build_query_encoder(model: str) -> Encoder:
     spec = _spec(model)
     # EMBED_ONNX_FILE swaps the query-side export (e.g. a different int8 build)
     # without touching the corpus vectors.
@@ -147,9 +154,19 @@ def _query_encoder(model: str) -> Encoder:
 
 
 @cache
-def _passage_encoder(model: str) -> Encoder:
+def _build_passage_encoder(model: str) -> Encoder:
     spec = _spec(model)
     return Encoder(spec, spec.passage_onnx)
+
+
+def _query_encoder(model: str) -> Encoder:
+    with _load_lock:
+        return _build_query_encoder(model)
+
+
+def _passage_encoder(model: str) -> Encoder:
+    with _load_lock:
+        return _build_passage_encoder(model)
 
 
 def encode_query(model: str, text: str) -> np.ndarray:

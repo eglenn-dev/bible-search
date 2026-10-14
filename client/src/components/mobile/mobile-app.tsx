@@ -424,6 +424,7 @@ export default function MobileApp({
                         bookmarks={bookmarks}
                         onOpen={setOpenResult}
                         onToggleSaved={toggleSaved}
+                        onNotify={notify}
                     />
                 </div>
             )}

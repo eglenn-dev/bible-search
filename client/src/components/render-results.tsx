@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import type { Result } from "@/lib/types";
+import {
+    isSaved,
+    savedKeySet,
+    toggleBookmark,
+    useBookmarks,
+} from "@/lib/bookmarks";
 import {
     SOURCE_LABELS,
     contextLabel,
@@ -9,6 +15,7 @@ import {
     scorePercent,
 } from "@/lib/result-display";
 import PassageContext from "./passage-context";
+import { BookmarkToggle } from "./passage-item";
 
 interface RenderResultsProps {
     results: Result[];
@@ -20,6 +27,11 @@ export default function RenderResults({
     results,
     onMoreLike,
 }: RenderResultsProps) {
+    // Same store as the mobile cards and the Saved panel, so a save here
+    // shows up there (and in other tabs) straight away.
+    const bookmarks = useBookmarks();
+    const savedKeys = useMemo(() => savedKeySet(bookmarks), [bookmarks]);
+
     if (results.length === 0) {
         return (
             <div className="text-center text-muted-foreground">
@@ -35,6 +47,7 @@ export default function RenderResults({
                     key={result.id ?? `${result.source}-${index}`}
                     result={result}
                     index={index}
+                    saved={isSaved(savedKeys, result)}
                     onMoreLike={onMoreLike}
                 />
             ))}
@@ -48,10 +61,12 @@ const actionClass =
 function ResultItem({
     result,
     index,
+    saved,
     onMoreLike,
 }: {
     result: Result;
     index: number;
+    saved: boolean;
     onMoreLike?: (result: Result) => void;
 }) {
     const [expanded, setExpanded] = useState(false);
@@ -67,7 +82,7 @@ function ResultItem({
         >
             {/* Breadcrumb line over a teal, underlined title, as
                 on the Church's own search results page. */}
-            <div className="flex items-baseline gap-3 text-[13px] text-muted-foreground">
+            <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
                 <span>
                     <span className="text-foreground">
                         {SOURCE_LABELS[result.source]}
@@ -77,6 +92,11 @@ function ResultItem({
                 <span className="ml-auto shrink-0 tabular-nums">
                     {scorePercent(result)}%
                 </span>
+                <BookmarkToggle
+                    saved={saved}
+                    onToggle={() => toggleBookmark(result)}
+                    className="-my-1.5 -mr-1.5"
+                />
             </div>
             <a
                 href={result.url}

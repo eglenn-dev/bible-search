@@ -1,4 +1,4 @@
-// Bookmarks for the mobile app. There are no accounts, so "saved" means saved
+// Bookmarks for both layouts. There are no accounts, so "saved" means saved
 // on this device: the list lives in localStorage and each entry carries the
 // whole result, which lets the Saved tab render without calling the API.
 //
@@ -78,7 +78,8 @@ export function findBookmark(
     );
 }
 
-function isBookmark(value: unknown): value is Bookmark {
+/** Shape check for anything read back from storage or a shared link. */
+export function isBookmark(value: unknown): value is Bookmark {
     if (!value || typeof value !== "object") return false;
     const b = value as Partial<Bookmark>;
     return (
@@ -154,6 +155,36 @@ export function restoreBookmarks(removed: Bookmark[]): void {
     const have = new Set(current.map((b) => b.id));
     const merged = [...current, ...removed.filter((b) => !have.has(b.id))];
     write(merged.sort((a, b) => b.savedAt - a.savedAt));
+}
+
+/** Removes one bookmark by its stored id. */
+export function removeBookmark(id: string): void {
+    const current = read();
+    if (current.some((b) => b.id === id)) {
+        write(current.filter((b) => b.id !== id));
+    }
+}
+
+/**
+ * Adds results that aren't saved yet (a shared collection's "Save all"),
+ * keeping their order at the top of the list. Returns how many were new.
+ */
+export function importBookmarks(results: Result[]): number {
+    const current = read();
+    // Match like `isSaved`, so a passage saved before ids existed isn't
+    // imported a second time under its new id.
+    const have = savedKeySet(current);
+    const now = Date.now();
+    const added: Bookmark[] = [];
+    for (const result of results) {
+        if (isSaved(have, result)) continue;
+        const id = bookmarkId(result);
+        have.add(id);
+        // One millisecond apart so newest-first keeps the shared order.
+        added.push({ id, savedAt: now - added.length, result });
+    }
+    if (added.length > 0) write([...added, ...current]);
+    return added.length;
 }
 
 export function clearBookmarks(): void {

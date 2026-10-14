@@ -63,7 +63,7 @@ The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cos
 
 ### MCP server
 
-The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search`, `search_by_reference`, `search_similar`, `get_passage_context`, `list_speakers` and the other endpoints as tools. Add the URL (e.g. `https://api.bible.eglenn.dev/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
+The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search`, `search_by_reference`, `search_similar`, `get_passage_context`, `list_speakers` and the other endpoints as tools. Add the URL (e.g. `https://api.gospel.help/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
 
 ### Frontend Client (`client/`)
 

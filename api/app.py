@@ -274,13 +274,13 @@ api = FastAPI(
     openapi_tags=tags_metadata,
     servers=[
         {"url": "http://localhost:10000", "description": "Local development"},
-        {"url": "https://api.bible.eglenn.dev", "description": "Production"},
+        {"url": "https://api.gospel.help", "description": "Production"},
     ],
 )
 
 _default_origins = [
-    "https://bible.eglenn.dev",
-    "https://api.bible.eglenn.dev",
+    "https://gospel.help",
+    "https://api.gospel.help",
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",

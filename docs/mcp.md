@@ -2,7 +2,7 @@
 
 The API doubles as a **remote MCP server** so AI agents can search the corpora as tools. It's hosted at **`/mcp`** on the same deployment as the REST API — there's nothing separate to deploy, and **consumers don't install anything**: they just add the URL as a connector.
 
-- **Endpoint:** `https://<your-api-host>/mcp` (e.g. `https://api.bible.eglenn.dev/mcp`)
+- **Endpoint:** `https://<your-api-host>/mcp` (e.g. `https://api.gospel.help/mcp`)
 - **Transport:** Streamable HTTP (the current remote-MCP standard)
 - **Auth:** none (public), with per-IP rate limiting
 - **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `search_similar`, `get_passage_context`, `list_speakers`, `get_verse`, `get_stats`, `health`
@@ -26,7 +26,7 @@ Because the tools come from the spec, adding a REST endpoint and regenerating th
 ### Claude (custom connector)
 Settings → **Connectors** → **Add custom connector** → give it a name and the URL:
 ```
-https://api.bible.eglenn.dev/mcp
+https://api.gospel.help/mcp
 ```
 Claude connects over Streamable HTTP; the `search` / `search_by_reference` tools then show up in chats.
 
@@ -35,7 +35,7 @@ Anything that supports remote MCP over Streamable HTTP (IDEs, agent frameworks, 
 ```jsonc
 {
   "mcpServers": {
-    "gospel-library-search": { "url": "https://api.bible.eglenn.dev/mcp" }
+    "gospel-library-search": { "url": "https://api.gospel.help/mcp" }
   }
 }
 ```
@@ -44,7 +44,7 @@ Anything that supports remote MCP over Streamable HTTP (IDEs, agent frameworks, 
 ```python
 from fastmcp import Client
 
-async with Client("https://api.bible.eglenn.dev/mcp") as c:
+async with Client("https://api.gospel.help/mcp") as c:
     tools = await c.list_tools()
     result = await c.call_tool("search", {"query": "enduring to the end", "k": 5})
 ```

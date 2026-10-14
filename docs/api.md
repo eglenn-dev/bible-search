@@ -19,7 +19,7 @@ Start the API (`cd api && uv run uvicorn app:app --port 10000`), then:
 3. Fill in the params (each has an example pre-filled — e.g. `query = charity never faileth`) and click **Execute**.
 4. Swagger shows the request `curl`, the response body, and the status code.
 
-The **Servers** dropdown lets you target local (`http://localhost:10000`) or production (`https://api.bible.eglenn.dev`). Live "Try it out" hits a real server and therefore needs Atlas reachable — for backend-free mocking, see below.
+The **Servers** dropdown lets you target local (`http://localhost:10000`) or production (`https://api.gospel.help`). Live "Try it out" hits a real server and therefore needs Atlas reachable — for backend-free mocking, see below.
 
 ## The committed spec
 

@@ -11,10 +11,12 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.applications import Starlette
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 from starlette.routing import Mount
 
 import db
 import encoder
+import speakers
 
 # --- Schemas -------------------------------------------------------------
 
@@ -73,9 +75,54 @@ class SearchResult(BaseModel):
     }
 
 
+class AppliedFilters(BaseModel):
+    speaker: str | None = Field(
+        None,
+        description=(
+            "The speaker the `speaker` param resolved to (canonical name from "
+            "/speakers), so a partial name like 'Uchtdorf' can be checked."
+        ),
+    )
+    year_from: int | None = Field(None, description="Inclusive lower year bound.")
+    year_to: int | None = Field(None, description="Inclusive upper year bound.")
+
+
 class SearchResponse(BaseModel):
     query: str = Field(..., description="The query that was searched (echoed back).")
     results: list[SearchResult]
+    filters: AppliedFilters | None = Field(
+        None,
+        description="Speaker / year filters applied, or null when none were set.",
+    )
+
+
+class Speaker(BaseModel):
+    name: str = Field(
+        ...,
+        description="Normalized name — pass it as `speaker` to /search.",
+        examples=["Jeffrey R. Holland"],
+    )
+    talks: int = Field(
+        ..., description="Conference talks + BYU speeches attributed to them."
+    )
+    sources: list[SourceLiteral] = Field(
+        ..., description="Corpora they appear in (conference, byu-speeches)."
+    )
+    first_year: int | None = Field(None, description="Year of their earliest talk.")
+    last_year: int | None = Field(None, description="Year of their latest talk.")
+    variants: list[str] | None = Field(
+        None,
+        description=(
+            "Raw `metadata.speaker` bylines grouped under this name (titles, "
+            "initials and joint bylines differ across eras). Omitted when "
+            "`variants=false`."
+        ),
+    )
+
+
+class SpeakersResponse(BaseModel):
+    count: int = Field(..., description="Number of speakers returned.")
+    speakers: list[Speaker] = Field(..., description="Most talks first.")
 
 
 class VerseResponse(BaseModel):
@@ -118,6 +165,8 @@ Doctrine and Covenants, Pearl of Great Price), **General Conference** addresses
 
 Queries are matched by meaning using sentence embeddings + MongoDB Atlas Vector
 Search. Every result links back to the passage on churchofjesuschrist.org.
+Conference and BYU Speeches results can be narrowed to one speaker (names from
+[`/speakers`](/speakers)) and/or a range of years.
 
 - **Interactive docs (Swagger UI):** [`/docs`](/docs)
 - **ReDoc:** [`/redoc`](/redoc)
@@ -170,6 +219,27 @@ api.add_middleware(
 )
 
 
+@api.exception_handler(db.FilterNotIndexedError)
+def _filter_not_indexed(request: Request, exc: db.FilterNotIndexedError):
+    """Speaker/year filters before the index has their fields: 503, not 500.
+
+    The filter fields are added by ``ingest.common.VECTOR_INDEX_DEFINITION``;
+    until that definition is applied to Atlas (and finishes rebuilding) a
+    filtered ``$vectorSearch`` fails, so say so plainly. Searches without these
+    filters are unaffected.
+    """
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": (
+                "Speaker and year filters are not available yet: the search "
+                f"index does not cover '{exc.path}' as a filter field (an index "
+                "update is pending). Retry without speaker/year_from/year_to."
+            )
+        },
+    )
+
+
 def _encode(text: str) -> list[float]:
     """Encode a query string to a normalized 384-dim vector (ONNX; loads lazily)."""
     return encoder.encode(text)
@@ -181,6 +251,78 @@ def _parse_sources(sources: str | None) -> list[str] | None:
     return [s.strip().lower() for s in sources.split(",") if s.strip()]
 
 
+# Speaker / year-range params, shared by /search and /search/by-reference.
+SPEAKER_QUERY = Query(
+    None,
+    description=(
+        "Only passages by this speaker. Use a name from /speakers (e.g. "
+        "'Jeffrey R. Holland'); any byline spelling or a unique partial name "
+        "('Holland' is ambiguous, 'Uchtdorf' is not) also works, and the "
+        "response's `filters.speaker` shows what it resolved to. Unknown or "
+        "ambiguous names return 400 with suggestions. Only conference and "
+        "byu-speeches have speakers, so this narrows results to those sources."
+    ),
+    examples=["David A. Bednar"],
+)
+YEAR_FROM_QUERY = Query(
+    None,
+    ge=1800,
+    le=2100,
+    description=(
+        "Only passages from this year or later (inclusive). Only conference "
+        "and byu-speeches are dated, so a year bound narrows results to those."
+    ),
+    examples=[2010],
+)
+YEAR_TO_QUERY = Query(
+    None,
+    ge=1800,
+    le=2100,
+    description="Only passages from this year or earlier (inclusive). See `year_from`.",
+    examples=[2020],
+)
+
+
+def _speaker_filters(
+    speaker: str | None, year_from: int | None, year_to: int | None
+) -> tuple[list[str] | None, AppliedFilters | None]:
+    """Validate the speaker/year params; return (raw speaker variants, echo)."""
+    if year_from is not None and year_to is not None and year_from > year_to:
+        raise HTTPException(
+            status_code=400, detail="year_from must not be after year_to."
+        )
+    speaker = (speaker or "").strip() or None
+    if speaker is None and year_from is None and year_to is None:
+        return None, None
+    variants = None
+    resolved = None
+    if speaker:
+        try:
+            match = speakers.get_speaker_index().resolve(speaker)
+        except speakers.UnknownSpeakerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        variants = sorted(match.variants)
+        resolved = match.name
+    return variants, AppliedFilters(
+        speaker=resolved, year_from=year_from, year_to=year_to
+    )
+
+
+FILTER_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    400: {
+        "model": ErrorResponse,
+        "description": "Empty query, unknown/ambiguous speaker, or year_from > year_to.",
+    },
+    503: {
+        "model": ErrorResponse,
+        "description": (
+            "Speaker/year filters requested but the live vector index doesn't "
+            "have those filter fields yet."
+        ),
+    },
+}
+
+
 def _log_query(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -190,6 +332,7 @@ def _log_query(
     sources: list[str] | None,
     result_count: int,
     result_ids: list[str] | None = None,
+    filters: AppliedFilters | None = None,
 ) -> None:
     """Schedule a best-effort query-log write after the response is sent.
 
@@ -206,6 +349,7 @@ def _log_query(
         result_ids=result_ids,
         ip=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
+        filters=filters.model_dump() if filters else None,
     )
 
 
@@ -215,7 +359,7 @@ def _log_query(
     tags=["Search"],
     operation_id="search",
     summary="Semantic search across all corpora",
-    responses={400: {"model": ErrorResponse, "description": "Empty query."}},
+    responses=FILTER_ERROR_RESPONSES,
 )
 def search(
     request: Request,
@@ -235,13 +379,29 @@ def search(
         ),
         examples=["bible,book-of-mormon"],
     ),
+    speaker: str | None = SPEAKER_QUERY,
+    year_from: int | None = YEAR_FROM_QUERY,
+    year_to: int | None = YEAR_TO_QUERY,
 ):
-    """Encode the query and return the most semantically similar passages."""
+    """Encode the query and return the most semantically similar passages.
+
+    Combine with `speaker` and/or `year_from`/`year_to` to ask what a given
+    speaker said about a topic in a span of years (conference and BYU
+    speeches only, since only those are attributed and dated).
+    """
     query = query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query must not be empty.")
     parsed_sources = _parse_sources(sources)
-    results = db.vector_search(_encode(query), k=k, sources=parsed_sources)
+    speaker_variants, filters = _speaker_filters(speaker, year_from, year_to)
+    results = db.vector_search(
+        _encode(query),
+        k=k,
+        sources=parsed_sources,
+        speakers=speaker_variants,
+        year_from=year_from,
+        year_to=year_to,
+    )
     result_ids = [r["_id"] for r in results if r.get("_id")]
     _log_query(
         request,
@@ -252,8 +412,9 @@ def search(
         parsed_sources,
         len(results),
         result_ids,
+        filters,
     )
-    return {"query": query, "results": results}
+    return {"query": query, "results": results, "filters": filters}
 
 
 @api.get(
@@ -262,7 +423,10 @@ def search(
     tags=["Search"],
     operation_id="search_by_reference",
     summary="Find passages similar to a known verse",
-    responses={404: {"model": ErrorResponse, "description": "Unknown reference."}},
+    responses={
+        **FILTER_ERROR_RESPONSES,
+        404: {"model": ErrorResponse, "description": "Unknown reference."},
+    },
 )
 def search_by_reference(
     request: Request,
@@ -278,12 +442,17 @@ def search_by_reference(
         description="Optional comma-separated source filter (see /search).",
         examples=["conference"],
     ),
+    speaker: str | None = SPEAKER_QUERY,
+    year_from: int | None = YEAR_FROM_QUERY,
+    year_to: int | None = YEAR_TO_QUERY,
 ):
     """Look up a verse by reference and return similar passages.
 
     Reuses the verse's **stored** embedding (no re-encoding) and excludes the
-    verse itself from the results.
+    verse itself from the results. `speaker` / `year_from` / `year_to` work as
+    on /search (e.g. which talks by a speaker echo this verse).
     """
+    speaker_variants, filters = _speaker_filters(speaker, year_from, year_to)
     doc = db.find_by_reference(reference.strip())
     if not doc:
         raise HTTPException(status_code=404, detail=f"Unknown reference: {reference}")
@@ -291,7 +460,15 @@ def search_by_reference(
     parsed_sources = _parse_sources(sources)
     query_vector = db.embedding_to_list(doc["embedding"])
     # Fetch one extra so we can drop the self-match.
-    hits = db.vector_search(query_vector, k=k, sources=parsed_sources, limit=k + 1)
+    hits = db.vector_search(
+        query_vector,
+        k=k,
+        sources=parsed_sources,
+        limit=k + 1,
+        speakers=speaker_variants,
+        year_from=year_from,
+        year_to=year_to,
+    )
     hits = [h for h in hits if h.get("reference") != doc["reference"]][:k]
     result_ids = [h["_id"] for h in hits if h.get("_id")]
     _log_query(
@@ -303,8 +480,50 @@ def search_by_reference(
         parsed_sources,
         len(hits),
         result_ids,
+        filters,
     )
-    return {"query": doc["reference"], "results": hits}
+    return {"query": doc["reference"], "results": hits, "filters": filters}
+
+
+@api.get(
+    "/speakers",
+    response_model=SpeakersResponse,
+    tags=["Search"],
+    operation_id="list_speakers",
+    summary="List speakers available to the speaker filter",
+)
+def list_speakers(
+    q: str | None = Query(
+        None,
+        description=(
+            "Only speakers whose name contains all of these words "
+            "(case/accent-insensitive), e.g. 'holland'. Omit for everyone."
+        ),
+        examples=["holland"],
+    ),
+    variants: bool = Query(
+        True,
+        description="Include each speaker's raw byline variants.",
+    ),
+):
+    """Every General Conference / BYU Speeches speaker, normalized.
+
+    Bylines differ across eras ("By Elder M. Russell Ballard", "M. Russell
+    Ballard, Jr.", joint BYU devotionals), so each person's spellings are
+    grouped under one `name` — the value to pass as `speaker` to /search.
+    Computed from the corpus with one read-only aggregation and cached in
+    memory (it only changes when new talks are ingested).
+    """
+    entries = speakers.get_speaker_index().speakers
+    if q and q.strip():
+        want = set(speakers.speaker_key(q).split())
+        entries = [
+            s for s in entries if any(want <= set(k.split()) for k in s.keys)
+        ]
+    return {
+        "count": len(entries),
+        "speakers": [s.as_dict(include_variants=variants) for s in entries],
+    }
 
 
 @api.get(

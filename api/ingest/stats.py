@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 import numpy as np
 
 import db
+from speakers import norm_speaker
 
 # --- Current apostles -----------------------------------------------------
 
@@ -54,20 +55,10 @@ CURRENT_APOSTLES = [
     "Clark G. Gilbert",
 ]
 
-# --- Speaker normalization & procedural-talk filter -----------------------
+# --- Procedural-talk filter -----------------------------------------------
 
-# Conference `metadata.speaker` strings carry byline prefixes ("By President
-# Gordon B. Hinckley", "Presented by F. Michael Watson"); strip them so the
-# same person groups under one name.
-def norm_speaker(s: str | None) -> str:
-    s = (s or "Unknown").strip()
-    prev = None
-    while prev != s:
-        prev = s
-        s = re.sub(r"^(?:By|Presented by|Sung by|Read by)\s+", "", s, flags=re.IGNORECASE)
-        s = re.sub(r"^(?:President|Elder|Bishop|Sister|Brother)\s+", "", s, flags=re.IGNORECASE)
-    return re.sub(r"\s+", " ", s).strip() or "Unknown"
-
+# Speaker names are normalized by `speakers.norm_speaker` (imported above),
+# the same implementation the API's speaker filter builds on.
 
 # Sustainings, audit/statistical reports, and solemn assemblies are part of the
 # conference record but aren't sermons; left in, they dominate every outlier-,

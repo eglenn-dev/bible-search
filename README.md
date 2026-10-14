@@ -51,6 +51,10 @@ The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cos
 - **FastAPI** exposes:
   - `GET /search?query=<text>&k=10&sources=bible,conference,handbook`
   - `GET /search/by-reference?reference=John%203:16&k=10&sources=...` — reuses a verse's stored embedding
+  - `GET /search/similar?id=<result id>&k=10&sources=...` — "more like this" from any result (any source), skipping the rest of that talk/chapter
+  - `GET /passage/context?id=<result id>&before=2&after=2` — a passage with its surrounding verses or paragraphs, in reading order
+  - `GET /verse?reference=Alma%2032:21` — one passage's text + link by exact reference
+  - `GET /stats` — precomputed corpus analytics for the `/stats` page
   - `GET /` — health check (also pings Atlas)
   - `/docs` — Swagger UI; `/openapi.json` — OpenAPI spec
   - `/mcp` — remote **MCP server** for AI agents (Streamable HTTP, tools auto-generated from the spec via FastMCP)
@@ -58,11 +62,11 @@ The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cos
 
 ### MCP server
 
-The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search` / `search_by_reference` as tools. Add the URL (e.g. `https://api.bible.eglenn.dev/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
+The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search`, `search_by_reference`, `search_similar`, `get_passage_context` and the other endpoints as tools. Add the URL (e.g. `https://api.bible.eglenn.dev/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
 
 ### Frontend Client (`client/`)
 
-React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), and source-tagged result cards that deep-link back to churchofjesuschrist.org.
+React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), and source-tagged result cards that deep-link back to churchofjesuschrist.org. Any result can be expanded to read its surrounding verses or paragraphs in place, or used as the starting point for a "More like this" search (kept in the URL as `?similar=<id>`, so it can be shared or reloaded).
 
 ## Getting Started Locally
 

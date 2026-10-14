@@ -85,9 +85,9 @@ VALID_SOURCES = {
     "handbook",
 }
 
-# Fields fetched for every hit. `_id` is the deterministic document key, recorded
-# in the query log for analytics; it's dropped from the API payload by the
-# `SearchResult` response model (which has no `_id`/`id` field).
+# Fields fetched for every hit. `_id` is the deterministic document key: it's
+# recorded in the query log for analytics and returned to clients as
+# `SearchResult.id` (the handle for /search/similar and /passage/context).
 _PROJECTION = {
     "_id": 1,
     "source": 1,
@@ -241,6 +241,21 @@ def find_verse(reference: str) -> dict[str, Any] | None:
     return get_collection().find_one(
         {"reference": reference}, {"embedding": 0, "_id": 0}
     )
+
+
+def find_by_id(doc_id: str, *, with_embedding: bool = False) -> dict[str, Any] | None:
+    """Fetch a single document by its deterministic ``_id``.
+
+    The stored embedding is left out unless ``with_embedding`` is set (it's only
+    needed to search from the document's vector).
+    """
+    projection = None if with_embedding else {"embedding": 0}
+    return get_collection().find_one({"_id": doc_id}, projection)
+
+
+def same_document(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """True if two hits are chunks of one talk/speech/handbook chapter (or one verse)."""
+    return _group_key(a) == _group_key(b)
 
 
 def embedding_to_list(embedding: Any) -> list[float]:

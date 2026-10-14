@@ -26,6 +26,33 @@ export const SOURCES: Source[] = [
     "handbook",
 ];
 
+// Speaker + year-range filters. They only match the dated, attributed
+// sources (conference, byu-speeches); null means "not filtered".
+export interface SearchFilters {
+    speaker: string | null;
+    yearFrom: number | null;
+    yearTo: number | null;
+}
+
+export const NO_FILTERS: SearchFilters = {
+    speaker: null,
+    yearFrom: null,
+    yearTo: null,
+};
+
+// The earliest dated talk in the corpus (a 1937 BYU speech); bounds the
+// year pickers.
+export const FIRST_YEAR = 1937;
+
+// One entry from GET /speakers (requested without the raw variants).
+export interface SpeakerOption {
+    name: string;
+    talks: number;
+    sources: Source[];
+    first_year: number | null;
+    last_year: number | null;
+}
+
 export interface ResultMetadata {
     // scriptures (bible + other standard works)
     book?: string;
@@ -41,6 +68,8 @@ export interface ResultMetadata {
     month?: string;
     talk_uri?: string;
     paragraph_id?: string;
+    // conference + handbook: reading order within the talk/chapter
+    chunk_index?: number;
     // byu-speeches
     position?: string | null;
     date?: string | null;
@@ -55,6 +84,9 @@ export interface ResultMetadata {
 }
 
 export interface Result {
+    /** Stable document id from the API. Absent on bookmarks saved before the
+     *  API returned one. */
+    id?: string;
     source: Source;
     reference: string;
     text: string;
@@ -62,6 +94,22 @@ export interface Result {
     url: string;
     score: number;
     metadata?: ResultMetadata;
+}
+
+/** One passage of a /passage/context response. */
+export interface ContextPassage extends Omit<Result, "score" | "id"> {
+    id: string;
+    is_target: boolean;
+}
+
+export interface PassageContext {
+    id: string;
+    /** The passage and its neighbours, in reading order. */
+    passages: ContextPassage[];
+    more_before: boolean;
+    more_after: boolean;
+    /** Why the context is narrower than asked, when it is. */
+    note: string | null;
 }
 
 export interface BibleVerse {

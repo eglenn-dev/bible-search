@@ -3,18 +3,32 @@ import {
     Bookmark as BookmarkIcon,
     ChevronRight,
     SlidersHorizontal,
+    Sparkles,
+    X,
 } from "lucide-react";
 import { parseAsStringEnum, useQueryState } from "nuqs";
-import type { Result, ResultCount, SortKey, Source } from "@/lib/types";
+import type {
+    Result,
+    ResultCount,
+    SearchFilters,
+    SortKey,
+    Source,
+} from "@/lib/types";
 import {
     bookmarkId,
     clearBookmarks,
+    findBookmark,
+    isSaved,
     restoreBookmarks,
+    savedKeySet,
     toggleBookmark,
     useBookmarks,
 } from "@/lib/bookmarks";
+import { headingFor } from "@/lib/result-display";
+import { hasFilters } from "@/lib/speakers";
 import { cn } from "@/lib/utils";
 import ConferenceBanner from "../conference-banner";
+import { ActiveFilters } from "../speaker-year-filter";
 import FilterSheet from "./filter-sheet";
 import ResultCard from "./result-card";
 import ResultSheet from "./result-sheet";
@@ -39,10 +53,18 @@ interface MobileAppProps {
     resultCount: ResultCount;
     onResultCountChange: (next: ResultCount) => void;
     sourceCounts: Partial<Record<Source, number>>;
+    filters: SearchFilters;
+    onFiltersChange: (next: SearchFilters) => void;
+    /** Why the last filter change couldn't re-run the search, if it failed. */
+    searchError: string | null;
     canLoadMore: boolean;
     loadingMore: boolean;
     onLoadMore: () => void;
     onGoHome: () => void;
+    /** The passage the results are "more like", while that view is up. */
+    similarSeed: Result | null;
+    onMoreLike: (result: Result) => void;
+    onLeaveSimilar: () => void;
 }
 
 const MODE_OPTIONS = [
@@ -78,10 +100,16 @@ export default function MobileApp({
     resultCount,
     onResultCountChange,
     sourceCounts,
+    filters,
+    onFiltersChange,
+    searchError,
     canLoadMore,
     loadingMore,
     onLoadMore,
     onGoHome,
+    similarSeed,
+    onMoreLike,
+    onLeaveSimilar,
 }: MobileAppProps) {
     // In the URL like the other settings, so a reload or coming back from
     // /stats returns to the tab you were on.
@@ -94,10 +122,9 @@ export default function MobileApp({
     const [toast, setToast] = useState<Toast | null>(null);
 
     const bookmarks = useBookmarks();
-    const savedIds = useMemo(
-        () => new Set(bookmarks.map((b) => b.id)),
-        [bookmarks],
-    );
+    // Matches by API id and by the older url+text key, so passages saved
+    // before results carried ids still show as saved.
+    const savedIds = useMemo(() => savedKeySet(bookmarks), [bookmarks]);
 
     // The tabs share the document scroller, so each one's position is put
     // back by hand when you return to it.
@@ -167,7 +194,7 @@ export default function MobileApp({
         setToast({ id: Date.now(), message, undo });
 
     const toggleSaved = (result: Result) => {
-        const existing = bookmarks.find((b) => b.id === bookmarkId(result));
+        const existing = findBookmark(bookmarks, result);
         if (toggleBookmark(result) === "added") {
             notify("Saved");
         } else {
@@ -187,11 +214,49 @@ export default function MobileApp({
         );
     };
 
+    // Sources, speaker and year range each count as one active filter.
+    const filterCount =
+        sources.length +
+        (filters.speaker ? 1 : 0) +
+        (filters.yearFrom !== null || filters.yearTo !== null ? 1 : 0);
+
     const countLabel =
-        results.length === 1
-            ? "1 result"
-            : `${results.length} results` +
-              (queryType === "scripture" ? " — reference lookup" : "");
+        (results.length === 1 ? "1 result" : `${results.length} results`) +
+        (similarSeed
+            ? " — more like this"
+            : queryType === "scripture"
+              ? " — reference lookup"
+              : "");
+
+    // From the sheet (possibly over the Saved tab): close it and show the
+    // similar passages on the Search tab.
+    const moreLike = (result: Result) => {
+        setOpenResult(null);
+        if (tab !== "search") selectTab("search");
+        onMoreLike(result);
+    };
+
+    const similarBanner = similarSeed && (
+        <div className="gs-fade mb-3 flex items-center gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] py-2.5 pl-4 pr-1.5">
+            <Sparkles className="h-5 w-5 flex-none text-primary" />
+            <div className="min-w-0 flex-1">
+                <div className="text-[13px] text-muted-foreground">
+                    More like
+                </div>
+                <div className="truncate text-[15px] font-semibold text-foreground">
+                    {headingFor(similarSeed)}
+                </div>
+            </div>
+            <button
+                type="button"
+                onClick={onLeaveSimilar}
+                aria-label={activeQuery ? "Back to search results" : "Clear"}
+                className="flex h-11 w-11 flex-none items-center justify-center rounded-full text-muted-foreground transition-transform active:scale-90"
+            >
+                <X className="h-5 w-5" />
+            </button>
+        </div>
+    );
 
     return (
         <div className="mobile-app relative isolate min-h-dvh">
@@ -240,16 +305,16 @@ export default function MobileApp({
                             type="button"
                             onClick={() => setFiltersOpen(true)}
                             aria-label={
-                                sources.length > 0
-                                    ? `Filters, ${sources.length} sources selected`
+                                filterCount > 0
+                                    ? `Filters, ${filterCount} active`
                                     : "Filters"
                             }
                             className="glass relative flex h-11 w-11 flex-none items-center justify-center rounded-full text-foreground transition-transform active:scale-90"
                         >
                             <SlidersHorizontal className="h-5 w-5" />
-                            {sources.length > 0 && (
+                            {filterCount > 0 && (
                                 <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold leading-none text-primary-foreground">
-                                    {sources.length}
+                                    {filterCount}
                                 </span>
                             )}
                         </button>
@@ -257,6 +322,20 @@ export default function MobileApp({
                 </div>
 
                 <div className="px-4 pt-1">
+                    <ActiveFilters
+                        variant="sheet"
+                        filters={filters}
+                        onChange={onFiltersChange}
+                        className="px-1 pb-2"
+                    />
+                    {searchError && (
+                        <p
+                            role="alert"
+                            className="px-1 pb-2 text-[15px] text-destructive"
+                        >
+                            {searchError}
+                        </p>
+                    )}
                     {!hasSearched ? (
                         <div className="gs-fade flex flex-col">
                             <div className="mt-3 flex justify-center">
@@ -312,16 +391,26 @@ export default function MobileApp({
                             )}
                         </div>
                     ) : results.length === 0 ? (
-                        <p className="gs-fade px-1 pt-6 text-[17px] text-foreground/80">
-                            No results
-                            {activeQuery ? ` for “${activeQuery}”` : ""}.{" "}
-                            <span className="text-muted-foreground">
-                                Try fewer or different words, or switch search
-                                mode.
-                            </span>
-                        </p>
+                        <>
+                            {similarBanner}
+                            <p className="gs-fade px-1 pt-6 text-[17px] text-foreground/80">
+                                No results
+                                {similarSeed
+                                    ? ` like “${headingFor(similarSeed)}”`
+                                    : activeQuery
+                                      ? ` for “${activeQuery}”`
+                                      : ""}
+                                .{" "}
+                                <span className="text-muted-foreground">
+                                    {hasFilters(filters)
+                                        ? "Speaker and year filters only match Conference and BYU Speeches; try loosening them."
+                                        : "Try fewer or different words, or switch search mode."}
+                                </span>
+                            </p>
+                        </>
                     ) : (
                         <>
+                            {similarBanner}
                             <div className="px-1 pb-2.5 pt-1 text-[13px] text-muted-foreground">
                                 {countLabel}
                             </div>
@@ -330,7 +419,7 @@ export default function MobileApp({
                                     <ResultCard
                                         key={`${bookmarkId(result)}-${index}`}
                                         result={result}
-                                        saved={savedIds.has(bookmarkId(result))}
+                                        saved={isSaved(savedIds, result)}
                                         onOpen={() => setOpenResult(result)}
                                         onToggleSaved={() =>
                                             toggleSaved(result)
@@ -371,6 +460,7 @@ export default function MobileApp({
                         bookmarks={bookmarks}
                         onOpen={setOpenResult}
                         onToggleSaved={toggleSaved}
+                        onNotify={notify}
                     />
                 </div>
             )}
@@ -404,6 +494,8 @@ export default function MobileApp({
                 resultCount={resultCount}
                 onResultCountChange={onResultCountChange}
                 counts={sourceCounts}
+                filters={filters}
+                onFiltersChange={onFiltersChange}
             />
 
             <ResultSheet
@@ -412,6 +504,7 @@ export default function MobileApp({
                 onClose={() => setOpenResult(null)}
                 onToggleSaved={toggleSaved}
                 onNotify={notify}
+                onMoreLike={moreLike}
             />
 
             {/* Above sheets (z-50) so "Saved" confirms from inside one too. */}

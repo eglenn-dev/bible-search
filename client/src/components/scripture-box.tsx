@@ -1,4 +1,4 @@
-import type { Result, Source, ResultCount } from "@/lib/types";
+import type { Result, Source, ResultCount, SearchFilters } from "@/lib/types";
 import { runSearch } from "@/lib/search";
 import { useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ interface ScriptureBoxProps {
     parentRef: string;
     setParentRef: (ref: string) => void;
     sources: Source[];
+    filters: SearchFilters;
     resultCount: ResultCount;
     setResults: (results: Result[]) => void;
     // Compact mode renders a smaller pill for the post-search header.
@@ -30,6 +31,7 @@ export default function ScriptureBox({
     parentRef,
     setParentRef,
     sources,
+    filters,
     resultCount,
     setResults,
     compact = false,
@@ -106,12 +108,17 @@ export default function ScriptureBox({
                 query,
                 resultCount,
                 sources,
+                filters,
             });
             setResults(results);
             setLoading(false);
         } catch (error) {
             console.error("Error fetching similar verses:", error);
-            setError("Failed to fetch similar verses.");
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to fetch similar verses.",
+            );
             setLoading(false);
         }
     };

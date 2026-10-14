@@ -52,3 +52,12 @@ export function metaLineFor(result: Result): string {
 export function scorePercent(result: Result): number {
     return Math.round(Math.max(0, Math.min(1, result.score)) * 100);
 }
+
+export function isScripture(result: Pick<Result, "source">): boolean {
+    return SCRIPTURE_SOURCES.includes(result.source);
+}
+
+/** Label for the control that expands a result into its surroundings. */
+export function contextLabel(result: Result): string {
+    return isScripture(result) ? "Read surrounding verses" : "Show context";
+}

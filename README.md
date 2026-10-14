@@ -42,15 +42,20 @@ A single collection (`documents`) holds every corpus. Each document:
 }
 ```
 
-The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cosine, scalar quantization) with `source` as a filter field.
+The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cosine, scalar quantization) with `source`, `metadata.speaker` and `metadata.year` as filter fields (the latter two back the speaker / year filters; see [Applying an index definition change](./docs/architecture.md#applying-an-index-definition-change)). The v2 embedding version adds `embedding_v2` (int8) with its own `vector_index_v2` (same filter fields); `EMBEDDING_VERSION` picks which one the API searches.
 
 ### Backend API (`api/`)
 
-- **ONNX runtime** (`paraphrase-MiniLM-L3-v2` via onnxruntime + a HF tokenizer — no torch): encodes the user's **query** to a normalized 384-dim vector. (The corpora are embedded once, at ingest time.) Keeps the image small enough for a 512 MB host.
-- **MongoDB Atlas Vector Search**: a `$vectorSearch` aggregation finds the nearest passages, optionally filtered by `source`.
+- **ONNX runtime** (onnxruntime + `tokenizers`, no torch, no transformers): encodes the user's **query** to a normalized 384-dim vector with the active embedding version's model. That is `paraphrase-MiniLM-L3-v2` by default; `e5-small-v2` (v2) is ready to switch to, see [docs/embedding-migration.md](./docs/embedding-migration.md). The corpora are embedded once, at ingest time. The image stays small enough for a 512 MB host.
+- **MongoDB Atlas Vector Search**: a `$vectorSearch` aggregation finds the nearest passages, optionally filtered by `source`, speaker and year.
 - **FastAPI** exposes:
-  - `GET /search?query=<text>&k=10&sources=bible,conference,handbook`
-  - `GET /search/by-reference?reference=John%203:16&k=10&sources=...` — reuses a verse's stored embedding
+  - `GET /search?query=<text>&k=10&sources=bible,conference,handbook` — add `&speaker=<name>&year_from=2010&year_to=2020` to narrow conference / BYU results to one speaker and a span of years
+  - `GET /search/by-reference?reference=John%203:16&k=10&sources=...` — reuses a verse's stored embedding (same speaker/year params)
+  - `GET /speakers?q=<words>` — normalized speaker names (bylines differ across eras) with talk counts, year spans and the raw byline variants each covers
+  - `GET /search/similar?id=<result id>&k=10&sources=...` — "more like this" from any result (any source), skipping the rest of that talk/chapter
+  - `GET /passage/context?id=<result id>&before=2&after=2` — a passage with its surrounding verses or paragraphs, in reading order
+  - `GET /verse?reference=Alma%2032:21` — one passage's text + link by exact reference
+  - `GET /stats` — precomputed corpus analytics for the `/stats` page
   - `GET /` — health check (also pings Atlas)
   - `/docs` — Swagger UI; `/openapi.json` — OpenAPI spec
   - `/mcp` — remote **MCP server** for AI agents (Streamable HTTP, tools auto-generated from the spec via FastMCP)
@@ -58,11 +63,11 @@ The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cos
 
 ### MCP server
 
-The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search` / `search_by_reference` as tools. Add the URL (e.g. `https://api.bible.eglenn.dev/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
+The same process hosts a remote MCP server at **`/mcp`**, so agents can use `search`, `search_by_reference`, `search_similar`, `get_passage_context`, `list_speakers` and the other endpoints as tools. Add the URL (e.g. `https://api.gospel.help/mcp`) as a connector — no install required. See [docs/mcp.md](./docs/mcp.md).
 
 ### Frontend Client (`client/`)
 
-React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), and source-tagged result cards that deep-link back to churchofjesuschrist.org.
+React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), a **speaker picker and year range** for Conference / BYU Speeches results, and source-tagged result cards that deep-link back to churchofjesuschrist.org. Any result can be expanded to read its surrounding verses or paragraphs in place, or used as the starting point for a "More like this" search (kept in the URL as `?similar=<id>`, so it can be shared or reloaded). Passages can be **bookmarked** on desktop and mobile (stored on the device), exported as Markdown, or shared as a link.
 
 ## Getting Started Locally
 
@@ -100,7 +105,7 @@ What it does, per source:
 - **General Conference** & **BYU Speeches** — **incremental**. It re-fetches the listing pages (so newly published talks/speeches aren't hidden by the scrape cache) and ingests only what isn't already stored.
 - **General Handbook** — **replaced in full** every run (the Church revises it a few times a year). Fetched fresh, then the old handbook is deleted and the new one inserted — the delete only happens *after* a successful fetch, so a network hiccup can't leave it wiped.
 
-It then ensures the Atlas vector index exists and prints a **before/after diff** plus a **summary of work done** (new talks/speeches, handbook chapters replaced, storage used). Useful flags: `--force-foundational` (re-ingest the Standard Works even if present), `--fresh-years N` (how many recent Conference years to re-check, default 2), and `--skip-conference` / `--skip-byu` / `--skip-handbook`.
+It then ensures the Atlas vector index exists and matches `embeddings.index_definition()` in `api/embeddings.py` (updating it in place, which triggers an Atlas rebuild, if the definition changed) and prints a **before/after diff** plus a **summary of work done** (new talks/speeches, handbook chapters replaced, storage used). Useful flags: `--force-foundational` (re-ingest the Standard Works even if present), `--fresh-years N` (how many recent Conference years to re-check, default 2), and `--skip-conference` / `--skip-byu` / `--skip-handbook`.
 
 #### Per-source / lower-level commands
 
@@ -143,15 +148,15 @@ docker build -t gospel-library-search .
 docker run -e MONGODB_URI="mongodb+srv://..." -p 10000:10000 gospel-library-search
 ```
 
-The image is API-only and bakes in the ONNX model + tokenizer; the frontend is built and deployed separately.
+The image is API-only. It bakes in the query-side ONNX model and tokenizer for every embedding version listed in the `PREFETCH_EMBEDDING_VERSIONS` build arg (default `v1,v2`), so switching `EMBEDDING_VERSION` needs no rebuild. The frontend is built and deployed separately.
 
 ### Deploying
 
-The runtime uses **onnxruntime** (no torch), so the image is small and runs in **~150–250 MB RAM** — it fits a **512 MB free tier** (Render free, Fly.io, etc.) as well as **GCP Cloud Run** (scale-to-zero). The first request lazily loads the ONNX model (a few seconds).
+The runtime uses **onnxruntime** (no torch), so the image is small. Peak RSS measured on macOS was ~370 MB with v1 and ~310 MB with v2, including bursts of long concurrent queries. It fits a **512 MB free tier** (Render free, Fly.io, etc.) as well as **GCP Cloud Run** (scale-to-zero). The first request lazily loads the ONNX model (a few seconds).
 
 Required at runtime:
 - `MONGODB_URI` — the Atlas connection string.
-- Optional: `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`.
+- Optional: `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`, `EMBEDDING_VERSION` (`v1` default, `v2` after the migration in [docs/embedding-migration.md](./docs/embedding-migration.md)).
 
 **Atlas network access:** serverless/free hosts use dynamic outbound IPs, so a single-IP allowlist won't work. Set Atlas → Network Access to `0.0.0.0/0` and rely on the DB credentials (the corpora are public content), or configure a static egress IP.
 

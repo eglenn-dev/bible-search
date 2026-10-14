@@ -2,10 +2,10 @@
 
 The API doubles as a **remote MCP server** so AI agents can search the corpora as tools. It's hosted at **`/mcp`** on the same deployment as the REST API — there's nothing separate to deploy, and **consumers don't install anything**: they just add the URL as a connector.
 
-- **Endpoint:** `https://<your-api-host>/mcp` (e.g. `https://api.bible.eglenn.dev/mcp`)
+- **Endpoint:** `https://<your-api-host>/mcp` (e.g. `https://api.gospel.help/mcp`)
 - **Transport:** Streamable HTTP (the current remote-MCP standard)
 - **Auth:** none (public), with per-IP rate limiting
-- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `get_verse`, `health`
+- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `search_similar`, `get_passage_context`, `list_speakers`, `get_verse`, `get_stats`, `health`
 
 ## How it's built
 
@@ -26,7 +26,7 @@ Because the tools come from the spec, adding a REST endpoint and regenerating th
 ### Claude (custom connector)
 Settings → **Connectors** → **Add custom connector** → give it a name and the URL:
 ```
-https://api.bible.eglenn.dev/mcp
+https://api.gospel.help/mcp
 ```
 Claude connects over Streamable HTTP; the `search` / `search_by_reference` tools then show up in chats.
 
@@ -35,7 +35,7 @@ Anything that supports remote MCP over Streamable HTTP (IDEs, agent frameworks, 
 ```jsonc
 {
   "mcpServers": {
-    "gospel-library-search": { "url": "https://api.bible.eglenn.dev/mcp" }
+    "gospel-library-search": { "url": "https://api.gospel.help/mcp" }
   }
 }
 ```
@@ -44,7 +44,7 @@ Anything that supports remote MCP over Streamable HTTP (IDEs, agent frameworks, 
 ```python
 from fastmcp import Client
 
-async with Client("https://api.bible.eglenn.dev/mcp") as c:
+async with Client("https://api.gospel.help/mcp") as c:
     tools = await c.list_tools()
     result = await c.call_tool("search", {"query": "enduring to the end", "k": 5})
 ```
@@ -54,12 +54,20 @@ Any agent framework with a Streamable-HTTP MCP client works the same way — poi
 
 | Tool | Args | Returns |
 |---|---|---|
-| `search` | `query` (required), `k` (1–50), `sources` (CSV) | Top semantic matches across the chosen corpora |
-| `search_by_reference` | `reference` (required), `k`, `sources` | Passages similar to a known verse (self-match excluded) |
+| `search` | `query` (required), `k` (1–50), `sources` (CSV), `speaker`, `year_from`, `year_to` | Top semantic matches across the chosen corpora |
+| `search_by_reference` | `reference` (required), `k`, `sources`, `speaker`, `year_from`, `year_to` | Passages similar to a known verse (self-match excluded) |
+| `search_similar` | `id` (required), `k`, `sources`, `speaker`, `year_from`, `year_to` | "More like this" from any result's `id`, any source; skips the rest of that talk/chapter |
+| `get_passage_context` | `id` (required), `before`, `after` (0–10, default 2) | The passage with its surrounding verses / paragraphs in reading order (`is_target` marks it) |
+| `list_speakers` | `q` (words to match, e.g. `holland`), `variants` | Normalized conference/BYU speakers with talk counts and year spans |
 | `get_verse` | `reference` (required) | A single passage's text + deep link by exact reference |
+| `get_stats` | — | Precomputed corpus analytics |
 | `health` | — | Service/DB status |
 
-`sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `handbook`.
+Every search result carries an `id`, so an agent can chain the tools: `search` → `get_passage_context` to read a hit in context → `search_similar` to branch out from it.
+
+`sources` is any comma-separated subset of: `bible`, `book-of-mormon`, `doctrine-and-covenants`, `pearl-of-great-price`, `conference`, `byu-speeches`, `handbook`.
+
+For "what has Elder X said about faith, 2010–2020?" an agent calls `search` with `query="faith"`, `speaker="<name>"`, `year_from=2010`, `year_to=2020`. A unique partial name works (`"Uchtdorf"`); an ambiguous one (`"Holland"`) comes back as an error listing the candidates, and `list_speakers` with `q` finds the exact name. Speaker/year filters only match `conference` and `byu-speeches`. See [api.md](./api.md#speaker-and-year-filters).
 
 ## Access & limits
 

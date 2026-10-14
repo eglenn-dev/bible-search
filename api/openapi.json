@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Gospel Library Search API",
-    "description": "\nSemantic search across the LDS **Standard Works** (Bible, Book of Mormon,\nDoctrine and Covenants, Pearl of Great Price), **General Conference** addresses\n(1971\u2013present), **BYU Speeches** devotionals and forums, and the\n**General Handbook**.\n\nQueries are matched by meaning using sentence embeddings + MongoDB Atlas Vector\nSearch. Every result links back to the passage on churchofjesuschrist.org.\n\n- **Interactive docs (Swagger UI):** [`/docs`](/docs)\n- **ReDoc:** [`/redoc`](/redoc)\n- **OpenAPI spec:** [`/openapi.json`](/openapi.json)\n- **MCP server (for AI agents):** `/mcp` (Streamable HTTP)\n",
+    "description": "\nSemantic search across the LDS **Standard Works** (Bible, Book of Mormon,\nDoctrine and Covenants, Pearl of Great Price), **General Conference** addresses\n(1971\u2013present), **BYU Speeches** devotionals and forums, and the\n**General Handbook**.\n\nQueries are matched by meaning using sentence embeddings + MongoDB Atlas Vector\nSearch. Every result links back to the passage on churchofjesuschrist.org.\nConference and BYU Speeches results can be narrowed to one speaker (names from\n[`/speakers`](/speakers)) and/or a range of years.\n\n- **Interactive docs (Swagger UI):** [`/docs`](/docs)\n- **ReDoc:** [`/redoc`](/redoc)\n- **OpenAPI spec:** [`/openapi.json`](/openapi.json)\n- **MCP server (for AI agents):** `/mcp` (Streamable HTTP)\n",
     "contact": {
       "name": "Ethan Glenn",
       "url": "https://ethanglenn.dev/"
@@ -15,7 +15,7 @@
       "description": "Local development"
     },
     {
-      "url": "https://api.bible.eglenn.dev",
+      "url": "https://api.gospel.help",
       "description": "Production"
     }
   ],
@@ -26,7 +26,7 @@
           "Search"
         ],
         "summary": "Semantic search across all corpora",
-        "description": "Encode the query and return the most semantically similar passages.",
+        "description": "Encode the query and return the most semantically similar passages.\n\nCombine with `speaker` and/or `year_from`/`year_to` to ask what a given\nspeaker said about a topic in a span of years (conference and BYU\nspeeches only, since only those are attributed and dated).",
         "operationId": "search",
         "parameters": [
           {
@@ -77,6 +77,73 @@
               "title": "Sources"
             },
             "description": "Comma-separated subset to search. Any of: bible, book-of-mormon, doctrine-and-covenants, pearl-of-great-price, conference, byu-speeches, handbook. Omit to search everything."
+          },
+          {
+            "name": "speaker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages by this speaker. Use a name from /speakers (e.g. 'Jeffrey R. Holland'); any byline spelling or a unique partial name ('Holland' is ambiguous, 'Uchtdorf' is not) also works, and the response's `filters.speaker` shows what it resolved to. Unknown or ambiguous names return 400 with suggestions. Only conference and byu-speeches have speakers, so this narrows results to those sources.",
+              "examples": [
+                "David A. Bednar"
+              ],
+              "title": "Speaker"
+            },
+            "description": "Only passages by this speaker. Use a name from /speakers (e.g. 'Jeffrey R. Holland'); any byline spelling or a unique partial name ('Holland' is ambiguous, 'Uchtdorf' is not) also works, and the response's `filters.speaker` shows what it resolved to. Unknown or ambiguous names return 400 with suggestions. Only conference and byu-speeches have speakers, so this narrows results to those sources."
+          },
+          {
+            "name": "year_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1800
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages from this year or later (inclusive). Only conference and byu-speeches are dated, so a year bound narrows results to those.",
+              "examples": [
+                2010
+              ],
+              "title": "Year From"
+            },
+            "description": "Only passages from this year or later (inclusive). Only conference and byu-speeches are dated, so a year bound narrows results to those."
+          },
+          {
+            "name": "year_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1800
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages from this year or earlier (inclusive). See `year_from`.",
+              "examples": [
+                2020
+              ],
+              "title": "Year To"
+            },
+            "description": "Only passages from this year or earlier (inclusive). See `year_from`."
           }
         ],
         "responses": {
@@ -91,7 +158,17 @@
             }
           },
           "400": {
-            "description": "Empty query.",
+            "description": "Empty query, unknown/ambiguous speaker, or year_from > year_to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Speaker/year filters requested but the live vector index doesn't have those filter fields yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -119,7 +196,7 @@
           "Search"
         ],
         "summary": "Find passages similar to a known verse",
-        "description": "Look up a verse by reference and return similar passages.\n\nReuses the verse's **stored** embedding (no re-encoding) and excludes the\nverse itself from the results.",
+        "description": "Look up a verse by reference and return similar passages.\n\nReuses the verse's **stored** embedding (no re-encoding) and excludes the\nverse itself from the results. `speaker` / `year_from` / `year_to` work as\non /search (e.g. which talks by a speaker echo this verse).",
         "operationId": "search_by_reference",
         "parameters": [
           {
@@ -170,6 +247,73 @@
               "title": "Sources"
             },
             "description": "Optional comma-separated source filter (see /search)."
+          },
+          {
+            "name": "speaker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages by this speaker. Use a name from /speakers (e.g. 'Jeffrey R. Holland'); any byline spelling or a unique partial name ('Holland' is ambiguous, 'Uchtdorf' is not) also works, and the response's `filters.speaker` shows what it resolved to. Unknown or ambiguous names return 400 with suggestions. Only conference and byu-speeches have speakers, so this narrows results to those sources.",
+              "examples": [
+                "David A. Bednar"
+              ],
+              "title": "Speaker"
+            },
+            "description": "Only passages by this speaker. Use a name from /speakers (e.g. 'Jeffrey R. Holland'); any byline spelling or a unique partial name ('Holland' is ambiguous, 'Uchtdorf' is not) also works, and the response's `filters.speaker` shows what it resolved to. Unknown or ambiguous names return 400 with suggestions. Only conference and byu-speeches have speakers, so this narrows results to those sources."
+          },
+          {
+            "name": "year_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1800
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages from this year or later (inclusive). Only conference and byu-speeches are dated, so a year bound narrows results to those.",
+              "examples": [
+                2010
+              ],
+              "title": "Year From"
+            },
+            "description": "Only passages from this year or later (inclusive). Only conference and byu-speeches are dated, so a year bound narrows results to those."
+          },
+          {
+            "name": "year_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1800
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages from this year or earlier (inclusive). See `year_from`.",
+              "examples": [
+                2020
+              ],
+              "title": "Year To"
+            },
+            "description": "Only passages from this year or earlier (inclusive). See `year_from`."
           }
         ],
         "responses": {
@@ -183,8 +327,361 @@
               }
             }
           },
+          "400": {
+            "description": "Empty query, unknown/ambiguous speaker, or year_from > year_to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Speaker/year filters requested but the live vector index doesn't have those filter fields yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Unknown reference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/speakers": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "List speakers available to the speaker filter",
+        "description": "Every General Conference / BYU Speeches speaker, normalized.\n\nBylines differ across eras (\"By Elder M. Russell Ballard\", \"M. Russell\nBallard, Jr.\", joint BYU devotionals), so each person's spellings are\ngrouped under one `name` \u2014 the value to pass as `speaker` to /search.\nComputed from the corpus with one read-only aggregation and cached in\nmemory (it only changes when new talks are ingested).",
+        "operationId": "list_speakers",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only speakers whose name contains all of these words (case/accent-insensitive), e.g. 'holland'. Omit for everyone.",
+              "examples": [
+                "holland"
+              ],
+              "title": "Q"
+            },
+            "description": "Only speakers whose name contains all of these words (case/accent-insensitive), e.g. 'holland'. Omit for everyone."
+          },
+          {
+            "name": "variants",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include each speaker's raw byline variants.",
+              "default": true,
+              "title": "Variants"
+            },
+            "description": "Include each speaker's raw byline variants."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/similar": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Find passages similar to any result (\"more like this\")",
+        "description": "Return passages semantically similar to the passage with this `id`.\n\nReuses the passage's **stored** embedding (no re-encoding). Unlike\n/search/by-reference it works for every source, and it excludes not only the\npassage itself but every other chunk of the same talk, speech, or handbook\nchapter \u2014 so the results point somewhere new. `seed` echoes the passage.\n`speaker` / `year_from` / `year_to` work as on /search.",
+        "operationId": "search_similar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A passage `id` from a previous result (any source: verse, talk chunk, speech chunk, or handbook section).",
+              "examples": [
+                "conference:/general-conference/2016/10/if-ye-had-known-me:p21"
+              ],
+              "title": "Id"
+            },
+            "description": "A passage `id` from a previous result (any source: verse, talk chunk, speech chunk, or handbook section)."
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Number of results to return.",
+              "default": 10,
+              "title": "K"
+            },
+            "description": "Number of results to return."
+          },
+          {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional comma-separated source filter (see /search).",
+              "examples": [
+                "bible,book-of-mormon"
+              ],
+              "title": "Sources"
+            },
+            "description": "Optional comma-separated source filter (see /search)."
+          },
+          {
+            "name": "speaker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages by this speaker. Use a name from /speakers (e.g. 'Jeffrey R. Holland'); any byline spelling or a unique partial name ('Holland' is ambiguous, 'Uchtdorf' is not) also works, and the response's `filters.speaker` shows what it resolved to. Unknown or ambiguous names return 400 with suggestions. Only conference and byu-speeches have speakers, so this narrows results to those sources.",
+              "examples": [
+                "David A. Bednar"
+              ],
+              "title": "Speaker"
+            },
+            "description": "Only passages by this speaker. Use a name from /speakers (e.g. 'Jeffrey R. Holland'); any byline spelling or a unique partial name ('Holland' is ambiguous, 'Uchtdorf' is not) also works, and the response's `filters.speaker` shows what it resolved to. Unknown or ambiguous names return 400 with suggestions. Only conference and byu-speeches have speakers, so this narrows results to those sources."
+          },
+          {
+            "name": "year_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1800
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages from this year or later (inclusive). Only conference and byu-speeches are dated, so a year bound narrows results to those.",
+              "examples": [
+                2010
+              ],
+              "title": "Year From"
+            },
+            "description": "Only passages from this year or later (inclusive). Only conference and byu-speeches are dated, so a year bound narrows results to those."
+          },
+          {
+            "name": "year_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1800
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only passages from this year or earlier (inclusive). See `year_from`.",
+              "examples": [
+                2020
+              ],
+              "title": "Year To"
+            },
+            "description": "Only passages from this year or earlier (inclusive). See `year_from`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty query, unknown/ambiguous speaker, or year_from > year_to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Speaker/year filters requested but the live vector index doesn't have those filter fields yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/passage/context": {
+      "get": {
+        "tags": [
+          "Passages"
+        ],
+        "summary": "Read a passage with its surrounding verses or paragraphs",
+        "description": "Return a passage plus its neighbours, in reading order.\n\nScripture: the adjacent verses of the same chapter. Conference / BYU\nSpeeches: the adjacent chunks (~3 paragraphs each) of the same talk.\nHandbook: the adjacent chunks of the same section. Each passage is flagged\n`is_target`; `more_before` / `more_after` say whether the chapter or talk\ncontinues past the window (call again with a neighbour's `id` to keep\nreading). When the stored data can't order a document's chunks, only the\npassage itself is returned and `note` says why.",
+        "operationId": "get_passage_context",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A passage `id` from a search result.",
+              "examples": [
+                "bible:John 3:16"
+              ],
+              "title": "Id"
+            },
+            "description": "A passage `id` from a search result."
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 0,
+              "description": "How many neighbouring verses/chunks to include before it.",
+              "default": 2,
+              "title": "Before"
+            },
+            "description": "How many neighbouring verses/chunks to include before it."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 0,
+              "description": "How many neighbouring verses/chunks to include after it.",
+              "default": 2,
+              "title": "After"
+            },
+            "description": "How many neighbouring verses/chunks to include after it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassageContextResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown id.",
             "content": {
               "application/json": {
                 "schema": {
@@ -331,6 +828,119 @@
   },
   "components": {
     "schemas": {
+      "AppliedFilters": {
+        "properties": {
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker",
+            "description": "The speaker the `speaker` param resolved to (canonical name from /speakers), so a partial name like 'Uchtdorf' can be checked."
+          },
+          "year_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year From",
+            "description": "Inclusive lower year bound."
+          },
+          "year_to": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year To",
+            "description": "Inclusive upper year bound."
+          }
+        },
+        "type": "object",
+        "title": "AppliedFilters"
+      },
+      "ContextPassage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable document id (e.g. `bible:John 3:16`, `conference:<talk uri>:<paragraph id>`). Pass it to /search/similar or /passage/context."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "bible",
+              "book-of-mormon",
+              "doctrine-and-covenants",
+              "pearl-of-great-price",
+              "conference",
+              "byu-speeches",
+              "handbook"
+            ],
+            "title": "Source",
+            "description": "Which corpus the passage belongs to."
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference",
+            "description": "Human label: verse reference, talk title, or handbook section."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The passage text."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Talk/chapter title; null for scripture verses."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Deep link to the passage on churchofjesuschrist.org."
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "description": "Source-specific metadata (speaker, book, section, \u2026)."
+          },
+          "is_target": {
+            "type": "boolean",
+            "title": "Is Target",
+            "description": "True for the requested passage; false for its neighbours."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "reference",
+          "text",
+          "url",
+          "is_target"
+        ],
+        "title": "ContextPassage"
+      },
       "ErrorResponse": {
         "properties": {
           "detail": {
@@ -373,30 +983,13 @@
         ],
         "title": "HealthResponse"
       },
-      "SearchResponse": {
+      "Passage": {
         "properties": {
-          "query": {
+          "id": {
             "type": "string",
-            "title": "Query",
-            "description": "The query that was searched (echoed back)."
+            "title": "Id",
+            "description": "Stable document id (e.g. `bible:John 3:16`, `conference:<talk uri>:<paragraph id>`). Pass it to /search/similar or /passage/context."
           },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/SearchResult"
-            },
-            "type": "array",
-            "title": "Results"
-          }
-        },
-        "type": "object",
-        "required": [
-          "query",
-          "results"
-        ],
-        "title": "SearchResponse"
-      },
-      "SearchResult": {
-        "properties": {
           "source": {
             "type": "string",
             "enum": [
@@ -409,7 +1002,7 @@
               "handbook"
             ],
             "title": "Source",
-            "description": "Which corpus the result belongs to."
+            "description": "Which corpus the passage belongs to."
           },
           "reference": {
             "type": "string",
@@ -419,7 +1012,7 @@
           "text": {
             "type": "string",
             "title": "Text",
-            "description": "The matched passage text."
+            "description": "The passage text."
           },
           "title": {
             "anyOf": [
@@ -438,11 +1031,6 @@
             "title": "Url",
             "description": "Deep link to the passage on churchofjesuschrist.org."
           },
-          "score": {
-            "type": "number",
-            "title": "Score",
-            "description": "Cosine similarity in [0, 1] \u2014 higher is more relevant."
-          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -452,6 +1040,190 @@
         },
         "type": "object",
         "required": [
+          "id",
+          "source",
+          "reference",
+          "text",
+          "url"
+        ],
+        "title": "Passage"
+      },
+      "PassageContextResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The requested passage's id (echoed back)."
+          },
+          "passages": {
+            "items": {
+              "$ref": "#/components/schemas/ContextPassage"
+            },
+            "type": "array",
+            "title": "Passages",
+            "description": "The passage and its neighbours in reading order: adjacent verses of the same chapter, or adjacent chunks of the same talk / speech / handbook section."
+          },
+          "more_before": {
+            "type": "boolean",
+            "title": "More Before",
+            "description": "More of the chapter/talk precedes the first passage."
+          },
+          "more_after": {
+            "type": "boolean",
+            "title": "More After",
+            "description": "More of the chapter/talk follows the last passage."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Why the context is narrower than asked, when it is."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "passages",
+          "more_before",
+          "more_after"
+        ],
+        "title": "PassageContextResponse",
+        "example": {
+          "id": "bible:John 3:16",
+          "more_after": true,
+          "more_before": true,
+          "passages": [
+            {
+              "id": "bible:John 3:15",
+              "is_target": false,
+              "metadata": {
+                "book": "John",
+                "chapter": 3,
+                "verse": 15
+              },
+              "reference": "John 3:15",
+              "source": "bible",
+              "text": "That whosoever believeth in him should not perish, but have eternal life.",
+              "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/john/3?id=p15#p15"
+            },
+            {
+              "id": "bible:John 3:16",
+              "is_target": true,
+              "metadata": {
+                "book": "John",
+                "chapter": 3,
+                "verse": 16
+              },
+              "reference": "John 3:16",
+              "source": "bible",
+              "text": "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.",
+              "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/john/3?id=p16#p16"
+            }
+          ]
+        }
+      },
+      "SearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "The query that was searched (echoed back)."
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedFilters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Speaker / year filters applied, or null when none were set."
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "results"
+        ],
+        "title": "SearchResponse"
+      },
+      "SearchResult": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable document id (e.g. `bible:John 3:16`, `conference:<talk uri>:<paragraph id>`). Pass it to /search/similar or /passage/context."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "bible",
+              "book-of-mormon",
+              "doctrine-and-covenants",
+              "pearl-of-great-price",
+              "conference",
+              "byu-speeches",
+              "handbook"
+            ],
+            "title": "Source",
+            "description": "Which corpus the passage belongs to."
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference",
+            "description": "Human label: verse reference, talk title, or handbook section."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The passage text."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Talk/chapter title; null for scripture verses."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Deep link to the passage on churchofjesuschrist.org."
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "description": "Source-specific metadata (speaker, book, section, \u2026)."
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Cosine similarity in [0, 1] \u2014 higher is more relevant."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
           "source",
           "reference",
           "text",
@@ -460,6 +1232,7 @@
         ],
         "title": "SearchResult",
         "example": {
+          "id": "bible:1 John 4:8",
           "metadata": {
             "book": "1 John",
             "chapter": 4,
@@ -473,6 +1246,147 @@
           "text": "He that loveth not knoweth not God; for God is love.",
           "url": "https://www.churchofjesuschrist.org/study/scriptures/nt/1-jn/4?id=p8#p8"
         }
+      },
+      "SimilarResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "The query that was searched (echoed back)."
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedFilters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Speaker / year filters applied, or null when none were set."
+          },
+          "seed": {
+            "$ref": "#/components/schemas/Passage",
+            "description": "The passage the results were found from (not in `results`)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "results",
+          "seed"
+        ],
+        "title": "SimilarResponse"
+      },
+      "Speaker": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Normalized name \u2014 pass it as `speaker` to /search.",
+            "examples": [
+              "Jeffrey R. Holland"
+            ]
+          },
+          "talks": {
+            "type": "integer",
+            "title": "Talks",
+            "description": "Conference talks + BYU speeches attributed to them."
+          },
+          "sources": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "bible",
+                "book-of-mormon",
+                "doctrine-and-covenants",
+                "pearl-of-great-price",
+                "conference",
+                "byu-speeches",
+                "handbook"
+              ]
+            },
+            "type": "array",
+            "title": "Sources",
+            "description": "Corpora they appear in (conference, byu-speeches)."
+          },
+          "first_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Year",
+            "description": "Year of their earliest talk."
+          },
+          "last_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Year",
+            "description": "Year of their latest talk."
+          },
+          "variants": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variants",
+            "description": "Raw `metadata.speaker` bylines grouped under this name (titles, initials and joint bylines differ across eras). Omitted when `variants=false`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "talks",
+          "sources"
+        ],
+        "title": "Speaker"
+      },
+      "SpeakersResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of speakers returned."
+          },
+          "speakers": {
+            "items": {
+              "$ref": "#/components/schemas/Speaker"
+            },
+            "type": "array",
+            "title": "Speakers",
+            "description": "Most talks first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "speakers"
+        ],
+        "title": "SpeakersResponse"
       },
       "StatsResponse": {
         "properties": {
@@ -589,6 +1503,10 @@
     {
       "name": "Search",
       "description": "Semantic vector search across the corpora."
+    },
+    {
+      "name": "Passages",
+      "description": "Look up passages and read them in their surrounding context."
     },
     {
       "name": "Stats",

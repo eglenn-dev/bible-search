@@ -1,4 +1,4 @@
-// Bookmarks for the mobile app. There are no accounts, so "saved" means saved
+// Bookmarks for both layouts. There are no accounts, so "saved" means saved
 // on this device: the list lives in localStorage and each entry carries the
 // whole result, which lets the Saved tab render without calling the API.
 //
@@ -27,15 +27,59 @@ function hash(text: string): string {
 }
 
 /**
- * Stable identity for a result. The API returns no id, and a URL alone is not
- * enough: BYU Speeches passages all link to the talk, not the paragraph. The
- * text hash tells passages from the same talk apart.
+ * Identity used before the API returned ids, and still the only one for
+ * results saved back then. A URL alone is not enough (BYU Speeches passages
+ * all link to the talk, not the paragraph), so the text hash tells passages
+ * from the same talk apart.
  */
-export function bookmarkId(result: Result): string {
+function legacyBookmarkId(result: Result): string {
     return `${result.source}:${result.url}:${hash(result.text)}`;
 }
 
-function isBookmark(value: unknown): value is Bookmark {
+/** Stable identity for a result: the API's document id when it has one. */
+export function bookmarkId(result: Result): string {
+    return result.id ?? legacyBookmarkId(result);
+}
+
+/**
+ * Every key a saved copy of this result could be stored under: its id, and
+ * the older url+text key (bookmarks saved before ids existed keep that one).
+ */
+function bookmarkKeys(result: Result): string[] {
+    const legacy = legacyBookmarkId(result);
+    return result.id ? [result.id, legacy] : [legacy];
+}
+
+/** Every key `isSaved` matches against, for a list of bookmarks. */
+export function savedKeySet(bookmarks: Bookmark[]): Set<string> {
+    const keys = new Set<string>();
+    for (const b of bookmarks) {
+        keys.add(b.id);
+        for (const key of bookmarkKeys(b.result)) keys.add(key);
+    }
+    return keys;
+}
+
+/** Whether `result` is saved, under its id or its pre-id key. */
+export function isSaved(savedKeys: Set<string>, result: Result): boolean {
+    return bookmarkKeys(result).some((key) => savedKeys.has(key));
+}
+
+/** The saved entry for `result`, if any (matched like `isSaved`). */
+export function findBookmark(
+    bookmarks: Bookmark[],
+    result: Result,
+): Bookmark | undefined {
+    const keys = bookmarkKeys(result);
+    return bookmarks.find(
+        (b) =>
+            keys.includes(b.id) ||
+            bookmarkKeys(b.result).some((key) => keys.includes(key)),
+    );
+}
+
+/** Shape check for anything read back from storage or a shared link. */
+export function isBookmark(value: unknown): value is Bookmark {
     if (!value || typeof value !== "object") return false;
     const b = value as Partial<Bookmark>;
     return (
@@ -95,13 +139,13 @@ function subscribe(listener: () => void) {
 
 /** Saves the result, or removes it if it is already saved. */
 export function toggleBookmark(result: Result): "added" | "removed" {
-    const id = bookmarkId(result);
     const current = read();
-    if (current.some((b) => b.id === id)) {
-        write(current.filter((b) => b.id !== id));
+    const existing = findBookmark(current, result);
+    if (existing) {
+        write(current.filter((b) => b !== existing));
         return "removed";
     }
-    write([{ id, savedAt: Date.now(), result }, ...current]);
+    write([{ id: bookmarkId(result), savedAt: Date.now(), result }, ...current]);
     return "added";
 }
 
@@ -111,6 +155,36 @@ export function restoreBookmarks(removed: Bookmark[]): void {
     const have = new Set(current.map((b) => b.id));
     const merged = [...current, ...removed.filter((b) => !have.has(b.id))];
     write(merged.sort((a, b) => b.savedAt - a.savedAt));
+}
+
+/** Removes one bookmark by its stored id. */
+export function removeBookmark(id: string): void {
+    const current = read();
+    if (current.some((b) => b.id === id)) {
+        write(current.filter((b) => b.id !== id));
+    }
+}
+
+/**
+ * Adds results that aren't saved yet (a shared collection's "Save all"),
+ * keeping their order at the top of the list. Returns how many were new.
+ */
+export function importBookmarks(results: Result[]): number {
+    const current = read();
+    // Match like `isSaved`, so a passage saved before ids existed isn't
+    // imported a second time under its new id.
+    const have = savedKeySet(current);
+    const now = Date.now();
+    const added: Bookmark[] = [];
+    for (const result of results) {
+        if (isSaved(have, result)) continue;
+        const id = bookmarkId(result);
+        have.add(id);
+        // One millisecond apart so newest-first keeps the shared order.
+        added.push({ id, savedAt: now - added.length, result });
+    }
+    if (added.length > 0) write([...added, ...current]);
+    return added.length;
 }
 
 export function clearBookmarks(): void {

@@ -22,7 +22,7 @@ Seven corpora are indexed today, all in `gospel_library.documents`. Each is iden
 Every source produces the same top-level shape (see [architecture.md](./architecture.md#data-model)); only `metadata` and how `text`/`url`/`reference` are derived differ.
 
 ```jsonc
-{ "_id", "source", "text", "embedding", "reference", "title", "url", "metadata" }
+{ "_id", "source", "text", "embedding", "embedding_v2"?, "reference", "title", "url", "metadata" }
 ```
 
 ## Per-source detail
@@ -51,7 +51,7 @@ Every source produces the same top-level shape (see [architecture.md](./architec
 - **Chunking:** groups of `CHUNK_PARAGRAPHS = 3` paragraphs. Session/meeting landing pages are filtered out.
 - **`_id`:** `conference:<talk_uri>:<first_paragraph_id>`
 - **`reference`/`title`:** the talk title; **`url`:** talk URL + `#p<id>` anchor of the chunk's first paragraph
-- **`metadata`:** `{ speaker, calling, year, month, talk_uri, paragraph_id }`
+- **`metadata`:** `{ speaker, calling, year, month, talk_uri, paragraph_id, chunk_index }`. `chunk_index` (the chunk's position in the talk) is written by ingest and was backfilled onto earlier chunks by `ingest.backfill_chunk_index`. Paragraph ids come as `p12` (numbered, in order) or, since late 2024, `p_aB3dE` (random), so for those talks `chunk_index` is the only record of reading order.
 - **Resumable** via `already_ingested({ "metadata.talk_uri": uri })`.
 
 ### `byu-speeches` — BYU Speeches
@@ -71,7 +71,7 @@ Every source produces the same top-level shape (see [architecture.md](./architec
 - **Chunking:** split by section heading (`<h2>/<h3>` with an `id`), then groups of `SECTION_CHUNK_PARAGRAPHS = 5` paragraphs.
 - **`_id`:** `handbook:<chapter_uri>:<anchor>:<i>`
 - **`reference`:** section number or title; **`title`:** section title; **`url`:** chapter URL + `#<anchor>`
-- **`metadata`:** `{ chapter, section_number, section_title, anchor, chapter_uri }`
+- **`metadata`:** `{ chapter, section_number, section_title, anchor, chapter_uri, chunk_index }`. `chunk_index` (position in the chapter) is written by ingest and was backfilled onto the stored handbook; without it the `_id` offset only orders chunks within one section.
 - **Resumable** via `already_ingested({ "metadata.chapter_uri": uri })`.
 
 ## The churchofjesuschrist.org content API

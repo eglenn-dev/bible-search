@@ -18,7 +18,9 @@ What it does, per source:
   fetch/parse, so a network hiccup can never leave the handbook wiped.
 
 Finally it ensures the Atlas vector index exists (a dropped collection drops its
-index too) and prints a before/after **diff** plus a **summary of work done**.
+index too) and matches ``embeddings.index_definition`` — updating it in
+place (an Atlas rebuild) if the definition changed — and prints a before/after
+**diff** plus a **summary of work done**.
 
 The whole thing is idempotent: run it on a healthy database and it only pulls in
 what's new; run it against an empty one and it rebuilds everything from scratch.
@@ -32,7 +34,7 @@ import db
 from ingest import bible, byu_speeches, conference, handbook, lds_scriptures
 from ingest.common import (
     embed_and_upsert,
-    embed_texts,
+    embed_records,
     ensure_vector_index,
     storage_stats,
     upsert_docs,
@@ -270,9 +272,7 @@ def sync_handbook(results: dict) -> None:
         return
 
     # Embed before touching the database so a failure here leaves the old copy intact.
-    embeddings = embed_texts([r["text"] for r in all_records])
-    for record, embedding in zip(all_records, embeddings):
-        record["embedding"] = embedding
+    embed_records(all_records)
 
     collection = db.get_collection()
     deleted = collection.delete_many({"source": "handbook"}).deleted_count
@@ -431,11 +431,11 @@ def main() -> None:
     print("\n=== Ensuring vector index ===")
 
     def _index() -> None:
-        existing = {ix["name"] for ix in db.get_collection().list_search_indexes()}
-        ensure_vector_index()
-        results["index"] = (
-            "already exists" if db.VECTOR_INDEX_NAME in existing else "created (building)"
-        )
+        results["index"] = {
+            "unchanged": "already exists",
+            "created": "created (building)",
+            "updated": "definition updated (rebuilding)",
+        }[ensure_vector_index()]
 
     _run_phase("Vector index", _index, results)
 

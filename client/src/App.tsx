@@ -15,8 +15,13 @@ import Landing from "./components/landing";
 import ConferenceBanner from "./components/conference-banner";
 import ThemeToggle from "./components/theme-toggle";
 import MobileApp from "./components/mobile/mobile-app";
+import SavedDrawer, { SavedButton } from "./components/saved-drawer";
+import SharedCollection from "./components/shared-collection";
+import { useBookmarks } from "./lib/bookmarks";
+import { shareTokenFromHash } from "./lib/share";
 import { useIsMobile } from "./lib/use-is-mobile";
 import { cn } from "./lib/utils";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
     useQueryState,
     parseAsString,
@@ -34,6 +39,15 @@ export default function App() {
     // Phones get the app-style shell (components/mobile) in place of the
     // layouts below; the search state in this component drives both.
     const isMobile = useIsMobile();
+    // The desktop Saved panel (phones have their own Saved tab).
+    const [savedOpen, setSavedOpen] = useState<boolean>(false);
+    const savedCount = useBookmarks().length;
+
+    // A shared collection arrives as `#saved=…` in the hash, which never
+    // reaches the server. While it's there, it's shown instead of the app.
+    const location = useLocation();
+    const navigate = useNavigate();
+    const shareToken = shareTokenFromHash(location.hash);
 
     // Every shareable/refresh-safe setting lives in the URL via nuqs: each
     // hook returns a [value, setValue] pair backed directly by the query
@@ -151,8 +165,36 @@ export default function App() {
         }
     };
 
+    // Leaving a shared collection drops the hash; after "Save all" it can go
+    // straight to your own Saved list (the tab on phones, the panel here).
+    const closeShared = (toSaved: boolean) => {
+        const params = new URLSearchParams(location.search);
+        if (toSaved && isMobile) params.set("tab", "saved");
+        const search = params.toString();
+        navigate({
+            pathname: location.pathname,
+            search: search ? `?${search}` : "",
+            hash: "",
+        });
+        if (toSaved && !isMobile) setSavedOpen(true);
+    };
+
+    // Checked before the backend: a shared collection carries its own
+    // passages, so it opens even while the API is still waking up.
+    if (shareToken)
+        return <SharedCollection token={shareToken} onClose={closeShared} />;
+
+    const savedDrawer = !isMobile && (
+        <SavedDrawer open={savedOpen} onOpenChange={setSavedOpen} />
+    );
+
     if (!backendRunning)
-        return <Landing setBackendRunning={setBackendRunning} />;
+        return (
+            <>
+                <Landing setBackendRunning={setBackendRunning} />
+                {savedDrawer}
+            </>
+        );
 
     const modeToggle = (compact: boolean) => (
         <div className="inline-flex rounded-md border border-input bg-card p-0.5">
@@ -259,6 +301,11 @@ export default function App() {
                                     compact
                                 />
                             </div>
+                            <SavedButton
+                                compact
+                                count={savedCount}
+                                onClick={() => setSavedOpen(true)}
+                            />
                             <ThemeToggle compact />
                         </div>
                     </div>
@@ -315,6 +362,7 @@ export default function App() {
                     </main>
                 </div>
                 <Footer />
+                {savedDrawer}
             </div>
         );
     }
@@ -339,6 +387,10 @@ export default function App() {
                         value={resultCount}
                         onChange={setResultCount}
                     />
+                    <SavedButton
+                        count={savedCount}
+                        onClick={() => setSavedOpen(true)}
+                    />
                     <ThemeToggle />
                 </div>
 
@@ -347,6 +399,7 @@ export default function App() {
                 </div>
             </main>
             <Footer />
+            {savedDrawer}
         </div>
     );
 }

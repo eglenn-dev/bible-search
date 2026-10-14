@@ -1,16 +1,27 @@
+import { useMemo } from "react";
 import type { Result } from "@/lib/types";
+import { bookmarkId, toggleBookmark, useBookmarks } from "@/lib/bookmarks";
 import {
     SOURCE_LABELS,
     headingFor,
     metaLineFor,
     scorePercent,
 } from "@/lib/result-display";
+import { BookmarkToggle } from "./passage-item";
 
 interface RenderResultsProps {
     results: Result[];
 }
 
 export default function RenderResults({ results }: RenderResultsProps) {
+    // Same store as the mobile cards and the Saved panel, so a save here
+    // shows up there (and in other tabs) straight away.
+    const bookmarks = useBookmarks();
+    const savedIds = useMemo(
+        () => new Set(bookmarks.map((b) => b.id)),
+        [bookmarks],
+    );
+
     if (results.length === 0) {
         return (
             <div className="text-center text-muted-foreground">
@@ -23,6 +34,7 @@ export default function RenderResults({ results }: RenderResultsProps) {
         <div className="flex flex-col gap-7">
             {results.map((result, index) => {
                 const metaLine = metaLineFor(result);
+                const saved = savedIds.has(bookmarkId(result));
                 return (
                     <article
                         key={`${result.source}-${index}`}
@@ -33,7 +45,7 @@ export default function RenderResults({ results }: RenderResultsProps) {
                     >
                         {/* Breadcrumb line over a teal, underlined title, as
                             on the Church's own search results page. */}
-                        <div className="flex items-baseline gap-3 text-[13px] text-muted-foreground">
+                        <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
                             <span>
                                 <span className="text-foreground">
                                     {SOURCE_LABELS[result.source]}
@@ -43,6 +55,11 @@ export default function RenderResults({ results }: RenderResultsProps) {
                             <span className="ml-auto shrink-0 tabular-nums">
                                 {scorePercent(result)}%
                             </span>
+                            <BookmarkToggle
+                                saved={saved}
+                                onToggle={() => toggleBookmark(result)}
+                                className="-my-1.5 -mr-1.5"
+                            />
                         </div>
                         <a
                             href={result.url}

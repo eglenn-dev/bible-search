@@ -121,7 +121,7 @@ Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (requir
 - **`GET /search/by-reference?reference=<ref>&k=10&sources=<csv>`** — looks up a document by exact `reference`, **reuses its stored embedding** (no re-encode), and drops the self-match. Takes the same speaker/year params. Powers the "Scripture Reference" mode.
 - **`GET /speakers?q=<words>&variants=true`** — normalized conference/BYU speakers with talk counts, sources, year span and the raw byline variants each covers. Cached in-process.
 - **`GET /search/similar?id=<id>&k=10&sources=<csv>`** (plus the speaker/year params) — "more like this" from any result. Every result carries its document `id` (the deterministic `_id`); this loads that document's stored embedding, runs `vector_search`, and drops the seed **and every other chunk of the same talk/speech/handbook chapter** (`db.same_document`, the same grouping the de-duplication uses). `/search/by-reference` can't do this for talks: their `reference` is the talk title, shared by every chunk. Returns the usual `{query, results}` plus `seed` (the passage searched from). 404 on an unknown id.
-- **`GET /passage/context?id=<id>&before=2&after=2`** — the passage plus its neighbours in reading order, each flagged `is_target` (adjacent verses of the chapter, or adjacent chunks of the talk/speech/handbook section). Uses only the built-in `_id` index; see [api.md](./api.md#reading-context-get-passagecontext) for the per-source rules and why new-format conference talks return only the passage for now.
+- **`GET /passage/context?id=<id>&before=2&after=2`** — the passage plus its neighbours in reading order, each flagged `is_target` (adjacent verses of the chapter, or adjacent chunks of the talk/speech/handbook section). Uses only the built-in `_id` index; see [api.md](./api.md#reading-context-get-passagecontext) for the per-source rules (`metadata.chunk_index` orders conference and handbook chunks).
 - **`GET /verse?reference=<ref>`** — returns a single passage's text + deep link by exact reference (any Standard Work). Used by the frontend to validate/preview a reference.
 - **`/docs`, `/redoc`, `/openapi.json`** — Swagger UI, ReDoc, and the OpenAPI spec.
 - **`/mcp`** — the MCP server (Streamable HTTP) for AI agents.
@@ -164,6 +164,7 @@ Below Tailwind's `md` breakpoint (`useIsMobile`, 48rem) `App.tsx` renders `Mobil
 | File | Responsibility |
 |---|---|
 | `run.py` | Orchestrator / CLI (`--source`, `--create-index`, `--stats`, `--force`). |
+| `backfill_chunk_index.py` | One-off, idempotent: sets `metadata.chunk_index` on conference/handbook chunks stored before ingest recorded it, rebuilt from the scrape cache (dry run by default, `--apply` to write; never touches text or embeddings). |
 | `common.py` | `embed_texts`, `upsert_docs`, `embed_and_upsert`, `already_ingested`, `ensure_vector_index`, `storage_stats`/`log_storage`, `chunked`. Shared by every source. |
 | `urls.py` | Scripture reference parsing + churchofjesuschrist.org deep-link builders (Bible, Book of Mormon, D&C, Pearl of Great Price). |
 | `church.py` | Cached, rate-limited client for the Gospel Library content API (used by the scrapers). |

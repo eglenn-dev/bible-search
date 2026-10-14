@@ -11,18 +11,18 @@ neighbours are found through the built-in ``_id`` index alone — no extra index
 
 What decides the order of chunks within a document:
 
-- ``metadata.chunk_index`` when the passage has one (written by the conference
-  and handbook ingesters from now on; older chunks predate it). Neighbours are
-  then one range query on the prefix plus ``chunk_index``.
+- ``metadata.chunk_index`` when the passage has one: written by the conference
+  and handbook ingesters, and backfilled onto earlier chunks by
+  ``ingest.backfill_chunk_index``. Neighbours are then one range query on the
+  prefix plus ``chunk_index``. Every handbook chunk and all but a handful of
+  conference talks have it; the rules below are the fallback.
 - **BYU Speeches:** the paragraph offset in the ``_id`` (``…:<paragraph_index>``).
 - **Conference, legacy ids** (``p12``): the paragraph number.
 - **Conference, new ids** (``p_aB3dE``, late 2024 on): the suffix is random and
   nothing else stored records the order (insertion order was checked and is not
-  reliable), so only the passage itself is returned until the talk is
-  re-ingested with ``chunk_index``.
+  reliable), so only the passage itself is returned without ``chunk_index``.
 - **Handbook** (``…:<anchor>:<offset>``): only the order *within* a section is
-  recorded, so context is the rest of that section until the next handbook
-  sync writes ``chunk_index`` for whole chapters.
+  recorded, so without ``chunk_index`` context is the rest of that section.
 """
 
 import re

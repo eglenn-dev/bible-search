@@ -137,17 +137,15 @@ It's computed from the corpus with one read-only aggregation on first use and ca
 }
 ```
 
-What counts as a neighbour, and how they're found (all through the built-in `_id` index; no extra indexes):
+Conference and handbook chunks carry `metadata.chunk_index` (reading order within the talk / chapter), so their neighbours come from one range query on the `_id` prefix plus `chunk_index`, across the whole talk or chapter. Ingest writes it, and `python -m ingest.backfill_chunk_index` added it to chunks stored earlier (all handbook chapters and 4,291 of 4,304 talks; the 13 it skipped changed on the site since ingest and use numbered `p12` ids, so the fallback orders them). The table describes what decides the order otherwise:
 
 | Source | Neighbours | Query |
 |---|---|---|
 | Scripture | Adjacent verses of the same chapter (never crosses a chapter) | The neighbours' ids are computed (`bible:John 3:15`, …) and fetched with one `$in`. |
 | BYU Speeches | Adjacent ~3-paragraph chunks of the speech, by the paragraph index in the id | Anchored prefix regex `^byu-speeches:<path>:` — an index-only range scan — then `$in` for the window. |
 | Conference (ids `p12`, pre-late-2024) | Adjacent chunks of the talk, by paragraph number (numerically: `p3` < `p12`) | Same prefix scan on `^conference:<talk uri>:`. |
-| Conference (ids `p_aB3dE`, late 2024 on) | **Just the passage**, with a `note`: the new ids are random and nothing stored records the paragraph order (insertion order was checked and isn't reliable). | — |
-| Handbook | Adjacent chunks of the **same section** (the id's offset orders them), with a `note`; sections aren't ordered relative to each other in the stored data. | Prefix scan on `^handbook:<chapter uri>:`. |
-
-The conference and handbook ingesters now also write `metadata.chunk_index` (reading order within the talk / chapter). When a passage has it, neighbours come from one range query on the `_id` prefix plus `chunk_index`, and the limits above go away: the handbook picks it up on its next full sync; existing new-format conference talks need a forced re-ingest (`python -m ingest.run --source conference --force`) to get it.
+| Conference (ids `p_aB3dE`, late 2024 on), without `chunk_index` | **Just the passage**, with a `note`: the new ids are random and nothing else stored records the paragraph order (insertion order was checked and isn't reliable). | — |
+| Handbook, without `chunk_index` | Adjacent chunks of the **same section** (the id's offset orders them), with a `note`. | Prefix scan on `^handbook:<chapter uri>:`. |
 
 Measured against the production cluster, every one of these queries runs in **0 ms** server-side (`explain`: `IXSCAN` on `_id_` with tight bounds; the id-only scan is `PROJECTION_COVERED`, i.e. it reads no documents); an endpoint call is dominated by network round trips.
 

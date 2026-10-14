@@ -97,6 +97,9 @@ def build_records(uri: str, chapter: dict) -> list[dict]:
                         "section_title": section["title"],
                         "anchor": anchor,
                         "chapter_uri": uri,
+                        # Reading order across the whole chapter (the _id only
+                        # orders chunks within one section).
+                        "chunk_index": len(records),
                     },
                 }
             )

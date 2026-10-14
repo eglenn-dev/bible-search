@@ -125,6 +125,9 @@ def build_records(uri: str, year: int, month: str, talk: dict) -> list[dict]:
                     "month": month,
                     "talk_uri": uri,
                     "paragraph_id": first_pid,
+                    # Reading order. New-format paragraph ids (p_aB3dE) are
+                    # random, so the id alone can't order a talk's chunks.
+                    "chunk_index": len(records),
                 },
             }
         )

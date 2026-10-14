@@ -42,11 +42,11 @@ A single collection (`documents`) holds every corpus. Each document:
 }
 ```
 
-The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cosine, scalar quantization) with `source` as a filter field.
+The Atlas Vector Search index (`vector_index`) indexes `embedding` (384-dim, cosine, scalar quantization) with `source` as a filter field. The v2 embedding version adds `embedding_v2` (int8) with its own `vector_index_v2`; `EMBEDDING_VERSION` picks which one the API searches.
 
 ### Backend API (`api/`)
 
-- **ONNX runtime** (`paraphrase-MiniLM-L3-v2` via onnxruntime + a HF tokenizer — no torch): encodes the user's **query** to a normalized 384-dim vector. (The corpora are embedded once, at ingest time.) Keeps the image small enough for a 512 MB host.
+- **ONNX runtime** (onnxruntime + `tokenizers`, no torch, no transformers): encodes the user's **query** to a normalized 384-dim vector with the active embedding version's model. That is `paraphrase-MiniLM-L3-v2` by default; `e5-small-v2` (v2) is ready to switch to, see [docs/embedding-migration.md](./docs/embedding-migration.md). The corpora are embedded once, at ingest time. The image stays small enough for a 512 MB host.
 - **MongoDB Atlas Vector Search**: a `$vectorSearch` aggregation finds the nearest passages, optionally filtered by `source`.
 - **FastAPI** exposes:
   - `GET /search?query=<text>&k=10&sources=bible,conference,handbook`
@@ -143,15 +143,15 @@ docker build -t gospel-library-search .
 docker run -e MONGODB_URI="mongodb+srv://..." -p 10000:10000 gospel-library-search
 ```
 
-The image is API-only and bakes in the ONNX model + tokenizer; the frontend is built and deployed separately.
+The image is API-only. It bakes in the query-side ONNX model and tokenizer for every embedding version listed in the `PREFETCH_EMBEDDING_VERSIONS` build arg (default `v1,v2`), so switching `EMBEDDING_VERSION` needs no rebuild. The frontend is built and deployed separately.
 
 ### Deploying
 
-The runtime uses **onnxruntime** (no torch), so the image is small and runs in **~150–250 MB RAM** — it fits a **512 MB free tier** (Render free, Fly.io, etc.) as well as **GCP Cloud Run** (scale-to-zero). The first request lazily loads the ONNX model (a few seconds).
+The runtime uses **onnxruntime** (no torch), so the image is small. Peak RSS measured on macOS was ~370 MB with v1 and ~310 MB with v2, including bursts of long concurrent queries. It fits a **512 MB free tier** (Render free, Fly.io, etc.) as well as **GCP Cloud Run** (scale-to-zero). The first request lazily loads the ONNX model (a few seconds).
 
 Required at runtime:
 - `MONGODB_URI` — the Atlas connection string.
-- Optional: `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`.
+- Optional: `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`, `EMBEDDING_VERSION` (`v1` default, `v2` after the migration in [docs/embedding-migration.md](./docs/embedding-migration.md)).
 
 **Atlas network access:** serverless/free hosts use dynamic outbound IPs, so a single-IP allowlist won't work. Set Atlas → Network Access to `0.0.0.0/0` and rely on the DB credentials (the corpora are public content), or configure a static egress IP.
 

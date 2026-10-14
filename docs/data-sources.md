@@ -22,7 +22,7 @@ Seven corpora are indexed today, all in `gospel_library.documents`. Each is iden
 Every source produces the same top-level shape (see [architecture.md](./architecture.md#data-model)); only `metadata` and how `text`/`url`/`reference` are derived differ.
 
 ```jsonc
-{ "_id", "source", "text", "embedding", "reference", "title", "url", "metadata" }
+{ "_id", "source", "text", "embedding", "embedding_v2"?, "reference", "title", "url", "metadata" }
 ```
 
 ## Per-source detail

@@ -8,6 +8,8 @@
 
 import { useSyncExternalStore } from "react";
 import type { Result } from "./types";
+import { fetchPassageContext } from "./passages";
+import { requestPersistentStorage } from "./storage";
 
 export const BOOKMARKS_STORAGE_KEY = "gs-bookmarks";
 
@@ -137,6 +139,14 @@ function subscribe(listener: () => void) {
     };
 }
 
+// A saved passage should still open, surroundings and all, with no
+// connection: fetching its context now leaves a copy in the service worker's
+// cache. And saving is the moment storage becomes worth protecting.
+function keepForOffline(result: Result): void {
+    void requestPersistentStorage();
+    if (result.id) fetchPassageContext(result.id).catch(() => {});
+}
+
 /** Saves the result, or removes it if it is already saved. */
 export function toggleBookmark(result: Result): "added" | "removed" {
     const current = read();
@@ -146,6 +156,7 @@ export function toggleBookmark(result: Result): "added" | "removed" {
         return "removed";
     }
     write([{ id: bookmarkId(result), savedAt: Date.now(), result }, ...current]);
+    keepForOffline(result);
     return "added";
 }
 
@@ -183,7 +194,12 @@ export function importBookmarks(results: Result[]): number {
         // One millisecond apart so newest-first keeps the shared order.
         added.push({ id, savedAt: now - added.length, result });
     }
-    if (added.length > 0) write([...added, ...current]);
+    if (added.length > 0) {
+        write([...added, ...current]);
+        // Capped: a big shared collection shouldn't burn through the API's
+        // per-IP rate limit in one burst.
+        added.slice(0, 20).forEach((b) => keepForOffline(b.result));
+    }
     return added.length;
 }
 

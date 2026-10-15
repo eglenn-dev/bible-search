@@ -2,8 +2,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     Bookmark as BookmarkIcon,
     ChevronRight,
+    BookOpen,
     SlidersHorizontal,
     Sparkles,
+    WifiOff,
     X,
 } from "lucide-react";
 import { parseAsStringEnum, useQueryState } from "nuqs";
@@ -24,17 +26,23 @@ import {
     toggleBookmark,
     useBookmarks,
 } from "@/lib/bookmarks";
+import type { RecentSearch } from "@/lib/recent-searches";
 import { headingFor } from "@/lib/result-display";
 import { hasFilters } from "@/lib/speakers";
+import { requestPersistentStorage } from "@/lib/storage";
+import { SIDEBAR_QUERY, SPLIT_QUERY, useMediaQuery } from "@/lib/use-is-mobile";
+import { useOnline } from "@/lib/use-online";
 import { cn } from "@/lib/utils";
 import ConferenceBanner from "../conference-banner";
 import { ActiveFilters } from "../speaker-year-filter";
 import FilterSheet from "./filter-sheet";
+import RecentSearches from "./recent-searches";
 import ResultCard from "./result-card";
 import ResultSheet from "./result-sheet";
 import SavedTab from "./saved-tab";
 import Segmented from "./segmented";
 import SettingsTab from "./settings-tab";
+import Sidebar from "./sidebar";
 import TabBar, { TABS, type Tab } from "./tab-bar";
 
 interface MobileAppProps {
@@ -65,6 +73,8 @@ interface MobileAppProps {
     similarSeed: Result | null;
     onMoreLike: (result: Result) => void;
     onLeaveSimilar: () => void;
+    /** Re-runs a search from the start screen's "Recent searches". */
+    onRunRecent: (search: RecentSearch) => void;
 }
 
 const MODE_OPTIONS = [
@@ -80,11 +90,16 @@ interface Toast {
 
 // Clears the floating tab bar (62px + its offset) at the end of every tab.
 const TAB_PADDING = "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]";
+// With the sidebar there's no tab bar to clear.
+const SIDEBAR_PADDING = "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]";
 
 /**
- * The phone layout: three tabs under a floating glass tab bar, results as
- * cards that open in a sheet, and bookmarks. App owns the search state and
- * hands it in, so this and the desktop layout are two views of one search.
+ * The app layout: three tabs, results as cards, and bookmarks. On a phone
+ * the tabs sit under a floating glass tab bar and a result opens in a sheet.
+ * Installed on an iPad or a computer, the tab bar becomes a sidebar and, from
+ * iPad-landscape width, the open result gets its own pane beside the list.
+ * App owns the search state and hands it in, so this and the desktop layout
+ * are two views of one search.
  */
 export default function MobileApp({
     hasSearched,
@@ -110,6 +125,7 @@ export default function MobileApp({
     similarSeed,
     onMoreLike,
     onLeaveSimilar,
+    onRunRecent,
 }: MobileAppProps) {
     // In the URL like the other settings, so a reload or coming back from
     // /stats returns to the tab you were on.
@@ -121,7 +137,21 @@ export default function MobileApp({
     const [openResult, setOpenResult] = useState<Result | null>(null);
     const [toast, setToast] = useState<Toast | null>(null);
 
+    const online = useOnline();
+    // Only the installed app is this wide in the shell (see useAppShell).
+    const sidebar = useMediaQuery(SIDEBAR_QUERY);
+    const wide = useMediaQuery(SPLIT_QUERY);
+    // Settings has nothing to show beside it, so it gets the full width.
+    const split = wide && tab !== "settings";
+    const tabPadding = sidebar ? SIDEBAR_PADDING : TAB_PADDING;
+
     const bookmarks = useBookmarks();
+
+    // Someone with saved passages is worth protecting from storage eviction.
+    const hasBookmarks = bookmarks.length > 0;
+    useEffect(() => {
+        if (hasBookmarks) void requestPersistentStorage();
+    }, [hasBookmarks]);
     // Matches by API id and by the older url+text key, so passages saved
     // before results carried ids still show as saved.
     const savedIds = useMemo(() => savedKeySet(bookmarks), [bookmarks]);
@@ -236,6 +266,22 @@ export default function MobileApp({
         onMoreLike(result);
     };
 
+    const offlineNotice = !online && (
+        <div
+            role="status"
+            className="gs-fade mb-3 flex items-start gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5"
+        >
+            <WifiOff className="mt-0.5 h-5 w-5 flex-none text-primary" />
+            <p className="text-[15px] leading-snug text-muted-foreground">
+                <span className="font-semibold text-foreground">
+                    You’re offline.
+                </span>{" "}
+                Saved passages and recent searches still open; new searches
+                will work again once you’re connected.
+            </p>
+        </div>
+    );
+
     const similarBanner = similarSeed && (
         <div className="gs-fade mb-3 flex items-center gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] py-2.5 pl-4 pr-1.5">
             <Sparkles className="h-5 w-5 flex-none text-primary" />
@@ -258,10 +304,34 @@ export default function MobileApp({
         </div>
     );
 
+    const openKey = openResult ? bookmarkId(openResult) : null;
+    const isOpen = (result: Result) =>
+        split && openKey !== null && bookmarkId(result) === openKey;
+
     return (
-        <div className="mobile-app relative isolate min-h-dvh">
+        <div
+            className={cn(
+                "mobile-app relative isolate min-h-dvh",
+                sidebar && "flex items-start",
+            )}
+        >
             <div aria-hidden="true" className="app-wash" />
 
+            {sidebar && (
+                <Sidebar
+                    tab={tab}
+                    onSelect={selectTab}
+                    savedCount={bookmarks.length}
+                />
+            )}
+
+            {/* The tabs' column. With the sidebar it's capped at a reading
+                width; the document still does the scrolling. */}
+            <div
+                className={cn(
+                    sidebar && "mx-auto w-full min-w-0 max-w-[44rem] flex-1 px-2",
+                )}
+            >
             {/* Search stays mounted (and merely hidden) on the other tabs so
                 the query, results and any in-flight request survive. */}
             <div
@@ -269,7 +339,7 @@ export default function MobileApp({
                 aria-label="Search"
                 className={cn(
                     "pt-[env(safe-area-inset-top)]",
-                    TAB_PADDING,
+                    tabPadding,
                     tab !== "search" &&
                         "pointer-events-none invisible fixed inset-0 overflow-hidden",
                 )}
@@ -322,6 +392,7 @@ export default function MobileApp({
                 </div>
 
                 <div className="px-4 pt-1">
+                    {offlineNotice}
                     <ActiveFilters
                         variant="sheet"
                         filters={filters}
@@ -345,6 +416,10 @@ export default function MobileApp({
                                     }
                                 />
                             </div>
+                            <RecentSearches
+                                onRun={onRunRecent}
+                                online={online}
+                            />
                             {bookmarks.length === 0 ? (
                                 // First visit: say what the Saved tab is for.
                                 <div className="mt-2 flex items-start gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5">
@@ -378,6 +453,7 @@ export default function MobileApp({
                                                 key={b.id}
                                                 result={b.result}
                                                 saved
+                                                selected={isOpen(b.result)}
                                                 onOpen={() =>
                                                     setOpenResult(b.result)
                                                 }
@@ -420,6 +496,7 @@ export default function MobileApp({
                                         key={`${bookmarkId(result)}-${index}`}
                                         result={result}
                                         saved={isSaved(savedIds, result)}
+                                        selected={isOpen(result)}
                                         onOpen={() => setOpenResult(result)}
                                         onToggleSaved={() =>
                                             toggleSaved(result)
@@ -454,10 +531,11 @@ export default function MobileApp({
                 <div
                     role="tabpanel"
                     aria-label="Saved"
-                    className={cn("gs-fade", TAB_PADDING)}
+                    className={cn("gs-fade", tabPadding)}
                 >
                     <SavedTab
                         bookmarks={bookmarks}
+                        isOpen={isOpen}
                         onOpen={setOpenResult}
                         onToggleSaved={toggleSaved}
                         onNotify={notify}
@@ -469,7 +547,7 @@ export default function MobileApp({
                 <div
                     role="tabpanel"
                     aria-label="Settings"
-                    className={cn("gs-fade", TAB_PADDING)}
+                    className={cn("gs-fade", tabPadding)}
                 >
                     <SettingsTab
                         savedCount={bookmarks.length}
@@ -478,11 +556,41 @@ export default function MobileApp({
                 </div>
             )}
 
-            <TabBar
-                tab={tab}
-                onSelect={selectTab}
-                savedCount={bookmarks.length}
-            />
+            </div>
+
+            {split && (
+                <aside className="sticky top-0 flex h-dvh w-[min(40vw,34rem)] flex-none flex-col pr-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+                    {openResult ? (
+                        <ResultSheet
+                            // A fresh pane (scrolled to the top, context
+                            // collapsed) for each passage.
+                            key={openKey}
+                            variant="pane"
+                            result={openResult}
+                            savedIds={savedIds}
+                            onClose={() => setOpenResult(null)}
+                            onToggleSaved={toggleSaved}
+                            onNotify={notify}
+                            onMoreLike={moreLike}
+                        />
+                    ) : (
+                        <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[30px] border border-dashed border-border px-8 text-center">
+                            <BookOpen className="h-8 w-8 text-muted-foreground/70" />
+                            <p className="text-[15px] text-muted-foreground">
+                                Choose a passage to read it here.
+                            </p>
+                        </div>
+                    )}
+                </aside>
+            )}
+
+            {!sidebar && (
+                <TabBar
+                    tab={tab}
+                    onSelect={selectTab}
+                    savedCount={bookmarks.length}
+                />
+            )}
 
             <FilterSheet
                 open={filtersOpen}
@@ -499,7 +607,9 @@ export default function MobileApp({
             />
 
             <ResultSheet
-                result={openResult}
+                // Wide screens read in the pane (hidden on Settings), never
+                // in a modal.
+                result={wide ? null : openResult}
                 savedIds={savedIds}
                 onClose={() => setOpenResult(null)}
                 onToggleSaved={toggleSaved}

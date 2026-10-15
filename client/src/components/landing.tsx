@@ -3,9 +3,18 @@ import ThemeToggle from "./theme-toggle";
 
 interface LandingProps {
     setBackendRunning: (running: boolean) => void;
+    /**
+     * Called instead of showing an error when there's no network path to the
+     * API (offline, or the request never got a response). The app shell
+     * passes it so it can open in offline mode with saved passages.
+     */
+    onUnreachable?: () => void;
 }
 
-export default function Landing({ setBackendRunning }: LandingProps) {
+export default function Landing({
+    setBackendRunning,
+    onUnreachable,
+}: LandingProps) {
     const [error, setError] = useState<string>("");
 
     useEffect(() => {
@@ -15,6 +24,10 @@ export default function Landing({ setBackendRunning }: LandingProps) {
                 setError(
                     "API domain is not set. Please check your environment variables.",
                 );
+                return;
+            }
+            if (!navigator.onLine && onUnreachable) {
+                onUnreachable();
                 return;
             }
             try {
@@ -30,13 +43,17 @@ export default function Landing({ setBackendRunning }: LandingProps) {
             } catch (error) {
                 console.error("Error checking backend status:", error);
                 setBackendRunning(false);
+                if (onUnreachable) {
+                    onUnreachable();
+                    return;
+                }
                 setError(
                     "Failed to connect to the backend. Please wait a few minutes and try again.",
                 );
             }
         };
         checkBackendStatus();
-    }, [setBackendRunning]);
+    }, [setBackendRunning, onUnreachable]);
 
     return (
         <div className="gs-fade flex min-h-screen flex-col">

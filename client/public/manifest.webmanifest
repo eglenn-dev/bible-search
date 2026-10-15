@@ -1,4 +1,5 @@
 {
+    "id": "/",
     "name": "Gospel Help",
     "short_name": "Gospel Help",
     "description": "Semantic search across the Scriptures, General Conference addresses, BYU Speeches, and the General Handbook.",
@@ -7,6 +8,7 @@
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#ffffff",
+    "categories": ["books", "education", "reference"],
     "icons": [
         { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
         { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
@@ -15,6 +17,22 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Search",
+            "short_name": "Search",
+            "description": "Start a new search",
+            "url": "/?tab=search",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        },
+        {
+            "name": "Saved passages",
+            "short_name": "Saved",
+            "description": "Open the passages you've saved",
+            "url": "/?tab=saved",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
         }
     ]
 }

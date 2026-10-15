@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
     BarChart3,
     ChevronRight,
+    Download,
     Monitor,
     Moon,
     Plug,
@@ -10,8 +11,9 @@ import {
     Sun,
     Trash2,
 } from "lucide-react";
+import { promptInstall, useInstall } from "@/lib/install";
 import { useTheme } from "@/lib/theme";
-import { isStandalone } from "@/lib/use-is-mobile";
+import { MANUAL_STEPS } from "../install-button";
 import McpDialog from "../mcp-dialog";
 import Segmented from "./segmented";
 
@@ -47,6 +49,7 @@ export default function SettingsTab({
     onClearSaved,
 }: SettingsTabProps) {
     const { theme, setTheme } = useTheme();
+    const { installed, canPrompt, manual } = useInstall();
     // Clearing every bookmark takes a second tap; the prompt times out.
     const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -121,18 +124,39 @@ export default function SettingsTab({
                     </Group>
                 )}
 
-                {!isStandalone() && (
-                    <div className="flex items-start gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5">
-                        <SquarePlus className="mt-0.5 h-5 w-5 flex-none text-primary" />
-                        <p className="text-[15px] leading-snug text-muted-foreground">
-                            <span className="font-semibold text-foreground">
-                                Add to Home Screen
-                            </span>{" "}
-                            from your browser’s share menu to open Gospel Help
-                            full-screen, like an app.
-                        </p>
-                    </div>
-                )}
+                {!installed &&
+                    (canPrompt ? (
+                        <Group label="App">
+                            <button
+                                type="button"
+                                onClick={() => void promptInstall()}
+                                className={row}
+                            >
+                                <Download className="h-5 w-5 flex-none text-primary" />
+                                <span className="flex-1">
+                                    Install Gospel Help
+                                </span>
+                                <ChevronRight className="h-5 w-5 flex-none text-muted-foreground" />
+                            </button>
+                        </Group>
+                    ) : (
+                        <div className="flex items-start gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5">
+                            <SquarePlus className="mt-0.5 h-5 w-5 flex-none text-primary" />
+                            <p className="text-[15px] leading-snug text-muted-foreground">
+                                <span className="font-semibold text-foreground">
+                                    {manual === "mac-safari"
+                                        ? "Add to Dock"
+                                        : "Add to Home Screen"}
+                                </span>{" "}
+                                to open Gospel Help full-screen, like an app,
+                                with your saved passages and recent searches
+                                available offline.{" "}
+                                {manual
+                                    ? MANUAL_STEPS[manual]
+                                    : "Look for it in your browser’s menu."}
+                            </p>
+                        </div>
+                    ))}
 
                 <p className="px-4 text-center text-[13px] leading-relaxed text-muted-foreground">
                     &copy; {new Date().getFullYear()} Gospel Help

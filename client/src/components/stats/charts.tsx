@@ -2,7 +2,7 @@
 // the shapes are simple enough that hand-rolled SVG keeps the bundle small and
 // the styling on-theme (all colors come from CSS custom properties).
 
-import { useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { fmt } from "../../lib/stats";
 import { hideTip, showTip } from "./tooltip";
 
@@ -16,14 +16,18 @@ export interface BarRow {
     tip?: string;
 }
 
-export function BarList({ rows }: { rows: BarRow[] }) {
+export function BarList({ rows, wide = false }: { rows: BarRow[]; wide?: boolean }) {
     const max = Math.max(...rows.map((r) => r.value));
     return (
         <div>
             {rows.map((r, i) => (
                 <div
                     key={i}
-                    className="my-2 grid grid-cols-[minmax(120px,50%)_1fr] items-center gap-2.5 sm:grid-cols-[minmax(125px,42%)_1fr]"
+                    className={`my-2 grid items-center gap-2.5 ${
+                        wide
+                            ? "grid-cols-[minmax(120px,50%)_1fr] sm:grid-cols-[minmax(150px,24%)_1fr]"
+                            : "grid-cols-[minmax(120px,50%)_1fr] sm:grid-cols-[minmax(125px,42%)_1fr]"
+                    }`}
                     onMouseMove={r.tip ? (ev) => showTip(ev, r.tip!) : undefined}
                     onMouseLeave={r.tip ? hideTip : undefined}
                 >
@@ -75,8 +79,9 @@ export function LineChart({
 }: LineChartProps) {
     const svgRef = useRef<SVGSVGElement>(null);
     const [cursor, setCursor] = useState<number | null>(null);
-
-    const w = 480;
+    // Draw in real pixels so axis text stays the same size whether the chart
+    // fills a half-width column or the full page.
+    const w = useWidth(svgRef, 480);
     const h = height;
     const P = { l: 50, r: 10, t: 10, b: 26 };
     const xs = series[0].map((p) => p[0]);
@@ -110,7 +115,12 @@ export function LineChart({
     };
 
     const yTicks = [0, 1, 2, 3, 4].map((i) => yMin + ((yMax - yMin) * i) / 4);
-    const xStep = Math.ceil(xs.length / 6);
+    const xStep = Math.ceil(xs.length / Math.max(3, Math.floor(w / 90)));
+    const last = xs.length - 1;
+    // Stepped labels, plus the final year — minus any stepped label that
+    // would collide with it.
+    const showX = (i: number) =>
+        i === last || (i % xStep === 0 && X(xs[last]) - X(xs[i]) >= 64);
 
     return (
         <svg
@@ -143,12 +153,12 @@ export function LineChart({
                 </g>
             ))}
             {xs.map((x, i) =>
-                i % xStep === 0 || i === xs.length - 1 ? (
+                showX(i) ? (
                     <text
                         key={x}
                         x={X(x)}
                         y={h - 7}
-                        textAnchor="middle"
+                        textAnchor={i === last ? "end" : "middle"}
                         className="fill-muted-foreground text-[14px]"
                     >
                         {x}
@@ -199,33 +209,31 @@ export function LineChart({
     );
 }
 
-// --- Sparkline panel (word trends) ----------------------------------------
+// --- Sparkline row (word trends) -----------------------------------------
 
-export function SparkPanel({
+export function SparkRow({
     term,
     points,
 }: {
     term: string;
     points: [number, number][];
 }) {
-    const w = 210;
-    const h = 56;
+    const w = 200;
+    const h = 36;
     const yMax = Math.max(...points.map((p) => p[1])) || 1;
     const X = (i: number) => 2 + (i / (points.length - 1)) * (w - 4);
-    const Y = (v: number) => 4 + (1 - v / yMax) * (h - 8);
+    const Y = (v: number) => 3 + (1 - v / yMax) * (h - 6);
     const d = points
         .map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(p[1]).toFixed(1)}`)
         .join("");
     const peak = points.reduce((a, b) => (b[1] > a[1] ? b : a));
     return (
-        <div className="rounded-lg border border-border bg-card px-3 pb-1.5 pt-2.5">
-            <div className="font-display text-[19px] font-medium leading-snug">{term}</div>
-            <div className="text-[14px] text-muted-foreground">
-                peak {peak[0]} · {peak[1]}/M
-            </div>
+        <div className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_auto] sm:gap-4 border-b border-border/70 py-2">
+            <div className="font-display text-[18px] leading-tight">{term}</div>
             <svg
                 viewBox={`0 0 ${w} ${h}`}
-                className="block h-auto w-full"
+                preserveAspectRatio="none"
+                className="block h-9 w-full"
                 onMouseMove={(ev) => {
                     const rect = (ev.target as SVGElement)
                         .closest("svg")!
@@ -255,16 +263,16 @@ export function SparkPanel({
                     d={d}
                     fill="none"
                     stroke="var(--primary)"
-                    strokeWidth={1.8}
+                    strokeWidth={1.6}
                     strokeLinejoin="round"
-                />
-                <circle
-                    cx={X(points.length - 1)}
-                    cy={Y(points[points.length - 1][1])}
-                    r={2.5}
-                    fill="var(--primary)"
+                    vectorEffect="non-scaling-stroke"
                 />
             </svg>
+            <div className="w-[4.75rem] text-right text-[13px] leading-tight tabular-nums text-muted-foreground">
+                peak {peak[0]}
+                <br />
+                {peak[1]}/M
+            </div>
         </div>
     );
 }
@@ -352,20 +360,48 @@ export function SpanChart({
     );
 }
 
-// --- Misc -----------------------------------------------------------------
+// --- Layout ---------------------------------------------------------------
 
-export function Tile({ value, label }: { value: string; label: string }) {
+/** Track an element's rendered width (falls back until first measured). */
+function useWidth(ref: RefObject<Element | null>, fallback: number) {
+    const [w, setW] = useState(fallback);
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const ro = new ResizeObserver(([entry]) =>
+            setW(Math.max(260, Math.round(entry.contentRect.width))),
+        );
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [ref]);
+    return w;
+}
+
+export function BigNumber({
+    value,
+    label,
+    size = "lg",
+}: {
+    value: string;
+    label: string;
+    size?: "lg" | "sm";
+}) {
     return (
-        <div className="rounded-lg border border-border bg-card px-4 py-3.5">
-            <div className="font-display text-[34px] font-medium leading-tight tabular-nums">
+        <div className="min-w-0">
+            <div
+                className={`font-display font-medium leading-none tabular-nums ${
+                    size === "lg" ? "text-[40px] sm:text-[48px]" : "text-[26px] sm:text-[28px]"
+                }`}
+            >
                 {value}
             </div>
-            <div className="mt-1 text-[15px] text-muted-foreground">{label}</div>
+            <div className="mt-2 text-[15px] text-muted-foreground">{label}</div>
         </div>
     );
 }
 
-export function StatCard({
+/** One chart or list: a hairline rule, a title, a caption, then the content. */
+export function Figure({
     title,
     sub,
     children,
@@ -377,10 +413,14 @@ export function StatCard({
     className?: string;
 }) {
     return (
-        <div className={`rounded-xl border border-border bg-card px-5 pb-5 pt-4 ${className}`}>
-            <h3 className="font-display text-2xl font-medium leading-snug">{title}</h3>
-            {sub && <p className="mb-4 mt-1 text-[15px] text-muted-foreground">{sub}</p>}
-            {children}
-        </div>
+        <figure className={`min-w-0 border-t border-border pt-5 ${className}`}>
+            <h3 className="font-display text-[23px] font-medium leading-snug">{title}</h3>
+            {sub && (
+                <p className="mt-1 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
+                    {sub}
+                </p>
+            )}
+            <div className="mt-5">{children}</div>
+        </figure>
     );
 }

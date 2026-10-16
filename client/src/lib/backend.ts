@@ -20,19 +20,20 @@ export interface BackendStatus {
 async function check(): Promise<string | null> {
     const base = import.meta.env.VITE_API_DOMAIN;
     if (!base) return "API domain is not set. Check your environment variables.";
+    if (!navigator.onLine) return "You’re offline.";
     try {
         const response = await fetch(`${base}/`);
         return response.ok ? null : "The search service is unavailable.";
     } catch (error) {
         console.error("Error checking backend status:", error);
-        return "Can't reach the search service.";
+        return "Can’t reach the search service.";
     }
 }
 
 /**
  * Pings the API's health check in the background so the app can render
  * immediately instead of behind a connecting screen. While it's down the
- * check repeats every few seconds, and recovers on its own.
+ * check repeats every few seconds, and right away when the network returns.
  */
 export function useBackendStatus(): BackendStatus {
     const [status, setStatus] = useState<BackendStatus["status"]>("unknown");
@@ -65,6 +66,11 @@ export function useBackendStatus(): BackendStatus {
             clearTimeout(retryTimer);
         };
     }, [attempt, retry]);
+
+    useEffect(() => {
+        window.addEventListener("online", retry);
+        return () => window.removeEventListener("online", retry);
+    }, [retry]);
 
     return { status, error, checking, slow, retry };
 }

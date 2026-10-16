@@ -10,6 +10,8 @@ export interface BackendStatus {
     status: "unknown" | "up" | "down";
     /** Why the last check failed, for the toast. */
     error: string;
+    /** The last check got no response at all (offline, or no route to the API). */
+    unreachable: boolean;
     /** A check is in flight. */
     checking: boolean;
     /** The first check is taking long enough to be worth mentioning. */
@@ -17,16 +19,28 @@ export interface BackendStatus {
     retry: () => void;
 }
 
-async function check(): Promise<string | null> {
+interface CheckFailure {
+    error: string;
+    unreachable: boolean;
+}
+
+async function check(): Promise<CheckFailure | null> {
     const base = import.meta.env.VITE_API_DOMAIN;
-    if (!base) return "API domain is not set. Check your environment variables.";
-    if (!navigator.onLine) return "You’re offline.";
+    if (!base)
+        return {
+            error: "API domain is not set. Check your environment variables.",
+            unreachable: false,
+        };
+    if (!navigator.onLine)
+        return { error: "You’re offline.", unreachable: true };
     try {
         const response = await fetch(`${base}/`);
-        return response.ok ? null : "The search service is unavailable.";
+        return response.ok
+            ? null
+            : { error: "The search service is unavailable.", unreachable: false };
     } catch (error) {
         console.error("Error checking backend status:", error);
-        return "Can’t reach the search service.";
+        return { error: "Can’t reach the search service.", unreachable: true };
     }
 }
 
@@ -38,6 +52,7 @@ async function check(): Promise<string | null> {
 export function useBackendStatus(): BackendStatus {
     const [status, setStatus] = useState<BackendStatus["status"]>("unknown");
     const [error, setError] = useState("");
+    const [unreachable, setUnreachable] = useState(false);
     const [checking, setChecking] = useState(true);
     const [slow, setSlow] = useState(false);
     const [attempt, setAttempt] = useState(0);
@@ -56,7 +71,8 @@ export function useBackendStatus(): BackendStatus {
             clearTimeout(slowTimer);
             setSlow(false);
             setChecking(false);
-            setError(failure ?? "");
+            setError(failure?.error ?? "");
+            setUnreachable(failure?.unreachable ?? false);
             setStatus(failure ? "down" : "up");
             if (failure) retryTimer = setTimeout(retry, RETRY_MS);
         });
@@ -72,5 +88,5 @@ export function useBackendStatus(): BackendStatus {
         return () => window.removeEventListener("online", retry);
     }, [retry]);
 
-    return { status, error, checking, slow, retry };
+    return { status, error, unreachable, checking, slow, retry };
 }

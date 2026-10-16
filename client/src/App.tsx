@@ -57,10 +57,6 @@ export default function App() {
     const backend = useBackendStatus();
     const online = useOnline();
     const searchDisabled = backend.status === "down" && online;
-    // When `?similar=` may load: once the backend is up, or right away
-    // offline (its cached copy may answer).
-    const ready =
-        backend.status === "up" || (backend.status === "down" && !online);
     const [scriptureRef, setScriptureRef] = useState<string>("");
     // Why the last filter-driven re-run failed (e.g. the API's "filters not
     // available yet" 503), shown above the now-stale results.
@@ -70,6 +66,13 @@ export default function App() {
     // this component drives both. A browser tab on an iPad or laptop keeps the
     // desktop layout.
     const appShell = useAppShell();
+    // When `?similar=` may load: once the backend is up, or right away when
+    // its cached copy may answer instead (offline, or the app shell got no
+    // response from the API at all).
+    const ready =
+        backend.status === "up" ||
+        (backend.status === "down" &&
+            (!online || (appShell && backend.unreachable)));
     // The desktop Saved panel (phones have their own Saved tab).
     const [savedOpen, setSavedOpen] = useState<boolean>(false);
     const savedCount = useBookmarks().length;

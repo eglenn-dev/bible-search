@@ -21,13 +21,14 @@ import ResultsCount from "./components/results-count";
 import SourcesFilter from "./components/sources-filter";
 import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
-import Landing from "./components/landing";
+import BackendToast from "./components/backend-toast";
 import ConferenceBanner from "./components/conference-banner";
 import ThemeToggle from "./components/theme-toggle";
 import MobileApp from "./components/mobile/mobile-app";
 import SavedDrawer, { SavedButton } from "./components/saved-drawer";
 import SharedCollection from "./components/shared-collection";
 import { useBookmarks } from "./lib/bookmarks";
+import { useBackendStatus } from "./lib/backend";
 import { shareTokenFromHash } from "./lib/share";
 import { useIsMobile } from "./lib/use-is-mobile";
 import { cn } from "./lib/utils";
@@ -46,7 +47,11 @@ export default function App() {
     const [results, setResults] = useState<Result[]>([]);
     const [hasSearched, setHasSearched] = useState<boolean>(false);
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
-    const [backendRunning, setBackendRunning] = useState<boolean>(false);
+    // Checked in the background: the UI renders right away, and only a
+    // backend that can't be reached disables searching (with a toast).
+    const backend = useBackendStatus();
+    const backendUp = backend.status === "up";
+    const searchDisabled = backend.status === "down";
     const [scriptureRef, setScriptureRef] = useState<string>("");
     // Why the last filter-driven re-run failed (e.g. the API's "filters not
     // available yet" 503), shown above the now-stale results.
@@ -202,7 +207,7 @@ export default function App() {
     // sets the param), Back/Forward, and a reload or shared link once the
     // backend is up.
     useEffect(() => {
-        if (!backendRunning || similar === shownSimilar.current) return;
+        if (!backendUp || similar === shownSimilar.current) return;
         const previous = shownSimilar.current;
         shownSimilar.current = similar;
         if (similar) {
@@ -226,7 +231,7 @@ export default function App() {
         }
         // Only when the param (or backend readiness) changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [similar, backendRunning]);
+    }, [similar, backendUp]);
 
     // Pushed (not replaced) so Back returns to the results it came from.
     const showSimilar = (result: Result) => {
@@ -318,22 +323,15 @@ export default function App() {
         if (toSaved && !isMobile) setSavedOpen(true);
     };
 
-    // Checked before the backend: a shared collection carries its own
-    // passages, so it opens even while the API is still waking up.
+    // A shared collection carries its own passages, so it opens even while
+    // the API is still waking up.
     if (shareToken)
         return <SharedCollection token={shareToken} onClose={closeShared} />;
 
     const savedDrawer = !isMobile && (
         <SavedDrawer open={savedOpen} onOpenChange={setSavedOpen} />
     );
-
-    if (!backendRunning)
-        return (
-            <>
-                <Landing setBackendRunning={setBackendRunning} />
-                {savedDrawer}
-            </>
-        );
+    const backendToast = <BackendToast backend={backend} mobile={isMobile} />;
 
     const modeToggle = (compact: boolean) => (
         <div className="inline-flex rounded-md border border-input bg-card p-0.5">
@@ -373,6 +371,7 @@ export default function App() {
                 setResults={handleSearchResults}
                 compact={hasSearched}
                 mobile={isMobile}
+                disabled={searchDisabled}
             />
         ) : (
             <ScriptureBox
@@ -384,38 +383,42 @@ export default function App() {
                 setResults={handleSearchResults}
                 compact={hasSearched}
                 mobile={isMobile}
+                disabled={searchDisabled}
             />
         );
 
     if (isMobile) {
         return (
-            <MobileApp
-                hasSearched={hasSearched}
-                results={sortedResults}
-                activeQuery={activeQuery}
-                queryType={queryType}
-                onQueryTypeChange={setQueryType}
-                searchInput={searchInput}
-                sources={sources}
-                // Before the first search a filter change is only a setting;
-                // after it, it re-runs the query like the desktop sidebar.
-                onSourcesChange={hasSearched ? handleSidebarSources : setSources}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                resultCount={resultCount}
-                onResultCountChange={setResultCount}
-                sourceCounts={sourceCounts}
-                filters={filters}
-                onFiltersChange={hasSearched ? handleFiltersChange : setFilters}
-                searchError={searchError}
-                canLoadMore={canLoadMore}
-                loadingMore={loadingMore}
-                onLoadMore={handleLoadMore}
-                onGoHome={goHome}
-                similarSeed={similarSeed}
-                onMoreLike={showSimilar}
-                onLeaveSimilar={() => setSimilar(null)}
-            />
+            <>
+                <MobileApp
+                    hasSearched={hasSearched}
+                    results={sortedResults}
+                    activeQuery={activeQuery}
+                    queryType={queryType}
+                    onQueryTypeChange={setQueryType}
+                    searchInput={searchInput}
+                    sources={sources}
+                    // Before the first search a filter change is only a setting;
+                    // after it, it re-runs the query like the desktop sidebar.
+                    onSourcesChange={hasSearched ? handleSidebarSources : setSources}
+                    sortBy={sortBy}
+                    onSortChange={setSortBy}
+                    resultCount={resultCount}
+                    onResultCountChange={setResultCount}
+                    sourceCounts={sourceCounts}
+                    filters={filters}
+                    onFiltersChange={hasSearched ? handleFiltersChange : setFilters}
+                    searchError={searchError}
+                    canLoadMore={canLoadMore}
+                    loadingMore={loadingMore}
+                    onLoadMore={handleLoadMore}
+                    onGoHome={goHome}
+                    similarSeed={similarSeed}
+                    onMoreLike={showSimilar}
+                    onLeaveSimilar={() => setSimilar(null)}
+                />
+                {backendToast}
+            </>
         );
     }
 
@@ -562,6 +565,7 @@ export default function App() {
                 </div>
                 <Footer />
                 {savedDrawer}
+                {backendToast}
             </div>
         );
     }
@@ -607,6 +611,7 @@ export default function App() {
             </main>
             <Footer />
             {savedDrawer}
+            {backendToast}
         </div>
     );
 }

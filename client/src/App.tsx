@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type {
     Result,
     ResultCount,
@@ -22,7 +22,7 @@ import ResultsCount from "./components/results-count";
 import SourcesFilter from "./components/sources-filter";
 import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
-import Landing from "./components/landing";
+import BackendToast from "./components/backend-toast";
 import ConferenceBanner from "./components/conference-banner";
 import ThemeToggle from "./components/theme-toggle";
 import InstallButton from "./components/install-button";
@@ -30,6 +30,8 @@ import MobileApp from "./components/mobile/mobile-app";
 import SavedDrawer, { SavedButton } from "./components/saved-drawer";
 import SharedCollection from "./components/shared-collection";
 import { useBookmarks } from "./lib/bookmarks";
+import { useBackendStatus } from "./lib/backend";
+import { useOnline } from "./lib/use-online";
 import { shareTokenFromHash } from "./lib/share";
 import { useAppShell } from "./lib/use-is-mobile";
 import { cn } from "./lib/utils";
@@ -48,13 +50,13 @@ export default function App() {
     const [results, setResults] = useState<Result[]>([]);
     const [hasSearched, setHasSearched] = useState<boolean>(false);
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
-    const [backendRunning, setBackendRunning] = useState<boolean>(false);
-    // The app shell opened with no way to reach the API (offline, or the
-    // health check got no response). It runs anyway: saved passages and
-    // cached recent searches need no network, and new searches simply try.
-    const [offlineStart, setOfflineStart] = useState<boolean>(false);
-    const enterOffline = useCallback(() => setOfflineStart(true), []);
-    const ready = backendRunning || offlineStart;
+    // Checked in the background: the UI renders right away, and a backend
+    // that can't be reached disables searching (with a toast). Offline is
+    // different: saved passages and cached recent searches need no network,
+    // and the service worker may still answer a search, so it simply tries.
+    const backend = useBackendStatus();
+    const online = useOnline();
+    const searchDisabled = backend.status === "down" && online;
     const [scriptureRef, setScriptureRef] = useState<string>("");
     // Why the last filter-driven re-run failed (e.g. the API's "filters not
     // available yet" 503), shown above the now-stale results.
@@ -64,6 +66,13 @@ export default function App() {
     // this component drives both. A browser tab on an iPad or laptop keeps the
     // desktop layout.
     const appShell = useAppShell();
+    // When `?similar=` may load: once the backend is up, or right away when
+    // its cached copy may answer instead (offline, or the app shell got no
+    // response from the API at all).
+    const ready =
+        backend.status === "up" ||
+        (backend.status === "down" &&
+            (!online || (appShell && backend.unreachable)));
     // The desktop Saved panel (phones have their own Saved tab).
     const [savedOpen, setSavedOpen] = useState<boolean>(false);
     const savedCount = useBookmarks().length;
@@ -352,25 +361,15 @@ export default function App() {
         if (toSaved && !appShell) setSavedOpen(true);
     };
 
-    // Checked before the backend: a shared collection carries its own
-    // passages, so it opens even while the API is still waking up.
+    // A shared collection carries its own passages, so it opens even while
+    // the API is still waking up.
     if (shareToken)
         return <SharedCollection token={shareToken} onClose={closeShared} />;
 
     const savedDrawer = !appShell && (
         <SavedDrawer open={savedOpen} onOpenChange={setSavedOpen} />
     );
-
-    if (!ready)
-        return (
-            <>
-                <Landing
-                    setBackendRunning={setBackendRunning}
-                    onUnreachable={appShell ? enterOffline : undefined}
-                />
-                {savedDrawer}
-            </>
-        );
+    const backendToast = <BackendToast backend={backend} appShell={appShell} />;
 
     const modeToggle = (compact: boolean) => (
         <div className="inline-flex rounded-md border border-input bg-card p-0.5">
@@ -410,6 +409,7 @@ export default function App() {
                 setResults={handleSearchResults}
                 compact={hasSearched}
                 mobile={appShell}
+                disabled={searchDisabled}
             />
         ) : (
             <ScriptureBox
@@ -421,39 +421,43 @@ export default function App() {
                 setResults={handleSearchResults}
                 compact={hasSearched}
                 mobile={appShell}
+                disabled={searchDisabled}
             />
         );
 
     if (appShell) {
         return (
-            <MobileApp
-                hasSearched={hasSearched}
-                results={sortedResults}
-                activeQuery={activeQuery}
-                queryType={queryType}
-                onQueryTypeChange={setQueryType}
-                searchInput={searchInput}
-                sources={sources}
-                // Before the first search a filter change is only a setting;
-                // after it, it re-runs the query like the desktop sidebar.
-                onSourcesChange={hasSearched ? handleSidebarSources : setSources}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                resultCount={resultCount}
-                onResultCountChange={setResultCount}
-                sourceCounts={sourceCounts}
-                filters={filters}
-                onFiltersChange={hasSearched ? handleFiltersChange : setFilters}
-                searchError={searchError}
-                canLoadMore={canLoadMore}
-                loadingMore={loadingMore}
-                onLoadMore={handleLoadMore}
-                onGoHome={goHome}
-                similarSeed={similarSeed}
-                onMoreLike={showSimilar}
-                onLeaveSimilar={() => setSimilar(null)}
-                onRunRecent={runRecent}
-            />
+            <>
+                <MobileApp
+                    hasSearched={hasSearched}
+                    results={sortedResults}
+                    activeQuery={activeQuery}
+                    queryType={queryType}
+                    onQueryTypeChange={setQueryType}
+                    searchInput={searchInput}
+                    sources={sources}
+                    // Before the first search a filter change is only a setting;
+                    // after it, it re-runs the query like the desktop sidebar.
+                    onSourcesChange={hasSearched ? handleSidebarSources : setSources}
+                    sortBy={sortBy}
+                    onSortChange={setSortBy}
+                    resultCount={resultCount}
+                    onResultCountChange={setResultCount}
+                    sourceCounts={sourceCounts}
+                    filters={filters}
+                    onFiltersChange={hasSearched ? handleFiltersChange : setFilters}
+                    searchError={searchError}
+                    canLoadMore={canLoadMore}
+                    loadingMore={loadingMore}
+                    onLoadMore={handleLoadMore}
+                    onGoHome={goHome}
+                    similarSeed={similarSeed}
+                    onMoreLike={showSimilar}
+                    onLeaveSimilar={() => setSimilar(null)}
+                    onRunRecent={runRecent}
+                />
+                {backendToast}
+            </>
         );
     }
 
@@ -600,6 +604,7 @@ export default function App() {
                 </div>
                 <Footer />
                 {savedDrawer}
+                {backendToast}
             </div>
         );
     }
@@ -646,6 +651,7 @@ export default function App() {
             </main>
             <Footer />
             {savedDrawer}
+            {backendToast}
         </div>
     );
 }

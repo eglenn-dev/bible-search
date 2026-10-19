@@ -1,7 +1,6 @@
 import { useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
-    Download,
     Monitor,
     Moon,
     Plug,
@@ -10,10 +9,10 @@ import {
     XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useInstallPrompt } from "@/lib/install";
+import { useInstall } from "@/lib/install";
 import { useTheme, type Theme } from "@/lib/theme";
-import { isStandalone } from "@/lib/use-is-mobile";
 import { cn } from "@/lib/utils";
+import InstallButton from "./install-button";
 import McpDialog from "./mcp-dialog";
 
 const THEME_OPTIONS: { key: Theme; label: string; Icon: typeof Sun }[] = [
@@ -46,39 +45,17 @@ function Section({
     );
 }
 
+// Main's InstallButton (native prompt, or Safari's menu steps), shown only
+// where installing is possible.
 function InstallSection() {
-    const state = useInstallPrompt();
-    if (state.kind === "none") return null;
+    const { installed, canPrompt, manual } = useInstall();
+    if (installed || (!canPrompt && !manual)) return null;
     return (
         <Section
             title="Install app"
-            description="Open Gospel Help in its own window, straight from your dock or taskbar."
+            description="Open Gospel Help in its own window, with your saved passages and recent searches available offline."
         >
-            {state.kind === "prompt" ? (
-                <Button size="sm" onClick={() => void state.install()}>
-                    <Download />
-                    Install Gospel Help
-                </Button>
-            ) : (
-                <p className="text-sm text-foreground">
-                    {state.kind === "safari" ? (
-                        <>
-                            In Safari, choose{" "}
-                            <span className="font-semibold">
-                                File → Add to Dock
-                            </span>
-                            .
-                        </>
-                    ) : (
-                        <>
-                            Click the install icon at the end of the address
-                            bar, or choose{" "}
-                            <span className="font-semibold">Install</span>{" "}
-                            from the browser menu.
-                        </>
-                    )}
-                </p>
-            )}
+            <InstallButton />
         </Section>
     );
 }
@@ -86,7 +63,8 @@ function InstallSection() {
 /**
  * The desktop's settings: an icon button that opens a panel from the right
  * (like Saved) holding the theme, the MCP connection, and, in a browser tab,
- * installing the app. Phones have their own Settings tab.
+ * installing the app. Phones and the installed app use the app shell's
+ * Settings tab instead.
  */
 export default function SettingsSheet() {
     const { theme, setTheme } = useTheme();
@@ -168,7 +146,7 @@ export default function SettingsSheet() {
                             />
                         </Section>
 
-                        {!isStandalone() && <InstallSection />}
+                        <InstallSection />
                     </div>
                 </DialogPrimitive.Content>
             </DialogPrimitive.Portal>

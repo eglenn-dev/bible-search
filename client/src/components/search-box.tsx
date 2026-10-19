@@ -16,6 +16,8 @@ interface SearchBoxProps {
     compact?: boolean;
     // Inside the mobile shell: render the glass search field instead.
     mobile?: boolean;
+    // The backend can't be reached; App shows why in a toast.
+    disabled?: boolean;
 }
 
 export default function SearchBox({
@@ -27,6 +29,7 @@ export default function SearchBox({
     setResults,
     compact = false,
     mobile = false,
+    disabled = false,
 }: SearchBoxProps) {
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
@@ -59,6 +62,7 @@ export default function SearchBox({
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (disabled) return;
         if (!query) {
             setError("Please enter a search query.");
             return;
@@ -105,6 +109,7 @@ export default function SearchBox({
                     onSubmit={handleSubmit}
                     placeholder="seek, and ye shall find…"
                     loading={loading}
+                    disabled={disabled}
                 />
                 {error && (
                     <div className="mt-2 px-4 text-sm text-destructive">
@@ -137,7 +142,7 @@ export default function SearchBox({
             />
             <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || disabled}
                 className={cn(
                     "inline-flex shrink-0 items-center gap-1.5 rounded-[2px] bg-primary text-primary-foreground transition-colors hover:bg-primary-strong disabled:opacity-70",
                     compact

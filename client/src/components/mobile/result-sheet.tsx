@@ -17,6 +17,7 @@ import {
 } from "@/lib/result-display";
 import { cn } from "@/lib/utils";
 import PassageContext from "../passage-context";
+import Pane from "./pane";
 import Sheet from "./sheet";
 
 interface ResultSheetProps {
@@ -28,9 +29,17 @@ interface ResultSheetProps {
     onNotify: (message: string) => void;
     /** "More like this": search from this passage. */
     onMoreLike: (result: Result) => void;
+    /**
+     * "sheet" (default): a modal bottom sheet. "pane": the split view's
+     * column beside the results, shown only while `result` is set.
+     */
+    variant?: "sheet" | "pane";
 }
 
-/** Full text of one passage, with bookmark / share / open-source actions. */
+/**
+ * Full text of one passage, with bookmark / share / open-source actions: in a
+ * sheet on phones, or in the split view's pane on wide screens.
+ */
 export default function ResultSheet({
     result: current,
     savedIds,
@@ -38,6 +47,7 @@ export default function ResultSheet({
     onToggleSaved,
     onNotify,
     onMoreLike,
+    variant = "sheet",
 }: ResultSheetProps) {
     // Hold on to the last passage so the sheet still has content to show
     // while it animates out after `result` goes back to null.
@@ -77,8 +87,12 @@ export default function ResultSheet({
     const pill =
         "flex h-10 items-center gap-1.5 rounded-full bg-foreground/[0.08] px-4 text-[15px] font-semibold text-primary transition-transform active:scale-95";
 
+    // The pane has no exit animation to hold the last passage for.
+    const Container = variant === "pane" ? Pane : Sheet;
+    if (variant === "pane" && !current) return null;
+
     return (
-        <Sheet
+        <Container
             open={current !== null}
             onOpenChange={(open) => {
                 if (!open) onClose();
@@ -177,6 +191,6 @@ export default function ResultSheet({
                     </button>
                 </div>
             )}
-        </Sheet>
+        </Container>
     );
 }

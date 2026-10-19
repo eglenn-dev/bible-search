@@ -19,6 +19,8 @@ import Sheet from "./sheet";
 
 interface SavedTabProps {
     bookmarks: Bookmark[];
+    /** Whether a passage is the one showing in the split view's pane. */
+    isOpen: (result: Result) => boolean;
     onOpen: (result: Result) => void;
     onToggleSaved: (result: Result) => void;
     onNotify: (message: string) => void;
@@ -35,6 +37,7 @@ const row =
 
 export default function SavedTab({
     bookmarks,
+    isOpen,
     onOpen,
     onToggleSaved,
     onNotify,
@@ -129,6 +132,7 @@ export default function SavedTab({
                             key={bookmark.id}
                             result={bookmark.result}
                             saved
+                            selected={isOpen(bookmark.result)}
                             onOpen={() => onOpen(bookmark.result)}
                             onToggleSaved={() => onToggleSaved(bookmark.result)}
                             footnote={`Saved ${savedDate.format(bookmark.savedAt)}`}

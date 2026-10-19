@@ -27,7 +27,6 @@ import {
 import { headingFor } from "@/lib/result-display";
 import { hasFilters } from "@/lib/speakers";
 import { cn } from "@/lib/utils";
-import ConferenceBanner from "../conference-banner";
 import { ActiveFilters } from "../speaker-year-filter";
 import FilterSheet from "./filter-sheet";
 import ResultCard from "./result-card";
@@ -338,13 +337,6 @@ export default function MobileApp({
                     )}
                     {!hasSearched ? (
                         <div className="gs-fade flex flex-col">
-                            <div className="mt-3 flex justify-center">
-                                <ConferenceBanner
-                                    onSelect={() =>
-                                        onSourcesChange(["conference"])
-                                    }
-                                />
-                            </div>
                             {bookmarks.length === 0 ? (
                                 // First visit: say what the Saved tab is for.
                                 <div className="mt-2 flex items-start gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5">

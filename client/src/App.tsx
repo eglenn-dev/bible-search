@@ -19,11 +19,9 @@ import RenderResults from "./components/render-results";
 import FilterSidebar from "./components/filter-sidebar";
 import ResultsCount from "./components/results-count";
 import SourcesFilter from "./components/sources-filter";
-import McpDialog from "./components/mcp-dialog";
 import Footer from "./components/footer";
 import Landing from "./components/landing";
-import ConferenceBanner from "./components/conference-banner";
-import ThemeToggle from "./components/theme-toggle";
+import SettingsSheet from "./components/settings-sheet";
 import MobileApp from "./components/mobile/mobile-app";
 import SavedDrawer, { SavedButton } from "./components/saved-drawer";
 import SharedCollection from "./components/shared-collection";
@@ -457,7 +455,7 @@ export default function App() {
                                 count={savedCount}
                                 onClick={() => setSavedOpen(true)}
                             />
-                            <ThemeToggle compact />
+                            <SettingsSheet />
                         </div>
                     </div>
                 </header>
@@ -568,8 +566,10 @@ export default function App() {
 
     return (
         <div className="flex min-h-screen flex-col">
-            <main className="gs-fade flex w-full flex-grow flex-col items-center justify-center px-6 py-12">
-                <ConferenceBanner onSelect={() => setSources(["conference"])} />
+            <div className="flex justify-end px-5 pt-4">
+                <SettingsSheet />
+            </div>
+            <main className="gs-fade flex w-full flex-grow flex-col items-center justify-center px-6 pb-12 pt-4">
                 <h1 className="mb-3 text-center font-display text-4xl text-foreground sm:text-5xl md:text-[56px]">
                     Gospel Help
                 </h1>
@@ -590,7 +590,6 @@ export default function App() {
                         count={savedCount}
                         onClick={() => setSavedOpen(true)}
                     />
-                    <ThemeToggle />
                 </div>
 
                 {/* Speaker/year filters are set from the results sidebar; if
@@ -600,10 +599,6 @@ export default function App() {
                     onChange={setFilters}
                     className="mt-4 justify-center"
                 />
-
-                <div className="mt-8 flex justify-center">
-                    <McpDialog />
-                </div>
             </main>
             <Footer />
             {savedDrawer}

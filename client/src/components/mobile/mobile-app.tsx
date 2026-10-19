@@ -33,7 +33,6 @@ import { requestPersistentStorage } from "@/lib/storage";
 import { SIDEBAR_QUERY, SPLIT_QUERY, useMediaQuery } from "@/lib/use-is-mobile";
 import { useOnline } from "@/lib/use-online";
 import { cn } from "@/lib/utils";
-import ConferenceBanner from "../conference-banner";
 import { ActiveFilters } from "../speaker-year-filter";
 import FilterSheet from "./filter-sheet";
 import RecentSearches from "./recent-searches";
@@ -409,13 +408,6 @@ export default function MobileApp({
                     )}
                     {!hasSearched ? (
                         <div className="gs-fade flex flex-col">
-                            <div className="mt-3 flex justify-center">
-                                <ConferenceBanner
-                                    onSelect={() =>
-                                        onSourcesChange(["conference"])
-                                    }
-                                />
-                            </div>
                             <RecentSearches
                                 onRun={onRunRecent}
                                 online={online}

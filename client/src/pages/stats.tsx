@@ -3,7 +3,7 @@
 // formats and charts them.
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import Footer from "../components/footer";
 import ThemeToggle from "../components/theme-toggle";
 import {

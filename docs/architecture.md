@@ -18,7 +18,7 @@
    GET /search · /search/by-reference · /search/similar · /passage/context · /verse · /
         ▲
         │  fetch
- React + Vite + Tailwind  (client/)
+ TanStack Start + Tailwind  (client/)
    unified search box · source filter chips · source-tagged result cards
 ```
 
@@ -138,10 +138,11 @@ Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (requir
 
 ## Frontend (`client/`)
 
-React 19 + Vite + Tailwind v4 + a few shadcn/ui primitives. Key pieces:
+React 19 + [TanStack Start](https://tanstack.com/start) (Vite) + Tailwind v4 + a few shadcn/ui primitives. Routes are files in `src/routes/` (`src/routeTree.gen.ts` is generated from them by the Vite plugin; don't edit it). The root route renders the document shell (head tags, the pre-paint theme script, analytics) on the server; `/` and `/stats` set `ssr: false` and render in the browser, since the layout depends on the viewport and the bookmarks/theme live in `localStorage`. Key pieces:
 
 | File | Responsibility |
 |---|---|
+| `src/routes/` | `__root.tsx` (document shell, `<head>`, theme script, nuqs adapter), `index.tsx` (`/` → `App`), `stats.tsx` (`/stats`), `$.tsx` (redirects unknown paths to `/`). `src/router.tsx` builds the router and keeps search params as plain strings for nuqs. |
 | `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`, and the "more like this" view (`?similar=<id>`, pushed to history so Back returns to the query's results; a reload or shared link re-runs it). |
 | `src/components/sources-filter.tsx` | The All / Bible / … filter chips. |
 | `src/components/search-box.tsx` | Natural-language search → `GET /search`. |

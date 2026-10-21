@@ -32,7 +32,7 @@ import { shareTokenFromHash } from "./lib/share";
 import { useIsMobile } from "./lib/use-is-mobile";
 import { cn } from "./lib/utils";
 import { Sparkles, X } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
     useQueryState,
     parseAsString,
@@ -307,14 +307,11 @@ export default function App() {
     // Leaving a shared collection drops the hash; after "Save all" it can go
     // straight to your own Saved list (the tab on phones, the panel here).
     const closeShared = (toSaved: boolean) => {
-        const params = new URLSearchParams(location.search);
+        const params = new URLSearchParams(location.searchStr);
         if (toSaved && isMobile) params.set("tab", "saved");
         const search = params.toString();
-        navigate({
-            pathname: location.pathname,
-            search: search ? `?${search}` : "",
-            hash: "",
-        });
+        // Navigating without a `hash` drops it.
+        navigate({ to: location.pathname + (search ? `?${search}` : "") });
         if (toSaved && !isMobile) setSavedOpen(true);
     };
 

@@ -13,8 +13,8 @@ import {
  * Owns the theme setting and keeps the <html> class in sync with it.
  *
  * The class is already correct on first paint (see the pre-paint script in
- * index.html), so the effects here are about *changes*: the user picking a new
- * setting, or the OS flipping while "system" is selected.
+ * src/routes/__root.tsx), so the effects here are about *changes*: the user
+ * picking a new setting, or the OS flipping while "system" is selected.
  */
 export default function ThemeProvider({
     children,

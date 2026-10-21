@@ -143,7 +143,7 @@ React 19 + [TanStack Start](https://tanstack.com/start) (Vite) + Tailwind v4 + a
 | File | Responsibility |
 |---|---|
 | `src/routes/` | `__root.tsx` (document shell, `<head>`, theme script, nuqs adapter), `index.tsx` (`/` → `App`), `stats.tsx` (`/stats`), `$.tsx` (redirects unknown paths to `/`). `src/router.tsx` builds the router and keeps search params as plain strings for nuqs. |
-| `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`, and the "more like this" view (`?similar=<id>`, pushed to history so Back returns to the query's results; a reload or shared link re-runs it). |
+| `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`, and the "more like this" view (`?similar=<id>`, pushed to history so Back returns to the query's results; a reload or shared link re-runs it). A link or reload with `?q=` (natural mode) likewise opens on that search's results, once the backend is ready or the app has opened offline. |
 | `src/components/sources-filter.tsx` | The All / Bible / … filter chips. |
 | `src/components/search-box.tsx` | Natural-language search → `GET /search`. |
 | `src/components/scripture-box.tsx` | Verse-reference search → `GET /search/by-reference`; validates/previews the reference (any Standard Work) via `GET /verse`, debounced. |

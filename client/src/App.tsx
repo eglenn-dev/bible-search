@@ -120,6 +120,11 @@ export default function App() {
     const shownSimilar = useRef<string | null>(null);
     // Only the latest similar request may land (fast clicks race).
     const similarRequest = useRef(0);
+    // Bumped whenever results land, so the search a link opens with can tell
+    // it was overtaken by one started in the meantime.
+    const resultsVersion = useRef(0);
+    // That search runs once per page load.
+    const openedQuery = useRef(false);
     // Speaker (a normalized name from /speakers) and an inclusive year range.
     const [speaker, setSpeaker] = useQueryState("speaker", parseAsString);
     const [yearFrom, setYearFrom] = useQueryState("from", parseAsInteger);
@@ -146,6 +151,7 @@ export default function App() {
     // Wraps setResults so any completed search (even one with no hits) flips
     // the page into the results layout.
     const handleResults = (next: Result[]) => {
+        resultsVersion.current++;
         setResults(next);
         setHasSearched(true);
         setSearchError(null);
@@ -243,6 +249,40 @@ export default function App() {
         // Only when the param (or backend readiness) changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [similar, ready]);
+
+    // A link or reload with `?q=` opens on that search's results, once the
+    // backend is up (or the app has opened offline, when the service worker
+    // answers from its cache). `?similar=` takes precedence (the effect
+    // above), and scripture mode keeps its reference out of the URL.
+    useEffect(() => {
+        if (!ready || openedQuery.current) return;
+        openedQuery.current = true;
+        if (similar || shareToken || queryType !== "natural" || !query.trim())
+            return;
+        const version = resultsVersion.current;
+        runSearch({
+            queryType,
+            query,
+            resultCount,
+            sources,
+            filters,
+        }).then(
+            (next) => {
+                if (resultsVersion.current === version) handleResults(next);
+            },
+            (e) => {
+                console.error("Error running the linked search:", e);
+                if (resultsVersion.current !== version) return;
+                // Show why in the results view, as a failed re-run does.
+                setHasSearched(true);
+                setSearchError(
+                    e instanceof Error ? e.message : "Failed to fetch results.",
+                );
+            },
+        );
+        // Once, when the backend becomes ready; the URL is read as it is then.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready]);
 
     // Pushed (not replaced) so Back returns to the results it came from.
     const showSimilar = (result: Result) => {
@@ -560,7 +600,8 @@ export default function App() {
                                 </p>
                             )}
                         </div>
-                        {results.length === 0 ? (
+                        {/* After a failed search the error above says why it's empty. */}
+                        {results.length === 0 && !searchError ? (
                             <p className="text-lg text-foreground/80">
                                 No results
                                 {similarSeed

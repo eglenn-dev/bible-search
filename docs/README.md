@@ -21,7 +21,7 @@ This `docs/` directory explains what the project is, how it works, and how to ex
 - **Backend:** Python / FastAPI (`api/`). Encodes *queries* with the active embedding model (`paraphrase-MiniLM-L3-v2` by default; `e5-small-v2` once migrated — see [embedding-migration.md](./embedding-migration.md)) via **onnxruntime** + `tokenizers` (no torch, no transformers; fits a 512 MB host); all text + embeddings live in MongoDB Atlas. Per-IP rate limited (slowapi).
 - **Database:** MongoDB Atlas (free M0) with **Atlas Vector Search**. One collection, `gospel_library.documents`, ~93k documents across six sources, ~193 MB.
 - **MCP:** the same deployment hosts a remote **MCP server at `/mcp`** (Streamable HTTP, tools auto-generated from the OpenAPI spec via FastMCP) — see [mcp.md](./mcp.md).
-- **Frontend:** React + Vite + Tailwind (`client/`). Unified search box, source filter chips, source-tagged result cards. "Classic & scholarly" theme.
+- **Frontend:** TanStack Start (React + Vite) + Tailwind (`client/`). Unified search box, source filter chips, source-tagged result cards. "Classic & scholarly" theme.
 - **Package manager:** [`uv`](https://docs.astral.sh/uv/) for the Python side.
 
 ## Quick start

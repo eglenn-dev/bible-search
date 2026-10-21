@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TanStack Start / Nitro build output
+.output
+.nitro
+.tanstack
+.vercel

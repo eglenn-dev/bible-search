@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useRegisterSW } from "virtual:pwa-register/react";
+import { useRegisterSW } from "@/lib/register-sw";
 
 // How often an open app checks for a new deploy. Installed apps can stay
 // open for days, so waiting for the next navigation isn't enough.

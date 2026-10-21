@@ -67,9 +67,9 @@ The same process hosts a remote MCP server at **`/mcp`**, so agents can use `sea
 
 ### Frontend Client (`client/`)
 
-React + Vite + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), a **speaker picker and year range** for Conference / BYU Speeches results, and source-tagged result cards that deep-link back to churchofjesuschrist.org. Any result can be expanded to read its surrounding verses or paragraphs in place, or used as the starting point for a "More like this" search (kept in the URL as `?similar=<id>`, so it can be shared or reloaded). Passages can be **bookmarked** on desktop and mobile (stored on the device), exported as Markdown, or shared as a link.
+[TanStack Start](https://tanstack.com/start) (React + Vite) + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), a **speaker picker and year range** for Conference / BYU Speeches results, and source-tagged result cards that deep-link back to churchofjesuschrist.org. Any result can be expanded to read its surrounding verses or paragraphs in place, or used as the starting point for a "More like this" search (kept in the URL as `?similar=<id>`, so it can be shared or reloaded). A search link (`?q=…`) opens straight on its results. Passages can be **bookmarked** on desktop and mobile (stored on the device), exported as Markdown, or shared as a link.
 
-It's also an installable **PWA**: a service worker (vite-plugin-pwa / Workbox) makes the app open offline with saved passages and recent searches still readable, and announces new versions with a "Reload" toast. Installed, it uses the Liquid Glass app layout at every screen size, with a sidebar and a split view on iPad and desktop; in a browser tab, wide screens keep the desktop layout. See [Offline (PWA)](./docs/architecture.md#offline-pwa).
+It's also an installable **PWA**: a Workbox service worker makes the app open offline with saved passages and recent searches still readable, and announces new versions with a "Reload" toast. Installed, it uses the Liquid Glass app layout at every screen size, with a sidebar and a split view on iPad and desktop; in a browser tab, wide screens keep the desktop layout. See [Offline (PWA)](./docs/architecture.md#offline-pwa).
 
 ## Getting Started Locally
 
@@ -162,4 +162,4 @@ Required at runtime:
 
 **Atlas network access:** serverless/free hosts use dynamic outbound IPs, so a single-IP allowlist won't work. Set Atlas → Network Access to `0.0.0.0/0` and rely on the DB credentials (the corpora are public content), or configure a static egress IP.
 
-The frontend builds to static files (deployed to GitHub Pages by `.github/workflows/deploy.yaml`) and needs `VITE_API_DOMAIN` pointing at the deployed API.
+The frontend is a TanStack Start app deployed to Vercel (project root `client/`): the `nitro()` Vite plugin emits Vercel's Build Output API, and `client/vercel.json` pins the `tanstack-start` framework preset. It needs `VITE_API_DOMAIN` pointing at the deployed API. Elsewhere, `npm run build && npm start` runs it as a plain Node server.

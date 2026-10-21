@@ -461,20 +461,23 @@ export default function MobileApp({
                     ) : results.length === 0 ? (
                         <>
                             {similarBanner}
-                            <p className="gs-fade px-1 pt-6 text-[17px] text-foreground/80">
-                                No results
-                                {similarSeed
-                                    ? ` like “${headingFor(similarSeed)}”`
-                                    : activeQuery
-                                      ? ` for “${activeQuery}”`
-                                      : ""}
-                                .{" "}
-                                <span className="text-muted-foreground">
-                                    {hasFilters(filters)
-                                        ? "Speaker and year filters only match Conference and BYU Speeches; try loosening them."
-                                        : "Try fewer or different words, or switch search mode."}
-                                </span>
-                            </p>
+                            {/* After a failed search the error above says why it's empty. */}
+                            {!searchError && (
+                                <p className="gs-fade px-1 pt-6 text-[17px] text-foreground/80">
+                                    No results
+                                    {similarSeed
+                                        ? ` like “${headingFor(similarSeed)}”`
+                                        : activeQuery
+                                          ? ` for “${activeQuery}”`
+                                          : ""}
+                                    .{" "}
+                                    <span className="text-muted-foreground">
+                                        {hasFilters(filters)
+                                            ? "Speaker and year filters only match Conference and BYU Speeches; try loosening them."
+                                            : "Try fewer or different words, or switch search mode."}
+                                    </span>
+                                </p>
+                            )}
                         </>
                     ) : (
                         <>

@@ -1,7 +1,7 @@
 // Theme plumbing shared by the provider, the toggle, and the pre-paint script
-// in index.html. Three settings — light, dark, and system (the default) —
-// where "system" tracks the OS `prefers-color-scheme` and keeps tracking it
-// as the user flips their OS setting.
+// in src/routes/__root.tsx. Three settings — light, dark, and system (the
+// default) — where "system" tracks the OS `prefers-color-scheme` and keeps
+// tracking it as the user flips their OS setting.
 //
 // The rendered theme is expressed as a single `dark` class on <html>, which is
 // what the `dark` variant in index.css keys off. `color-scheme` rides along in
@@ -15,7 +15,7 @@ export type ResolvedTheme = "light" | "dark";
 
 export const DEFAULT_THEME: Theme = "system";
 
-// Keep in sync with the pre-paint script in index.html.
+// Keep in sync with the pre-paint script in src/routes/__root.tsx.
 export const THEME_STORAGE_KEY = "gs-theme";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
@@ -57,7 +57,8 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
     return theme;
 }
 
-// --background in each theme; keep in sync with index.css and index.html.
+// --background in each theme; keep in sync with index.css and
+// src/routes/__root.tsx.
 const THEME_COLORS: Record<ResolvedTheme, string> = {
     light: "#ffffff",
     dark: "#17181a",

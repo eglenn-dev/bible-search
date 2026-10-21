@@ -18,7 +18,7 @@
    GET /search · /search/by-reference · /search/similar · /passage/context · /verse · /
         ▲
         │  fetch
- React + Vite + Tailwind  (client/)
+ TanStack Start + Tailwind  (client/)
    unified search box · source filter chips · source-tagged result cards
 ```
 
@@ -138,11 +138,12 @@ Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (requir
 
 ## Frontend (`client/`)
 
-React 19 + Vite + Tailwind v4 + a few shadcn/ui primitives. Key pieces:
+React 19 + [TanStack Start](https://tanstack.com/start) (Vite) + Tailwind v4 + a few shadcn/ui primitives. Routes are files in `src/routes/` (`src/routeTree.gen.ts` is generated from them by the Vite plugin; don't edit it). The root route renders the document shell (head tags, the pre-paint theme script, analytics) on the server; `/` and `/stats` set `ssr: false` and render in the browser, since the layout depends on the viewport and the bookmarks/theme live in `localStorage`. Key pieces:
 
 | File | Responsibility |
 |---|---|
-| `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`, and the "more like this" view (`?similar=<id>`, pushed to history so Back returns to the query's results; a reload or shared link re-runs it). |
+| `src/routes/` | `__root.tsx` (document shell, `<head>`, theme script, nuqs adapter), `index.tsx` (`/` → `App`), `stats.tsx` (`/stats`), `$.tsx` (redirects unknown paths to `/`). `src/router.tsx` builds the router and keeps search params as plain strings for nuqs. |
+| `src/App.tsx` | Layout, mode toggle (Natural / Scripture Reference), holds the selected `sources`, and the "more like this" view (`?similar=<id>`, pushed to history so Back returns to the query's results; a reload or shared link re-runs it). A link or reload with `?q=` (natural mode) likewise opens on that search's results, once the backend is ready or the app has opened offline. |
 | `src/components/sources-filter.tsx` | The All / Bible / … filter chips. |
 | `src/components/search-box.tsx` | Natural-language search → `GET /search`. |
 | `src/components/scripture-box.tsx` | Verse-reference search → `GET /search/by-reference`; validates/previews the reference (any Standard Work) via `GET /verse`, debounced. |
@@ -174,13 +175,13 @@ The API base URL comes from `VITE_API_DOMAIN` (build/dev-time env). The frontend
 
 ### Offline (PWA)
 
-`vite-plugin-pwa` generates a Workbox service worker at build time (config in `client/vite.config.ts`):
+A Workbox service worker (`sw.js`) is generated at the end of the build by the `serviceWorker()` plugin in `client/vite.config.ts`, which runs `workbox-build` over the final static output (`.output/public`, or `.vercel/output/static` on Vercel). `src/lib/register-sw.ts` registers it (production builds only) via `workbox-window`:
 
-- **App shell:** every built asset and `index.html` is precached; navigations fall back to `index.html`, so the app opens with no network.
+- **App shell:** every built asset and the SPA shell (`/_shell.html`, prerendered by TanStack Start's SPA mode) is precached; navigations are answered with the shell, which boots the client router at whatever URL was opened, so the app opens with no network. (That's every navigation once the worker is installed, online too, as `index.html` was before; first visits get the server-rendered page.)
 - **API responses** (runtime caching, keyed by full request URL, on the API's own origin from `VITE_API_DOMAIN`): searches (`/search`, `/search/by-reference`, `/search/similar`) are *network-first* with the cache as the offline fallback (80 entries, 30 days); `/passage/context` is *cache-first* (600 entries; saving a passage pre-fetches its context so it reads fully offline); `/stats` and `/speakers` are *stale-while-revalidate*. Google Fonts are cached too. `/` (health) and `/verse` (fires per keystroke) are not cached.
 - **Recent searches:** `runSearch` records each completed search's parameters (`lib/recent-searches.ts`). The start screen lists the last five; tapping one restores its settings and re-issues the identical URL (`searchUrl`), so offline it is answered from the cache. Offline, entries the cache doesn't hold are greyed out (`caches.match`).
 - **Offline start:** in the app shell, if the health check gets no response (or the browser is offline) `Landing` hands off to `App`'s `offlineStart` instead of showing the error, and the shell shows a "You're offline" notice. The desktop browser layout keeps the old error screen.
-- **Updates:** `registerType: "prompt"`; a new deploy installs in the background (checked hourly while open) and waits until the user taps **Reload** in the update toast. `clientsClaim` lets the very first visit's searches be cached.
+- **Updates:** `skipWaiting` stays off; a new deploy installs in the background (checked hourly while open) and waits until the user taps **Reload** in the update toast. `clientsClaim` lets the very first visit's searches be cached.
 - **Storage:** saving a passage calls `navigator.storage.persist()` (once per visit), so the browser doesn't evict bookmarks and their cached context under storage pressure.
 
 ## Ingestion pipeline (`api/ingest/`)

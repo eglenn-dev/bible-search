@@ -3,8 +3,8 @@
 // own button open the native install dialog later. Safari never fires it, so
 // there the button explains the browser's own menu instead.
 //
-// Imported for its side effect from main.tsx: the event can fire before React
-// mounts, and a listener added later would miss it.
+// Imported for its side effect from src/routes/__root.tsx: the event can fire
+// before React mounts, and a listener added later would miss it.
 
 import { useSyncExternalStore } from "react";
 import { isStandalone } from "./use-is-mobile";

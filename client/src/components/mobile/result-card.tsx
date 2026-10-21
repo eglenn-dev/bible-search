@@ -17,6 +17,8 @@ interface ResultCardProps {
     showScore?: boolean;
     /** Replaces the score in the footer (the Saved tab's "Saved 12 Oct"). */
     footnote?: string;
+    /** Showing in the split view's passage pane. */
+    selected?: boolean;
     style?: React.CSSProperties;
 }
 
@@ -27,6 +29,7 @@ export default function ResultCard({
     onToggleSaved,
     showScore = false,
     footnote,
+    selected = false,
     style,
 }: ResultCardProps) {
     const heading = headingFor(result);
@@ -35,7 +38,13 @@ export default function ResultCard({
     return (
         <article
             style={style}
-            className="relative rounded-[22px] border border-border/70 bg-[var(--app-card)] p-4 shadow-[0_1px_3px_rgba(16,60,78,0.05)] transition-transform duration-150 has-[.card-hit:active]:scale-[0.985]"
+            aria-current={selected || undefined}
+            className={cn(
+                "relative rounded-[22px] border bg-[var(--app-card)] p-4 shadow-[0_1px_3px_rgba(16,60,78,0.05)] transition-[transform,border-color,box-shadow] duration-150 has-[.card-hit:active]:scale-[0.985]",
+                selected
+                    ? "border-primary/60 ring-1 ring-primary/40"
+                    : "border-border/70",
+            )}
         >
             {/* The whole card opens the passage; the bookmark button sits
                 above this hit area so it stays its own target. */}

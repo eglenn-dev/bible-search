@@ -153,20 +153,36 @@ React 19 + [TanStack Start](https://tanstack.com/start) (Vite) + Tailwind v4 + a
 | `src/lib/types.ts` | `Source` union + `Result`/`ResultMetadata` types, `SearchFilters`. |
 | `src/components/speaker-year-filter.tsx` | Speaker combobox (fed by `GET /speakers`, via `src/lib/speakers.ts`), year-range selects and the removable active-filter chips; used by the desktop sidebar and the mobile filter sheet. State lives in the URL (`speaker`, `from`, `to`). |
 | `src/index.css` | "Classic & scholarly" theme tokens + serif fonts. |
-| `src/components/mobile/` | The phone layout (see below): `mobile-app.tsx` is the shell; the rest are its tab bar, sheets, cards and controls. |
+| `src/components/mobile/` | The app layout (see below): `mobile-app.tsx` is the shell; the rest are its tab bar / sidebar, sheets and pane, cards and controls. |
 | `src/lib/bookmarks.ts` | Saved passages, kept in `localStorage` (`gs-bookmarks`). |
+| `src/lib/recent-searches.ts` | Recent searches (parameters only), kept in `localStorage` (`gs-recent-searches`). |
+| `src/lib/use-is-mobile.ts` | `useAppShell` (which layout to render) and the shell's wide-layout media queries. |
+| `src/lib/install.ts`, `src/components/install-button.tsx` | "Install app": the captured `beforeinstallprompt`, or Safari's menu steps. |
+| `src/components/update-toast.tsx` | Registers the service worker; "A new version is ready · Reload". |
 
 The API base URL comes from `VITE_API_DOMAIN` (build/dev-time env). The frontend deep-links results straight to churchofjesuschrist.org using the `url` the backend stored, so it needs no per-source URL logic.
 
-### Mobile shell
+### App shell (phones and the installed app)
 
-Below Tailwind's `md` breakpoint (`useIsMobile`, 48rem) `App.tsx` renders `MobileApp` instead of the desktop layouts. `App` still owns the search state and passes it down, so both are views of the same search and resizing the window keeps your results.
+`App.tsx` renders `MobileApp` instead of the desktop layouts below Tailwind's `md` breakpoint (48rem) **and whenever the site runs as an installed app**, at any size (`useAppShell`: `display-mode: standalone` / `fullscreen` / `window-controls-overlay`, or iOS's `navigator.standalone`). So an iPad or laptop gets the desktop layout in a browser tab and the Liquid Glass app once installed. `App` still owns the search state and passes it down, so both are views of the same search and resizing the window keeps your results.
 
-- **Tabs:** Search, Saved, Settings, under a floating tab bar. The active tab is the `?tab=` query param.
-- **Results** are cards; tapping one opens the full passage in a bottom sheet with Save / Share / Read (the link out to the source), plus "Read surrounding verses" / "Show context" (expands the passage in place) and "More like this".
+- **Tabs:** Search, Saved, Settings. The active tab is the `?tab=` query param (the manifest's Search / Saved shortcuts open `/?tab=search` and `/?tab=saved`).
+- **Wide layouts** (only reachable installed): from 48rem the floating tab bar becomes a glass **sidebar** and the tab content is capped at a reading width; from 64rem (iPad landscape, desktop) an open result shows in a **pane** beside the list (`mobile/pane.tsx`, the same `ResultSheet` with `variant="pane"`) instead of a sheet, with the open card highlighted. Settings gets the full width.
+- **Results** are cards; tapping one opens the full passage (a bottom sheet on narrower screens) with Save / Share / Read (the link out to the source), plus "Read surrounding verses" / "Show context" (expands the passage in place) and "More like this".
 - **Bookmarks** are per-device: `lib/bookmarks.ts` stores each saved result whole in `localStorage`, so the Saved tab needs no API call. There are no accounts and nothing syncs. A bookmark is keyed by the result's API `id`; ones saved before results carried ids keep their older url+text-hash key, and `isSaved` / `findBookmark` match either.
 - **Liquid Glass** is CSS only: the `.glass` / `.glass-thick` classes and `--glass-*` tokens in `index.css` (translucent fill, `backdrop-filter` blur, a lit rim). It is used for floating controls, not for the result cards, and falls back to opaque panes where blur is unsupported or the user has asked for reduced transparency.
-- **Installable:** `public/manifest.webmanifest` plus the `apple-mobile-web-app-*` tags make "Add to Home Screen" open it full-screen. There is no service worker, so it does not work offline.
+- **Installable:** `public/manifest.webmanifest` plus the `apple-mobile-web-app-*` tags make "Add to Home Screen" open it full-screen. Settings (and the desktop hero) offer **Install app**: the native dialog where the browser fires `beforeinstallprompt` (Chrome, Edge, Android), or the Share › Add to Home Screen / File › Add to Dock steps on Safari.
+
+### Offline (PWA)
+
+A Workbox service worker (`sw.js`) is generated at the end of the build by the `serviceWorker()` plugin in `client/vite.config.ts`, which runs `workbox-build` over the final static output (`.output/public`, or `.vercel/output/static` on Vercel). `src/lib/register-sw.ts` registers it (production builds only) via `workbox-window`:
+
+- **App shell:** every built asset and the SPA shell (`/_shell.html`, prerendered by TanStack Start's SPA mode) is precached; navigations are answered with the shell, which boots the client router at whatever URL was opened, so the app opens with no network. (That's every navigation once the worker is installed, online too, as `index.html` was before; first visits get the server-rendered page.)
+- **API responses** (runtime caching, keyed by full request URL, on the API's own origin from `VITE_API_DOMAIN`): searches (`/search`, `/search/by-reference`, `/search/similar`) are *network-first* with the cache as the offline fallback (80 entries, 30 days); `/passage/context` is *cache-first* (600 entries; saving a passage pre-fetches its context so it reads fully offline); `/stats` and `/speakers` are *stale-while-revalidate*. Google Fonts are cached too. `/` (health) and `/verse` (fires per keystroke) are not cached.
+- **Recent searches:** `runSearch` records each completed search's parameters (`lib/recent-searches.ts`). The start screen lists the last five; tapping one restores its settings and re-issues the identical URL (`searchUrl`), so offline it is answered from the cache. Offline, entries the cache doesn't hold are greyed out (`caches.match`).
+- **Offline start:** in the app shell, if the health check gets no response (or the browser is offline) `Landing` hands off to `App`'s `offlineStart` instead of showing the error, and the shell shows a "You're offline" notice. The desktop browser layout keeps the old error screen.
+- **Updates:** `skipWaiting` stays off; a new deploy installs in the background (checked hourly while open) and waits until the user taps **Reload** in the update toast. `clientsClaim` lets the very first visit's searches be cached.
+- **Storage:** saving a passage calls `navigator.storage.persist()` (once per visit), so the browser doesn't evict bookmarks and their cached context under storage pressure.
 
 ## Ingestion pipeline (`api/ingest/`)
 

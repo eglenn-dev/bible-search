@@ -5,7 +5,7 @@ import type {
     SearchFilters,
     Source,
 } from "./types";
-import { apiError, filtersParam } from "./search";
+import { apiError, apiFetch, filtersParam } from "./search";
 
 // Requests that start from one passage (by its stable API id) rather than from
 // a query: "More like this" and its surrounding context.
@@ -20,7 +20,7 @@ export async function runSimilar(params: {
     filters?: SearchFilters;
 }): Promise<{ seed: Result; results: Result[] }> {
     const { id, resultCount, sources, filters } = params;
-    const response = await fetch(
+    const response = await apiFetch(
         `${import.meta.env.VITE_API_DOMAIN}/search/similar?id=${encodeURIComponent(
             id,
         )}&k=${resultCount}${sources.length ? `&sources=${sources.join(",")}` : ""}` +

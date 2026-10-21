@@ -18,6 +18,8 @@ interface ScriptureBoxProps {
     compact?: boolean;
     // Inside the mobile shell: render the glass search field instead.
     mobile?: boolean;
+    // The backend can't be reached; App shows why in a toast.
+    disabled?: boolean;
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -36,6 +38,7 @@ export default function ScriptureBox({
     setResults,
     compact = false,
     mobile = false,
+    disabled = false,
 }: ScriptureBoxProps) {
     const [query, setQuery] = useState(parentRef);
     const [loading, setLoading] = useState(false);
@@ -95,6 +98,7 @@ export default function ScriptureBox({
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (disabled) return;
         if (!inputVerse) {
             setError("Please enter a valid reference.");
             return;
@@ -132,7 +136,7 @@ export default function ScriptureBox({
                     onSubmit={handleSubmit}
                     placeholder="Alma 32:21 or D&C 4:2"
                     loading={loading}
-                    disabled={!inputVerse}
+                    disabled={!inputVerse || disabled}
                 />
                 {error && (
                     <div className="mt-2 px-4 text-sm text-destructive">
@@ -177,7 +181,7 @@ export default function ScriptureBox({
             />
             <button
                 type="submit"
-                disabled={loading || !inputVerse}
+                disabled={loading || !inputVerse || disabled}
                 className={cn(
                     "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[2px] bg-primary text-primary-foreground transition-colors hover:bg-primary-strong disabled:opacity-70",
                     compact

@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import {
+    ClientOnly,
     createRootRoute,
     HeadContent,
     Outlet,
@@ -8,7 +9,10 @@ import {
 } from "@tanstack/react-router";
 import { NuqsAdapter } from "nuqs/adapters/tanstack-router";
 import ThemeProvider from "@/components/theme-provider";
+import UpdateToast from "@/components/update-toast";
 import appCss from "@/index.css?url";
+// Before anything renders: catches the install prompt however early it fires.
+import "@/lib/install";
 
 const TITLE = "Gospel Help — Gospel Library Search";
 const GA_ID = "G-6E2J3P6RJS";
@@ -144,6 +148,10 @@ function RootComponent() {
             <NuqsAdapter>
                 <Outlet />
             </NuqsAdapter>
+            {/* Registers the service worker, so browser-only. */}
+            <ClientOnly>
+                <UpdateToast />
+            </ClientOnly>
         </ThemeProvider>
     );
 }

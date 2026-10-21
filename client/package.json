@@ -39,6 +39,8 @@
     "tw-animate-css": "^1.3.5",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "workbox-build": "^7.4.1",
+    "workbox-window": "^7.4.1"
   }
 }

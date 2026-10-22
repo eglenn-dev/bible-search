@@ -1,9 +1,9 @@
 """MongoDB Atlas access layer for the Gospel Library search API.
 
 All corpora (bible, conference, handbook) live in a single collection whose
-documents carry one 384-dim vector field per embedding version (``embedding``
-for v1, ``embedding_v2`` for v2), each with its own Atlas Vector Search index.
-The active version (see ``embeddings.py``) decides which field/index is queried.
+documents carry one 384-dim vector field per embedding version (today just
+``embedding_v2`` for v2), each with its own Atlas Vector Search index. The
+active version (see ``embeddings.py``) decides which field/index is queried.
 The API never loads the dataset or the embeddings into process memory; it only
 issues ``$vectorSearch`` aggregations against Atlas.
 """

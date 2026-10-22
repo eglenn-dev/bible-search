@@ -1,8 +1,10 @@
 # Embedding model upgrade: v1 → v2
 
-How the API can switch from `paraphrase-MiniLM-L3-v2` (**v1**) to `intfloat/e5-small-v2` (**v2**) without downtime, and how to roll it back. The vectors for each version live in their own document field with their own Atlas Vector Search index, so cutover and rollback are a config flip.
+How the API switched from `paraphrase-MiniLM-L3-v2` (**v1**) to `intfloat/e5-small-v2` (**v2**) without downtime, and how v1 was then retired. The vectors for each version live in their own document field with their own Atlas Vector Search index, so cutover and rollback are a config flip. The same steps apply to the next model upgrade (v2 → v3).
 
-| | v1 (current) | v2 (candidate) |
+**Status:** complete. v2 went live on 2026-10-14 (PR #19). v1 was retired on 2026-10-22: its code was removed, its `vector_index` dropped and its `embedding` field unset. **There is no v1 rollback any more**; restoring v1 would mean re-adding it to `embeddings.VERSIONS` and re-embedding the corpus.
+
+| | v1 (retired) | v2 (current) |
 |---|---|---|
 | Model | `sentence-transformers/paraphrase-MiniLM-L3-v2` | `intfloat/e5-small-v2` |
 | Pooling / prefixes | mean / none | mean / `query: ` and `passage: ` |
@@ -12,7 +14,7 @@ How the API can switch from `paraphrase-MiniLM-L3-v2` (**v1**) to `intfloat/e5-s
 | Index | `vector_index` (cosine, scalar quantization) | `vector_index_v2` (cosine, no `quantization` because the vectors are already int8) |
 | Recency-lift default | `0.06` | `0.012` |
 
-Everything is defined in `api/embeddings.py` (versions) and `api/encoder.py` (models).
+Versions are defined in `api/embeddings.py` and models in `api/encoder.py` (`paraphrase-MiniLM-L3-v2` stays there as a model, for evals, but is no longer a version).
 
 ## Why e5-small-v2
 
@@ -33,6 +35,9 @@ Memory: the API's peak RSS during a 20-query run plus a burst of 4 concurrent ~5
 | v1, after (tokenizers only, serialized inference) | ~353–369 MB |
 | v2 (int8 query model) | ~307 MB |
 | v2 with the fp32 query model (not used) | ~465 MB |
+| v2 only, after v1's retirement (October 22, same 20-query + burst run, two samples) | ~322–331 MiB |
+
+The API only ever loads the active version's model, so retiring v1 did not change its memory. The later figure is a little higher than the first v2 run, most likely because the app had grown in between; it is comfortably under 512 MB.
 
 ## Storage (Atlas free tier: 512 MB = uncompressed BSON + index bytes)
 
@@ -40,17 +45,20 @@ As of October 2026 there are 137,117 docs: data is 352.7 MB and indexes are 2.4 
 
 * A float32 `embedding_v2` alongside `embedding` would add 137k × ~1.55 KB ≈ **+213 MB, about 569 MB in total. That is over the cap.**
 * An int8 `embedding_v2` adds 137k × 405 B ≈ **+56 MB, about 412 MB in total.** This fits, with ~100 MB of headroom.
-* After cutover, dropping v1 (unsetting `embedding` and dropping `vector_index`) frees about 203 MB, leaving about 210 MB in total.
+* After cutover, dropping v1 (unsetting `embedding` and dropping `vector_index`) frees about 203 MB, leaving about 210 MB in total. Before the drop, on 2026-10-22, `ingest.run --stats` reported data=407 MB, index=2 MB.
+* The next model upgrade can follow the same plan: at ~210 MB there is room to backfill another int8 field (~56 MB) alongside v2.
 
 Storing int8 costs no measurable recall on the proxy (cosine ignores the per-vector scale). `ingest.reembed` refuses to start if its projection leaves less than 40 MB of headroom.
 
 ## Runbook
 
+How v1 → v2 was run. For a future upgrade, substitute the new version (e.g. v3) for v2 and v2 for v1, and first add the new version to `embeddings.VERSIONS`, `ingest.stats.STRONG_ECHO_COSINE` and the Dockerfile's `PREFETCH_EMBEDDING_VERSIONS` (list both versions while both are in use).
+
 All commands run from `api/` with `api/.env` loaded. Steps 2, 3 and 6 write to Atlas.
 
 ```bash
-# 0. Ship this code first. It is inert until EMBEDDING_VERSION changes: the default is v1.
-#    Rebuild the image, which bakes in both v1 and v2 query models.
+# 0. Ship this code first. It is inert until EMBEDDING_VERSION changes: the default stays the old version.
+#    Rebuild the image, which bakes in both versions' query models.
 
 # 1. Check coverage (read-only), then a dry run (reads and embeds, writes nothing)
 uv run python -m ingest.reembed --version v2 --status
@@ -70,8 +78,19 @@ EMBEDDING_WRITE_VERSIONS=v1,v2 uv run python -m ingest.sync
 # 5. Cutover: set EMBEDDING_VERSION=v2 on the API host and restart.
 #    Rollback: unset it (or set v1) and restart.
 
-# 6. Later, once v2 has settled (separate decision): set EMBEDDING_WRITE_VERSIONS=v2,
-#    unset the `embedding` field, drop `vector_index`, and make v2 the default in embeddings.py.
+# 6. Retire the old version, once the new one has settled (done for v1 on 2026-10-22):
+#    a. Ship a code change that makes v2 the default, removes v1 from embeddings.VERSIONS,
+#       STRONG_ECHO_COSINE and the Dockerfile prefetch, and deploy it. Remove v1 from
+#       EMBEDDING_VERSION / EMBEDDING_WRITE_VERSIONS everywhere first: an unknown
+#       version in either one fails at import.
+#    b. Set EMBEDDING_WRITE_VERSIONS=v2 (or unset it) wherever ingest runs.
+#    c. Drop the old index and unset the old field. Irreversible; plan-only without --yes.
+#       It refuses unless every doc has the active version's field and its index is READY.
+#       Throttled to 60 docs/s (~40 min for 137k docs).
+uv run python -m ingest.retire --field embedding --index vector_index          # plan
+uv run python -m ingest.retire --field embedding --index vector_index --yes
+uv run python -m ingest.retire --field embedding --index vector_index --status # 0 docs, absent
+uv run python -m ingest.run --stats
 ```
 
 Before step 5, try v2 locally against the real index: `EMBEDDING_VERSION=v2 LOG_QUERIES=0 uv run uvicorn app:app --port 10000`.
@@ -86,6 +105,6 @@ Before step 5, try v2 locally against the real index: `EMBEDDING_VERSION=v2 LOG_
 
   If it prints well under ~0.99, set `EMBED_ONNX_FILE` to another int8 build. The fp32 file is the fallback, but at ~465 MB it would not fit a 512 MB host.
 * **Scores look different.** e5's cosines bunch together: a typical top hit is ~0.94 in the API's (1+cos)/2 scale, versus ~0.82 for v1. The "% match" bar will read high for everything. That is also why v2's default recency weight is 0.012 rather than 0.06: the top hits sit within ~0.01 of each other, so a larger lift overrides relevance. Tuned on the live v2 index: at 0.02, 2024–25 BYU talks rank above D&C 138:8 for "spirit prison"; at 0.008, the most relevant recent talk for "what happens after we die" drops out of the top 5. `RECENCY_WEIGHT` still overrides it.
-* **`ingest.stats`** uses the active version's vectors. Its "strong verse echo" threshold (`> 0.6` cosine) was tuned for v1 and needs re-tuning for v2.
+* **`ingest.stats`** uses the active version's vectors. Its "strong verse echo" threshold (`STRONG_ECHO_COSINE`) is per version: v1's was `0.6`; v2's `0.867` was calibrated to mark the same share of passages (PR #20). A new version needs its own.
 * **v1's stored vectors are inconsistent.** Corpora embedded before the ONNX switch (most of Conference) were truncated at 128 tokens by sentence-transformers. Later ones (BYU Speeches, the handbook, newer talks) used 512. The re-embed makes v2 consistent at 512.
 * **Long queries cost more on v2.** The API now runs one inference at a time. A ~512-token query took ~70–85 ms single-threaded on an M4 (vs ~20 ms on v1), so expect a few hundred ms on a small shared vCPU. Short queries cost a few ms either way.

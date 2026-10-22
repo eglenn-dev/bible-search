@@ -61,9 +61,10 @@ CURRENT_APOSTLES = [
 # A conference passage "strongly echoes" its nearest verse above this cosine.
 # Cosine scales differ by embedding model (e5's sit much higher than MiniLM's),
 # so each version gets its own cutoff. v2's was calibrated on the full corpus to
-# mark the same share of passages as v1's 0.6 (53%): median nearest-verse
-# cosine is 0.61 on v1 and 0.87 on v2.
-STRONG_ECHO_COSINE = {"v1": 0.6, "v2": 0.867}
+# mark the same share of passages as the retired v1's 0.6 (53%): median
+# nearest-verse cosine is 0.61 on v1 and 0.87 on v2. A new version needs its own
+# entry, calibrated the same way.
+STRONG_ECHO_COSINE = {"v2": 0.867}
 
 # --- Procedural-talk filter -----------------------------------------------
 

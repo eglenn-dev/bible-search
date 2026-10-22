@@ -46,16 +46,17 @@ class ModelSpec:
 
 
 MODELS: dict[str, ModelSpec] = {
-    # The original model. Mean pooling, no prefixes. Truncation stays at 512 to
-    # match how the ONNX-era corpus was embedded (the earliest corpora were
-    # embedded with sentence-transformers' 128-token limit; see docs).
+    # The original model (embedding version v1, retired October 2026; kept for
+    # evals). Mean pooling, no prefixes. Truncation stays at 512 to match how the
+    # ONNX-era corpus was embedded (the earliest corpora were embedded with
+    # sentence-transformers' 128-token limit; see docs).
     "paraphrase-MiniLM-L3-v2": ModelSpec(
         repo="sentence-transformers/paraphrase-MiniLM-L3-v2",
         query_onnx="onnx/model.onnx",
         passage_onnx="onnx/model.onnx",
         pooling="mean",
     ),
-    # Upgrade candidate (see docs/embedding-migration.md). Mean pooling with
+    # Embedding version v2 (see docs/embedding-migration.md). Mean pooling with
     # "query: " / "passage: " prefixes. The API runs the repo's int8 export
     # (~34 MB) for queries; passages are embedded with the fp32 export.
     "e5-small-v2": ModelSpec(

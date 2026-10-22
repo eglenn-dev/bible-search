@@ -25,9 +25,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Pre-cache the query-side ONNX model + tokenizer.json of each embedding version
-# (see api/embeddings.py) at build time. Baking in both v1 and v2 means switching
-# EMBEDDING_VERSION — or rolling it back — is a restart, not a rebuild.
-ARG PREFETCH_EMBEDDING_VERSIONS=v1,v2
+# (see api/embeddings.py) at build time. During a model migration, list both
+# versions so switching EMBEDDING_VERSION — or rolling it back — is a restart,
+# not a rebuild.
+ARG PREFETCH_EMBEDDING_VERSIONS=v2
 COPY api/embeddings.py api/encoder.py ./
 RUN python -m embeddings --prefetch "$PREFETCH_EMBEDDING_VERSIONS"
 # Everything is cached now — run fully offline so cold starts don't fetch

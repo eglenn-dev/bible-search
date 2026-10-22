@@ -13,12 +13,12 @@ This `docs/` directory explains what the project is, how it works, and how to ex
 | [mcp.md](./mcp.md) | **MCP server for AI agents** — the hosted `/mcp` connector (auto-generated from the OpenAPI spec), how to add it to Claude or other platforms. |
 | [data-sources.md](./data-sources.md) | The six corpora currently indexed, their document schemas, counts, and how deep-links are built. |
 | [adding-a-source.md](./adding-a-source.md) | **Step-by-step guide to add a new source** later (backend + ingestion + frontend). |
-| [embedding-migration.md](./embedding-migration.md) | **Embedding model upgrade** — how v1 (MiniLM-L3) and v2 (e5-small-v2) vectors coexist, the eval behind the switch, storage math, and the cutover/rollback runbook. |
+| [embedding-migration.md](./embedding-migration.md) | **Embedding model upgrade** — the v1 (MiniLM-L3) → v2 (e5-small-v2) migration: the eval behind the switch, storage math, and the cutover/rollback/retirement runbook to reuse for the next model. |
 | [project-history.md](./project-history.md) | **What we did** — the migration from in-memory FAISS to MongoDB Atlas, the move to `uv`, the UI refresh, adding the Standard Works, and the gotchas we hit along the way. |
 
 ## TL;DR
 
-- **Backend:** Python / FastAPI (`api/`). Encodes *queries* with the active embedding model (`paraphrase-MiniLM-L3-v2` by default; `e5-small-v2` once migrated — see [embedding-migration.md](./embedding-migration.md)) via **onnxruntime** + `tokenizers` (no torch, no transformers; fits a 512 MB host); all text + embeddings live in MongoDB Atlas. Per-IP rate limited (slowapi).
+- **Backend:** Python / FastAPI (`api/`). Encodes *queries* with the active embedding model (`e5-small-v2`, see [embedding-migration.md](./embedding-migration.md)) via **onnxruntime** + `tokenizers` (no torch, no transformers; fits a 512 MB host); all text + embeddings live in MongoDB Atlas. Per-IP rate limited (slowapi).
 - **Database:** MongoDB Atlas (free M0) with **Atlas Vector Search**. One collection, `gospel_library.documents`, ~93k documents across six sources, ~193 MB.
 - **MCP:** the same deployment hosts a remote **MCP server at `/mcp`** (Streamable HTTP, tools auto-generated from the OpenAPI spec via FastMCP) — see [mcp.md](./mcp.md).
 - **Frontend:** TanStack Start (React + Vite) + Tailwind (`client/`). Unified search box, source filter chips, source-tagged result cards. "Classic & scholarly" theme.

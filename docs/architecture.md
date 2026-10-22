@@ -9,8 +9,8 @@
         ▼
  MongoDB Atlas (free M0)
    gospel_library.documents   ── one collection, all sources
-   vector_index               ── Atlas Vector Search index on `embedding` (v1; cosine, 384-dim, source filter)
-   vector_index_v2            ── same, on `embedding_v2` (v2; once migrated)
+   vector_index_v2            ── Atlas Vector Search index on `embedding_v2` (v2; cosine, 384-dim int8,
+                                 source / speaker / year filters)
         ▲
         │  $vectorSearch  (optionally filtered by source)
  FastAPI  (api/)
@@ -26,17 +26,16 @@ The defining choice: **embeddings live in the database, not in process memory.**
 
 ## The embedding model
 
-- **Models, by version** (`api/embeddings.py`). Each version owns one document field and one vector index, so two models' vectors can coexist and switching is a config flip:
-  - **v1** (default): `paraphrase-MiniLM-L3-v2`, mean pooling. Stored in `embedding` (float32), indexed by `vector_index`.
-  - **v2**: `intfloat/e5-small-v2`, mean pooling with `query: ` / `passage: ` prefixes. Stored in `embedding_v2` (int8), indexed by `vector_index_v2`. See [embedding-migration.md](./embedding-migration.md).
-  - Both produce **384-dimensional**, L2-normalized vectors and run on CPU.
+- **Models, by version** (`api/embeddings.py`). Each version owns one document field and one vector index, so during a model migration two models' vectors can coexist and switching is a config flip:
+  - **v2** (default, and the only version): `intfloat/e5-small-v2`, mean pooling with `query: ` / `passage: ` prefixes. Stored in `embedding_v2` (int8), indexed by `vector_index_v2`. It produces **384-dimensional**, L2-normalized vectors and runs on CPU.
+  - **v1** (`paraphrase-MiniLM-L3-v2`, float32 in `embedding`, index `vector_index`) was retired in October 2026: its field and index were removed from Atlas. See [embedding-migration.md](./embedding-migration.md).
 - **Runtime: ONNX, no torch, no transformers.** `api/encoder.py` describes each model with a `ModelSpec`: repo, query-side and passage-side ONNX files, pooling (mean or CLS), prefixes, and truncation (512 tokens). It runs the ONNX export with **onnxruntime** and the repo's `tokenizer.json` (via `tokenizers`), then pools and L2-normalizes the vectors itself. The output is identical to the transformers-tokenizer path (cosine 1.0 on 10k corpus texts). Inference is serialized with a lock, so concurrent requests don't each allocate activation buffers on a small host.
 - **Queries and passages are encoded separately**, because models like e5 expect different prefixes on each side:
   - **Ingestion** (`api/ingest/common.py::embed_records` → `embeddings.encode_passages`) embeds each document's `text` for every version in `EMBEDDING_WRITE_VERSIONS`.
   - **Query time** (`api/app.py::_encode` → `embeddings.encode_query`) embeds the user's query with the active version (`EMBEDDING_VERSION`).
 - The Atlas cosine score lands in 0–1. Different models spread their scores differently, so the recency lift's default weight is set per version.
 
-> A version's vectors must all come from the same model. Changing the model means a new version: re-embed everything into its own field with `python -m ingest.reembed`, then flip `EMBEDDING_VERSION`.
+> A version's vectors must all come from the same model. Changing the model means a new version: re-embed everything into its own field with `python -m ingest.reembed`, flip `EMBEDDING_VERSION`, and later retire the old version with `python -m ingest.retire`.
 
 ## Data model
 
@@ -48,8 +47,7 @@ One MongoDB collection — `gospel_library.documents` — holds every source. Ea
   "source": "bible" | "book-of-mormon" | "doctrine-and-covenants"
           | "pearl-of-great-price" | "conference" | "handbook",
   "text": "<the chunk/verse text that gets embedded>",
-  "embedding": BinData(float32, 384),     // v1 vector: BSON binary vector (compact; see below)
-  "embedding_v2": BinData(int8, 384),     // v2 vector, once backfilled (see embedding-migration.md)
+  "embedding_v2": BinData(int8, 384),     // v2 vector: BSON binary vector (compact; see below)
   "reference": "Genesis 1:1",             // human label (verse ref / talk title / section)
   "title": "In the Beginning…",           // talk/chapter title; null for scripture verses
   "url": "https://www.churchofjesuschrist.org/...#p2",  // precomputed deep link
@@ -58,19 +56,18 @@ One MongoDB collection — `gospel_library.documents` — holds every source. Ea
 ```
 
 ### Why `binData` vectors + quantization
-- A JSON array of 384 numbers stores each as an 8-byte double → ~3 KB/vector. Storing them as a BSON **float32 `binData`** vector (`bson.binary.Binary.from_vector(..., FLOAT32)`) halves that to ~1.5 KB.
-- The Atlas index additionally uses **scalar (int8) quantization**, shrinking the in-index footprint further.
-- v2 stores **int8 `binData`** vectors (~405 B each). We quantize them ourselves with a per-vector scale, which cosine ignores. Its index therefore sets no `quantization`: Atlas skips non-float vectors under automatic quantization.
-- Net effect: the corpus is ~137k docs and ~356 MB as of October 2026, against the M0 **512 MB** cap (uncompressed BSON + index bytes). `embeddings.stored_query_vector()` turns a stored vector back into a `queryVector`, which `/search/by-reference` uses.
+- A JSON array of 384 numbers stores each as an 8-byte double → ~3 KB/vector. A BSON **float32 `binData`** vector (`bson.binary.Binary.from_vector(..., FLOAT32)`) halves that to ~1.5 KB; that is how v1 was stored, with **scalar (int8) quantization** in its Atlas index.
+- v2 stores **int8 `binData`** vectors (~405 B each). We quantize them ourselves with a per-vector scale, which cosine ignores. Its index therefore sets no `quantization`: Atlas skips non-float vectors under automatic quantization. (`embeddings.index_definition` still adds `quantization: "scalar"` for any future float32 version.)
+- Net effect: the corpus is ~137k docs and about 210 MB once v1's vectors were dropped (October 2026), against the M0 **512 MB** cap (uncompressed BSON + index bytes). That leaves room to backfill a future version alongside v2. `embeddings.stored_query_vector()` turns a stored vector back into a `queryVector`, which `/search/by-reference` uses.
 
 ### The vector index
-Defined by `embeddings.index_definition(version)` and applied by `api/ingest/common.py::ensure_vector_index(version)`, which creates a version's index if it's missing, **updates it in place** (`update_search_index`) if the live definition's fields differ, and otherwise does nothing. For v1:
+Defined by `embeddings.index_definition(version)` and applied by `api/ingest/common.py::ensure_vector_index(version)`, which creates a version's index if it's missing, **updates it in place** (`update_search_index`) if the live definition's fields differ, and otherwise does nothing. For v2:
 
 ```jsonc
 {
   "fields": [
-    { "type": "vector", "path": "embedding", "numDimensions": 384,
-      "similarity": "cosine", "quantization": "scalar" },
+    { "type": "vector", "path": "embedding_v2", "numDimensions": 384,
+      "similarity": "cosine" },
     { "type": "filter", "path": "source" },            // corpus chips
     { "type": "filter", "path": "metadata.speaker" },  // speaker filter (raw bylines)
     { "type": "filter", "path": "metadata.year" }      // year-range filter
@@ -88,7 +85,7 @@ cd api
 uv run python -c "from ingest.common import ensure_vector_index; print(ensure_vector_index())"
 ```
 
-It prints the old and new field paths and returns `updated`. (The Atlas UI — *Atlas Search → vector_index → Edit With JSON Editor* — works too.) Atlas then rebuilds the index in the background. Per the [Atlas Vector Search index docs](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/): *"While the index rebuilds, you can continue to run MongoDB Vector Search queries by using the old index definition. When the index finishes rebuilding, MongoDB Vector Search automatically replaces the old index."* So unfiltered search keeps working throughout, but the speaker/year filters keep returning **503** until the rebuild finishes and the index is `READY` again. Check progress with `db.get_collection().list_search_indexes()` (the `status` / `latestDefinition` fields) or in the Atlas UI. Two extra filter fields add little to the index, but the old and new copies may coexist while it rebuilds (not verified for the M0 tier), so check headroom under the 512 MB cap first (`python -m ingest.run --stats`).
+It prints the old and new field paths and returns `updated`. (The Atlas UI — *Atlas Search → vector_index_v2 → Edit With JSON Editor* — works too.) Atlas then rebuilds the index in the background. Per the [Atlas Vector Search index docs](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/): *"While the index rebuilds, you can continue to run MongoDB Vector Search queries by using the old index definition. When the index finishes rebuilding, MongoDB Vector Search automatically replaces the old index."* So unfiltered search keeps working throughout, but the speaker/year filters keep returning **503** until the rebuild finishes and the index is `READY` again. Check progress with `db.get_collection().list_search_indexes()` (the `status` / `latestDefinition` fields) or in the Atlas UI. Two extra filter fields add little to the index, but the old and new copies may coexist while it rebuilds (not verified for the M0 tier), so check headroom under the 512 MB cap first (`python -m ingest.run --stats`).
 
 ### Speaker and year filters
 `metadata.speaker` is stored exactly as each source printed it, and the same person appears many ways ("By Elder M. Russell Ballard", "M. Russell Ballard, Jr.", "By President …", a non-breaking space after an initial, joint BYU bylines like "Jeffrey R. Holland , Patricia T. Holland"). Instead of rewriting stored documents, `api/speakers.py` groups them at read time:
@@ -116,7 +113,7 @@ It prints the old and new field paths and returns `updated`. (The Atlas UI — *
 - **`api`** — the FastAPI app with the REST routes + CORS + slowapi rate limiting.
 - **`mcp`** — `FastMCP.from_fastapi(api)`, served at `/mcp` over Streamable HTTP. A Starlette parent mounts the MCP route + the REST app as catch-all and runs the MCP session-manager lifespan. See [mcp.md](./mcp.md) and [api.md](./api.md).
 
-Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (required), `MONGODB_DB` (`gospel_library`), `MONGODB_COLLECTION` (`documents`), `EMBEDDING_VERSION` (`v1`; the version used for search), `EMBEDDING_WRITE_VERSIONS` (default: the active version; set `v1,v2` while both exist), `VECTOR_INDEX_NAME` (v1's index, `vector_index`), `VECTOR_INDEX_NAME_V2` (`vector_index_v2`), optional `EMBED_ONNX_FILE` (swaps the active model's query-side ONNX file), optional `RECENCY_WEIGHT` (overrides the version's default), `MONGODB_QUERY_LOG_COLLECTION` (`query_logs`), optional `ALLOWED_ORIGINS`, optional `RATE_LIMIT` (default `100/minute`), optional `LOG_QUERIES` (default on; set `0` to disable query logging).
+Config comes from `api/.env` (loaded via `python-dotenv`): `MONGODB_URI` (required), `MONGODB_DB` (`gospel_library`), `MONGODB_COLLECTION` (`documents`), `EMBEDDING_VERSION` (`v2`; the version used for search), `EMBEDDING_WRITE_VERSIONS` (default: the active version; list both versions during a model migration), `VECTOR_INDEX_NAME_V2` (`vector_index_v2`), optional `EMBED_ONNX_FILE` (swaps the active model's query-side ONNX file), optional `RECENCY_WEIGHT` (overrides the version's default), `MONGODB_QUERY_LOG_COLLECTION` (`query_logs`), optional `ALLOWED_ORIGINS`, optional `RATE_LIMIT` (default `100/minute`), optional `LOG_QUERIES` (default on; set `0` to disable query logging).
 
 ### Query logging (analytics)
 
@@ -192,6 +189,7 @@ A Workbox service worker (`sw.js`) is generated at the end of the build by the `
 | `backfill_chunk_index.py` | One-off, idempotent: sets `metadata.chunk_index` on conference/handbook chunks stored before ingest recorded it, rebuilt from the scrape cache (dry run by default, `--apply` to write; never touches text or embeddings). |
 | `common.py` | `embed_texts`, `embed_records`, `upsert_docs`, `embed_and_upsert`, `already_ingested`, `ensure_vector_index`, `storage_stats`/`log_storage`, `chunked`. Shared by every source. |
 | `reembed.py` | Non-destructive, resumable backfill of another embedding version's field (`$set` only), plus `--status`, `--dry-run`, a storage-cap guard, and `--create-index`. See [embedding-migration.md](./embedding-migration.md). |
+| `retire.py` | The irreversible last step of a migration: drops a retired version's vector index and `$unset`s its field, throttled and resumable. Plan-only without `--yes`; refuses any field/index a known version still uses, or an incomplete active version. |
 | `urls.py` | Scripture reference parsing + churchofjesuschrist.org deep-link builders (Bible, Book of Mormon, D&C, Pearl of Great Price). |
 | `church.py` | Cached, rate-limited client for the Gospel Library content API (used by the scrapers). |
 | `bible.py` | KJV Bible from `data/bible_verses.json`. |

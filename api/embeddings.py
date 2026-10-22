@@ -2,19 +2,21 @@
 
 Changing the embedding model means re-embedding the whole corpus, and vectors
 from different models can't be mixed. So each model gets its own *version*: its
-own document field and its own vector index. Both versions can coexist in the
-collection, which makes the switch a config flip:
+own document field and its own vector index. Two versions can coexist in the
+collection during a migration, which makes the switch a config flip:
 
-* ``EMBEDDING_VERSION`` (default ``v1``) — the version the API searches with:
+* ``EMBEDDING_VERSION`` (default ``v2``) — the version the API searches with:
   its model encodes queries, its field/index are queried.
 * ``EMBEDDING_WRITE_VERSIONS`` (default: just the active version) —
   comma-separated versions that ingestion writes for every new/updated document.
-  Set it to ``v1,v2`` for as long as both are in use, so neither falls behind.
+  During a migration, list both (e.g. ``v2,v3``) so neither falls behind.
 
-See docs/embedding-migration.md for the cutover and rollback runbook.
+Only v2 exists today: v1 (paraphrase-MiniLM-L3-v2 on ``embedding``) was retired
+in October 2026. See docs/embedding-migration.md for how the v1 → v2 cutover was
+run, which is the template for the next model upgrade.
 
-Run ``python -m embeddings --prefetch v1,v2`` to cache the query-side model
-files (the Dockerfile does this at build time).
+Run ``python -m embeddings --prefetch v2`` to cache the query-side model files
+(the Dockerfile does this at build time).
 """
 
 import argparse
@@ -45,7 +47,8 @@ class EmbeddingVersion:
     dtype: Literal["float32", "int8"]
     # Default recency lift (see db._recency_factor). The lift multiplies the
     # score, so it has to be scaled to how spread out a model's scores are: e5's
-    # top-50 cosine scores span ~1/3 of MiniLM-L3's, so its default is ~1/3.
+    # top-50 cosine scores span ~1/3 of the retired MiniLM-L3's, so its default
+    # is ~1/3 of v1's 0.06.
     recency_weight: float
 
     @property
@@ -54,14 +57,6 @@ class EmbeddingVersion:
 
 
 VERSIONS: dict[str, EmbeddingVersion] = {
-    "v1": EmbeddingVersion(
-        name="v1",
-        model="paraphrase-MiniLM-L3-v2",
-        field="embedding",
-        index=os.getenv("VECTOR_INDEX_NAME", "vector_index"),
-        dtype="float32",
-        recency_weight=0.06,
-    ),
     "v2": EmbeddingVersion(
         name="v2",
         model="e5-small-v2",
@@ -84,7 +79,7 @@ def get_version(name: str) -> EmbeddingVersion:
         ) from None
 
 
-ACTIVE = get_version(os.getenv("EMBEDDING_VERSION", "v1"))
+ACTIVE = get_version(os.getenv("EMBEDDING_VERSION", "v2"))
 WRITE_VERSIONS = [
     get_version(v)
     for v in (os.getenv("EMBEDDING_WRITE_VERSIONS") or ACTIVE.name).split(",")

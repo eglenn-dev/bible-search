@@ -8,7 +8,7 @@ video, so ``ingest.sync`` re-fetches recent skipped speeches past the cache.
 """
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
 
@@ -135,7 +135,7 @@ def normalize_date(date: str) -> str:
     """
     for fmt in _DATE_FORMATS:
         try:
-            parsed = datetime.strptime(date, fmt)
+            parsed = datetime.strptime(date, fmt).replace(tzinfo=UTC)
         except ValueError:
             continue
         return f"{parsed:%B} {parsed.day}, {parsed.year}"

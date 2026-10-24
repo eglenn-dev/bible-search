@@ -57,11 +57,11 @@ Every source produces the same top-level shape (see [architecture.md](./architec
 ### `byu-speeches` — BYU Speeches
 - **Module:** `api/ingest/byu_speeches.py` · **Command:** `uv run python -m ingest.run --source byu-speeches`
 - **Source:** scraped from **speeches.byu.edu** (no content API). URLs come from the site's three speech sitemaps (`/speech-sitemap{,2,3}.xml`); each `/talks/<speaker>/<slug>/` page is static HTML.
-- **Parsing:** metadata from `.single-speech__{title,speaker,speaker-position,date}`; transcript paragraphs from `.single-speech__content > p`. Video/audio-only speeches (which carry a "text unavailable" notice, ~22%) and the trailing `©` boilerplate line are skipped.
+- **Parsing:** metadata from `.single-speech__{title,speaker,speaker-position,date}`; transcript paragraphs from `.single-speech__content > p`. Video/audio-only speeches (which carry a "text unavailable" notice, ~22%) and the trailing `©` boilerplate line are skipped. Pages are cached on disk, and transcripts are often posted weeks after the video, so `ingest.sync` re-fetches a skipped speech past the cache when it's from the last `--fresh-years` years.
 - **Chunking:** groups of `CHUNK_PARAGRAPHS = 3` paragraphs.
 - **`_id`:** `byu-speeches:<path>:<chunk_start_index>`
 - **`reference`/`title`:** the speech title; **`url`:** the speech page (no per-paragraph anchors on the source pages)
-- **`metadata`:** `{ speaker, position, date, year, speech_path, paragraph_index }`
+- **`metadata`:** `{ speaker, position, date, year, speech_path, paragraph_index }` — `date` is normalized to "September 22, 2026" (the 2026 page template prints "22 Sep 2026")
 - **Resumable** via `already_ingested({ "metadata.speech_path": path })`.
 - robots.txt allows `/talks/`; the one Disallow-ed talk path is honored via `DISALLOWED_PATHS` in `api/ingest/byu.py`.
 

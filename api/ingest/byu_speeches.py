@@ -3,10 +3,12 @@
 The speech URLs come from the site's sitemaps; each page is static HTML whose
 transcript lives in ``.single-speech__content``. Some speeches are video/audio
 only and carry ``single-speech__unavailable-message`` instead of a transcript —
-those are skipped (and counted).
+those are skipped (and counted). A transcript can be posted weeks after the
+video, so ``ingest.sync`` re-fetches recent skipped speeches past the cache.
 """
 
 import re
+from datetime import datetime
 
 from bs4 import BeautifulSoup
 
@@ -35,6 +37,8 @@ _TITLE_SEL = ".single-speech__title, .individual-speech__title"
 _SPEAKER_SEL = ".single-speech__speaker, .individual-speech__speakers"
 _POSITION_SEL = ".single-speech__speaker-position, .individual-speech__position"
 _DATE_SEL = ".single-speech__date, .individual-speech__date"
+# Date formats seen across both templates ("September 22, 2026", "22 Sep 2026").
+_DATE_FORMATS = ("%B %d, %Y", "%d %b %Y", "%d %B %Y", "%b %d, %Y")
 
 
 def _url_path(url: str) -> str:
@@ -67,12 +71,15 @@ def list_speech_urls(*, use_cache: bool = True) -> list[str]:
     return urls
 
 
-def parse_speech(url: str) -> dict | None:
+def parse_speech(url: str, *, use_cache: bool = True) -> dict | None:
     """Fetch a speech and extract title, speaker, position, date, paragraphs.
 
-    Returns ``None`` if the page is missing or has no transcript (video-only).
+    Returns ``None`` if the page is missing. A page with no transcript
+    (video-only, or still being edited) returns its metadata with empty
+    ``paragraphs``, so callers can tell from the year whether it's worth
+    re-fetching later. Pass ``use_cache=False`` to bypass the scrape cache.
     """
-    html = fetch_html(url)
+    html = fetch_html(url, use_cache=use_cache)
     if not html:
         return None
     soup = BeautifulSoup(html, "html.parser")
@@ -82,10 +89,9 @@ def parse_speech(url: str) -> dict | None:
         return None
     classes = content.get("class") or []
     content_text = content.get_text(" ", strip=True).lower()
-    if "single-speech__unavailable-message" in classes or any(
+    unavailable = "single-speech__unavailable-message" in classes or any(
         marker in content_text for marker in _UNAVAILABLE_MARKERS
-    ):
-        return None
+    )
 
     title_el = soup.select_one(_TITLE_SEL)
     speaker_el = soup.select_one(_SPEAKER_SEL)
@@ -99,12 +105,12 @@ def parse_speech(url: str) -> dict | None:
     )
     speaker = speaker_el.get_text(" ", strip=True) if speaker_el else None
     position = position_el.get_text(" ", strip=True) if position_el else None
-    date = date_el.get_text(" ", strip=True) if date_el else None
+    date = normalize_date(date_el.get_text(" ", strip=True)) if date_el else None
     year_match = _YEAR_RE.search(date or "")
     year = int(year_match.group(0)) if year_match else None
 
     paragraphs: list[str] = []
-    for p in content.find_all("p"):
+    for p in [] if unavailable else content.find_all("p"):
         text = p.get_text(" ", strip=True).replace("\xa0", " ")
         # Drop the trailing "© … All rights reserved." boilerplate line.
         if not text or text.startswith("©"):
@@ -119,6 +125,21 @@ def parse_speech(url: str) -> dict | None:
         "year": year,
         "paragraphs": paragraphs,
     }
+
+
+def normalize_date(date: str) -> str:
+    """Render a speech date as "September 22, 2026".
+
+    The original page template writes dates that way; the 2026 template writes
+    "22 Sep 2026". Unrecognized strings are returned unchanged.
+    """
+    for fmt in _DATE_FORMATS:
+        try:
+            parsed = datetime.strptime(date, fmt)
+        except ValueError:
+            continue
+        return f"{parsed:%B} {parsed.day}, {parsed.year}"
+    return date
 
 
 def build_records(url: str, speech: dict) -> list[dict]:

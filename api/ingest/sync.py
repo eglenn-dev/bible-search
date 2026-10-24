@@ -195,17 +195,23 @@ def _talk_label(year: int, month: str, talk: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Phase: BYU Speeches (incremental)
 # --------------------------------------------------------------------------- #
-def sync_byu_speeches(results: dict) -> None:
-    """Ingest any BYU speeches not already stored (sitemaps fetched fresh)."""
+def sync_byu_speeches(fresh_years: int, results: dict) -> None:
+    """Ingest any BYU speeches not already stored (sitemaps fetched fresh).
+
+    Transcripts are often posted weeks after the video, so a recent speech whose
+    cached page has no transcript is re-fetched past the cache; older video-only
+    speeches keep their cached page.
+    """
     collection = db.get_collection()
     existing = set(
         collection.distinct("metadata.speech_path", {"source": "byu-speeches"})
     )
     urls = byu_speeches.list_speech_urls(use_cache=False)
+    fresh_from = datetime.now(UTC).year - max(fresh_years - 1, 0)
     mode = "full ingest" if not existing else "checking for new speeches"
     print(
         f"\n=== BYU Speeches ({mode}; {len(existing)} stored, "
-        f"{len(urls)} in sitemaps) ==="
+        f"{len(urls)} in sitemaps; transcripts for {fresh_from}+ re-checked) ==="
     )
 
     new_speeches: list[str] = []
@@ -216,6 +222,11 @@ def sync_byu_speeches(results: dict) -> None:
         if path in existing:
             continue
         speech = byu_speeches.parse_speech(url)
+        # No transcript in the cached page: re-fetch if the speech is recent (or
+        # undated), since its transcript may have been posted since.
+        recent = speech and (speech["year"] or 9999) >= fresh_from
+        if recent and not speech["paragraphs"]:
+            speech = byu_speeches.parse_speech(url, use_cache=False)
         if not speech or not speech["paragraphs"]:
             skipped += 1  # video/audio-only: no transcript
             continue
@@ -299,6 +310,13 @@ def _print_list(items: list[str], cap: int = 40) -> None:
         print(f"    ... and {len(items) - cap} more")
 
 
+def _not_run(results: dict, phase: str) -> str:
+    """Why a phase has no result: skipped by flag, or failed."""
+    if phase in results["skipped"]:
+        return f"skipped (--skip-{phase})"
+    return "skipped (error — see above)"
+
+
 def print_summary(results: dict, elapsed: float) -> None:
     print("\n" + "=" * 60)
     print("SUMMARY OF WORK DONE")
@@ -314,7 +332,7 @@ def print_summary(results: dict, elapsed: float) -> None:
     # Conference
     conf = results.get("conference")
     if conf is None:
-        print("General Conference: skipped (error — see above)")
+        print(f"General Conference: {_not_run(results, 'conference')}")
     elif conf["new"]:
         print(
             f"General Conference: +{len(conf['new'])} new talk(s), "
@@ -327,7 +345,7 @@ def print_summary(results: dict, elapsed: float) -> None:
     # BYU Speeches
     byu = results.get("byu-speeches")
     if byu is None:
-        print("BYU Speeches: skipped (error — see above)")
+        print(f"BYU Speeches: {_not_run(results, 'byu')}")
     elif byu["new"]:
         print(
             f"BYU Speeches: +{len(byu['new'])} new speech(es), {byu['chunks']} chunk(s)"
@@ -339,7 +357,7 @@ def print_summary(results: dict, elapsed: float) -> None:
     # Handbook
     hb = results.get("handbook")
     if hb is None:
-        print("General Handbook: skipped (error — see above)")
+        print(f"General Handbook: {_not_run(results, 'handbook')}")
     elif hb.get("replaced"):
         print(
             f"General Handbook: replaced — {hb['deleted']} old chunk(s) removed, "
@@ -388,7 +406,8 @@ def main() -> None:
         "--fresh-years",
         type=int,
         default=DEFAULT_FRESH_YEARS,
-        help="How many recent conference years to re-check for new talks "
+        help="How many recent years to re-check: conference listings for new "
+        "talks, and BYU speeches that had no transcript yet "
         f"(default {DEFAULT_FRESH_YEARS}).",
     )
     parser.add_argument(
@@ -403,7 +422,12 @@ def main() -> None:
     args = parser.parse_args()
 
     start = time.perf_counter()
-    results: dict = {"foundational": [], "errors": [], "index": None}
+    results: dict = {
+        "foundational": [],
+        "errors": [],
+        "index": None,
+        "skipped": set(),
+    }
 
     print("Connecting to the database and taking a baseline snapshot...")
     before = snapshot()
@@ -417,6 +441,9 @@ def main() -> None:
         lambda: sync_foundational(before, args.force_foundational, results),
         results,
     )
+    for phase in ("conference", "byu", "handbook"):
+        if getattr(args, f"skip_{phase}"):
+            results["skipped"].add(phase)
     if not args.skip_conference:
         _run_phase(
             "General Conference",
@@ -424,7 +451,11 @@ def main() -> None:
             results,
         )
     if not args.skip_byu:
-        _run_phase("BYU Speeches", lambda: sync_byu_speeches(results), results)
+        _run_phase(
+            "BYU Speeches",
+            lambda: sync_byu_speeches(args.fresh_years, results),
+            results,
+        )
     if not args.skip_handbook:
         _run_phase("General Handbook", lambda: sync_handbook(results), results)
 

@@ -104,10 +104,10 @@ uv run python -m ingest.sync
 What it does, per source:
 
 - **Standard Works** (Bible + Book of Mormon, D&C, Pearl of Great Price) — the static seed corpora. Ingested **only when missing**, so a fresh database is fully repopulated while a normal refresh skips them.
-- **General Conference** & **BYU Speeches** — **incremental**. It re-fetches the listing pages (so newly published talks/speeches aren't hidden by the scrape cache) and ingests only what isn't already stored.
+- **General Conference** & **BYU Speeches** — **incremental**. It re-fetches the listing pages (so newly published talks/speeches aren't hidden by the scrape cache) and ingests only what isn't already stored. Recent BYU speeches that were video-only when first scraped are re-fetched too, since their transcripts often appear weeks later.
 - **General Handbook** — **replaced in full** every run (the Church revises it a few times a year). Fetched fresh, then the old handbook is deleted and the new one inserted — the delete only happens *after* a successful fetch, so a network hiccup can't leave it wiped.
 
-It then ensures the Atlas vector index exists and matches `embeddings.index_definition()` in `api/embeddings.py` (updating it in place, which triggers an Atlas rebuild, if the definition changed) and prints a **before/after diff** plus a **summary of work done** (new talks/speeches, handbook chapters replaced, storage used). Useful flags: `--force-foundational` (re-ingest the Standard Works even if present), `--fresh-years N` (how many recent Conference years to re-check, default 2), and `--skip-conference` / `--skip-byu` / `--skip-handbook`.
+It then ensures the Atlas vector index exists and matches `embeddings.index_definition()` in `api/embeddings.py` (updating it in place, which triggers an Atlas rebuild, if the definition changed) and prints a **before/after diff** plus a **summary of work done** (new talks/speeches, handbook chapters replaced, storage used). Useful flags: `--force-foundational` (re-ingest the Standard Works even if present), `--fresh-years N` (how many recent years of Conference listings and transcript-less BYU speeches to re-check, default 2), and `--skip-conference` / `--skip-byu` / `--skip-handbook`.
 
 #### Per-source / lower-level commands
 

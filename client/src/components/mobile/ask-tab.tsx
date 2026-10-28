@@ -131,6 +131,7 @@ export default function AskTab({
                     onAnswer: setSegments,
                     onCitation: (n, passage) =>
                         setCitations((prev) => ({ ...prev, [n]: passage })),
+                    onReset: () => setCitations({}),
                 },
                 controller.signal,
             );

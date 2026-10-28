@@ -21,6 +21,12 @@ export interface AskHandlers {
     onAnswer: (segments: AskSegment[]) => void;
     /** A passage cited for the first time, as citation number `n`. */
     onCitation: (n: number, passage: Result) => void;
+    /**
+     * The answer so far was a draft written before another search: drop its
+     * citations too. Numbering starts again at 1, and each passage comes
+     * again with its first citation.
+     */
+    onReset: () => void;
 }
 
 export const MAX_QUESTION_CHARS = 500;
@@ -235,6 +241,7 @@ export async function streamAsk(
             case "reset":
                 segments = [];
                 handlers.onAnswer(segments);
+                handlers.onReset();
                 break;
             case "done":
                 finished = true;

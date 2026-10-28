@@ -12,7 +12,10 @@ Cost and abuse controls, all in MongoDB so they survive restarts:
 
 - per-IP quotas, per hour and per day (``ASK_HOURLY_LIMIT``, ``ASK_DAILY_LIMIT``);
 - a global daily spend cap in USD (``ASK_DAILY_BUDGET_USD``) that turns Ask off
-  for the rest of the UTC day once it's spent;
+  for the rest of the UTC day once it's spent. Each run holds its worst-case
+  cost against the cap before it starts and settles to the real cost when it
+  ends, however it ends (finished, failed, or cut off by the client), so
+  concurrent and abandoned runs can't spend past it;
 - a process-wide cap on concurrent answers (``ASK_MAX_CONCURRENT``);
 - a prompt-size ceiling well under Haiku 5.5's 100K-token price break, so every
   call is billed at the cheaper rate.
@@ -34,6 +37,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import anthropic
+from pymongo import ReturnDocument
 from pymongo.collection import Collection
 from pymongo.errors import DuplicateKeyError
 
@@ -93,19 +97,21 @@ _PRICES = {
     "long": (0.50, 0.625, 0.05, 2.50),
 }
 
+# The most one model call can cost at the standard rate: a prompt at the
+# ceiling, all of it written to the cache, and a full max_tokens of output. A
+# run holds this for every call it may make (about $0.09 by default) until it
+# settles to what it really cost.
+CALL_HOLD_USD = (
+    PROMPT_TOKEN_CEILING * _PRICES["standard"][1] + MAX_TOKENS * _PRICES["standard"][3]
+) / 1_000_000
+RUN_HOLD_USD = CALL_HOLD_USD * MAX_MODEL_CALLS
+
 MONGODB_ASK_USAGE_COLLECTION = os.getenv("MONGODB_ASK_USAGE_COLLECTION", "ask_usage")
 MONGODB_ASK_LOG_COLLECTION = os.getenv("MONGODB_ASK_LOG_COLLECTION", "ask_logs")
 LOG_ASKS = os.getenv("LOG_ASKS", "1").strip().lower() not in {"0", "false", "no"}
 
-SOURCES = [
-    "bible",
-    "book-of-mormon",
-    "doctrine-and-covenants",
-    "pearl-of-great-price",
-    "conference",
-    "byu-speeches",
-    "handbook",
-]
+# The tool's `sources` enum: every corpus /search knows.
+SOURCES = sorted(db.VALID_SOURCES)
 
 SOURCE_LABELS = {
     "bible": "Bible",
@@ -206,6 +212,8 @@ SearchFn = Callable[
     [str, list[str] | None, str | None, int | None, int | None],
     list[dict[str, Any]],
 ]
+# A passage as /search returns it (app.py's SearchResult), for the client.
+PublicFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class AskRejected(Exception):
@@ -247,6 +255,10 @@ class SearchToolError(Exception):
     """A search the model asked for couldn't run; reported back to the model."""
 
 
+class SearchUnavailable(Exception):
+    """The search backend failed (database, encoder): the run stops, refunded."""
+
+
 # --- Quotas and spend (MongoDB) ------------------------------------------
 
 _indexes_ready = False
@@ -274,26 +286,43 @@ def _windows(now: datetime) -> tuple[str, datetime, str, datetime]:
     )
 
 
-def _take(coll: Collection, key: str, limit: int, expires_at: datetime) -> bool:
-    """Count one use against ``key`` unless it's at ``limit``. Atomic.
+def _inc_under(
+    coll: Collection,
+    key: str,
+    field_name: str,
+    amount: float,
+    ceiling: float,
+    expires_at: datetime,
+) -> float | None:
+    """Add ``amount`` to ``key``'s ``field_name`` unless that would pass
+    ``ceiling``; returns the new value, or None when it's full. Atomic.
 
-    The filter only matches while the count is under the limit; once it's
-    full, the upsert tries to insert a second doc with the same _id and fails.
+    The filter only matches while there's room; once it's full, the upsert
+    tries to insert a second doc with the same _id and fails.
     """
+    if amount > ceiling:
+        return None  # not even an empty window has room
+    room = {"_id": key, field_name: {"$lte": ceiling - amount}}
     try:
-        coll.update_one(
-            {"_id": key, "count": {"$lt": limit}},
-            {"$inc": {"count": 1}, "$setOnInsert": {"expires_at": expires_at}},
+        doc = coll.find_one_and_update(
+            room,
+            {"$inc": {field_name: amount}, "$setOnInsert": {"expires_at": expires_at}},
             upsert=True,
+            return_document=ReturnDocument.AFTER,
         )
-        return True
     except DuplicateKeyError:
         # Either full, or a concurrent first request inserted the doc between
         # our match and our insert; a plain update tells the two apart.
-        result = coll.update_one(
-            {"_id": key, "count": {"$lt": limit}}, {"$inc": {"count": 1}}
+        doc = coll.find_one_and_update(
+            room, {"$inc": {field_name: amount}}, return_document=ReturnDocument.AFTER
         )
-        return result.modified_count == 1
+    return None if doc is None else doc[field_name]
+
+
+def _take(coll: Collection, key: str, limit: int, expires_at: datetime) -> int | None:
+    """Count one use against ``key`` unless it's at ``limit``; the new count."""
+    count = _inc_under(coll, key, "count", 1, limit, expires_at)
+    return None if count is None else int(count)
 
 
 def _seconds_until(moment: datetime, now: datetime) -> int:
@@ -307,12 +336,24 @@ class Quota:
     day_key: str
     hour_left: int
     day_left: int
+    # The day's spend doc, and what this run holds against it until it settles.
+    spend_key: str = ""
+    held_usd: float = 0.0
+
+
+def _spend_key(now: datetime) -> str:
+    return f"spend:{now.strftime('%Y%m%d')}"
 
 
 def spent_today(now: datetime | None = None) -> float:
+    """Today's spend, including what runs in progress are holding."""
     now = now or datetime.now(UTC)
-    doc = _usage().find_one({"_id": f"spend:{now.strftime('%Y%m%d')}"})
+    doc = _usage().find_one({"_id": _spend_key(now)})
     return float(doc.get("usd", 0.0)) if doc else 0.0
+
+
+def _budget_left_for_a_run(now: datetime) -> bool:
+    return spent_today(now) + RUN_HOLD_USD <= DAILY_BUDGET_USD
 
 
 def _next_hour(now: datetime) -> datetime:
@@ -351,35 +392,67 @@ def _daily_full(now: datetime) -> AskRejected:
 
 
 def reserve(ip: str) -> Quota:
-    """Check the budget and take one question from ``ip``'s quotas.
+    """Hold a run's worst-case cost and take one question from ``ip``'s quotas.
 
-    Raises ``AskRejected`` (503 when the day's budget is spent, 429 when a
-    quota is used up). Counts a question when it starts, not when it
-    succeeds, so retrying a failing question still uses the quota; ``refund``
-    hands it back when the failure was ours.
+    Raises ``AskRejected`` (503 when the day's budget can't cover another run,
+    429 when a quota is used up). Counts a question when it starts, not when
+    it succeeds, so retrying a failing question still uses the quota;
+    ``refund`` hands it back when the failure was ours. The hold is settled
+    by ``settle`` when the run ends.
     """
     now = datetime.now(UTC)
     hour_id, hour_exp, day_id, day_exp = _windows(now)
-    if spent_today(now) >= DAILY_BUDGET_USD:
-        raise _budget_closed(now)
     coll = _usage()
+    spend_key = _spend_key(now)
+    day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if (
+        _inc_under(
+            coll, spend_key, "usd", RUN_HOLD_USD, DAILY_BUDGET_USD, day + timedelta(days=40)
+        )
+        is None
+    ):
+        raise _budget_closed(now)
+
+    def release_hold() -> None:
+        coll.update_one({"_id": spend_key}, {"$inc": {"usd": -RUN_HOLD_USD}})
+
     hour_key, day_key = f"ip:{ip}:h:{hour_id}", f"ip:{ip}:d:{day_id}"
     # The day first: when both are full, the later reset is the true one.
-    if not _take(coll, day_key, DAILY_LIMIT, day_exp):
+    day_count = _take(coll, day_key, DAILY_LIMIT, day_exp)
+    if day_count is None:
+        release_hold()
         raise _daily_full(now)
-    if not _take(coll, hour_key, HOURLY_LIMIT, hour_exp):
+    hour_count = _take(coll, hour_key, HOURLY_LIMIT, hour_exp)
+    if hour_count is None:
         coll.update_one({"_id": day_key}, {"$inc": {"count": -1}})
+        release_hold()
         raise _hourly_full(now)
-    counts = {
-        d["_id"]: d["count"] for d in coll.find({"_id": {"$in": [hour_key, day_key]}})
-    }
     return Quota(
         ip=ip,
         hour_key=hour_key,
         day_key=day_key,
-        hour_left=max(0, HOURLY_LIMIT - counts.get(hour_key, HOURLY_LIMIT)),
-        day_left=max(0, DAILY_LIMIT - counts.get(day_key, DAILY_LIMIT)),
+        hour_left=max(0, HOURLY_LIMIT - hour_count),
+        day_left=max(0, DAILY_LIMIT - day_count),
+        spend_key=spend_key,
+        held_usd=RUN_HOLD_USD,
     )
+
+
+def settle(quota: Quota, cost_usd: float) -> None:
+    """Swap a run's hold for what it really cost. Call once, when it ends.
+
+    If this fails, the hold stays counted: the budget errs toward closing early.
+    """
+    try:
+        _usage().update_one(
+            {"_id": quota.spend_key}, {"$inc": {"usd": cost_usd - quota.held_usd}}
+        )
+    except Exception:
+        logger.exception(
+            "Failed to settle an Ask run's spend ($%.5f held, $%.5f spent)",
+            quota.held_usd,
+            cost_usd,
+        )
 
 
 def status(ip: str) -> dict[str, Any]:
@@ -400,7 +473,7 @@ def status(ip: str) -> dict[str, Any]:
     hour_left = max(0, HOURLY_LIMIT - counts.get(hour_key, 0))
     day_left = max(0, DAILY_LIMIT - counts.get(day_key, 0))
     closed = None
-    if spent_today(now) >= DAILY_BUDGET_USD:
+    if not _budget_left_for_a_run(now):
         closed = _budget_closed(now)
     elif day_left == 0:
         closed = _daily_full(now)
@@ -423,23 +496,12 @@ def refund(quota: Quota) -> None:
         logger.warning("Failed to refund an Ask quota", exc_info=True)
 
 
-def _record_spend(usd: float) -> None:
-    if usd <= 0:
-        return
-    now = datetime.now(UTC)
-    day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    try:
-        _usage().update_one(
-            {"_id": f"spend:{day.strftime('%Y%m%d')}"},
-            {"$inc": {"usd": usd}, "$setOnInsert": {"expires_at": day + timedelta(days=40)}},
-            upsert=True,
-        )
-    except Exception:
-        logger.exception("Failed to record Ask spend of $%.5f", usd)
+def _cost(usage: Any, output_tokens: int | None = None) -> tuple[float, int]:
+    """USD cost of one call, and its prompt length in tokens.
 
-
-def _cost(usage: Any) -> tuple[float, int]:
-    """USD cost of one call, and its prompt length in tokens."""
+    ``output_tokens`` overrides the usage's count (for a call cut off before
+    its final count arrived).
+    """
     uncached = usage.input_tokens or 0
     written = usage.cache_creation_input_tokens or 0
     read = usage.cache_read_input_tokens or 0
@@ -448,7 +510,10 @@ def _cost(usage: Any) -> tuple[float, int]:
         "long" if prompt > PRICE_BREAK_TOKENS else "standard"
     ]
     usd = (
-        uncached * p_in + written * p_write + read * p_read + (usage.output_tokens or 0) * p_out
+        uncached * p_in
+        + written * p_write
+        + read * p_read
+        + ((usage.output_tokens or 0) if output_tokens is None else output_tokens) * p_out
     ) / 1_000_000
     return usd, prompt
 
@@ -526,20 +591,6 @@ def _search_result(p: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _public(p: dict[str, Any]) -> dict[str, Any]:
-    """A passage as the client's Result type (same shape as /search results)."""
-    return {
-        "id": p["_id"],
-        "source": p.get("source"),
-        "reference": p.get("reference"),
-        "text": p.get("text"),
-        "title": p.get("title"),
-        "url": p.get("url"),
-        "score": p.get("score", 0.0),
-        "metadata": p.get("metadata") or {},
-    }
-
-
 def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -549,6 +600,7 @@ class AskRun:
     question: str
     quota: Quota
     search: SearchFn
+    public: PublicFn
     # Every search_result block sent to the model, in request order: the API's
     # search_result_index points into this list.
     indexed: list[dict[str, Any]] = field(default_factory=list)
@@ -562,6 +614,9 @@ class AskRun:
     stop_reason: str | None = None
     error: str | None = None
     answered: bool = False
+    # The current call's reply and whether it streamed text (set by _call).
+    _message: Any = None
+    _streamed_text: bool = False
 
     def _run_search(self, args: dict[str, Any]) -> list[dict[str, Any]]:
         query = str(args.get("query") or "").strip()
@@ -594,6 +649,9 @@ class AskRun:
             except SearchToolError as exc:
                 content, is_error = str(exc), True
                 logged["error"] = content
+            except SearchUnavailable:
+                logged["error"] = "search unavailable"
+                raise
             else:
                 logged["results"] = [
                     {
@@ -633,7 +691,7 @@ class AskRun:
         new = pid not in self.numbers
         if new:
             self.numbers[pid] = len(self.numbers) + 1
-        return {"n": self.numbers[pid], **({"passage": _public(passage)} if new else {})}
+        return {"n": self.numbers[pid], **({"passage": self.public(passage)} if new else {})}
 
     def events(self) -> Iterator[str]:
         """Run the question to an answer, yielding server-sent events.
@@ -644,59 +702,95 @@ class AskRun:
         cite {n, passage?}           the current block cites passage n
                                      (passage included the first time n appears)
         text {text}                  answer text for the current block
-        reset {}                     drop the text so far (it came before a search)
+        reset {}                     drop the text and citations so far (they
+                                     came before a search); numbering restarts
         done {}  /  error {message}  last
+
+        However the run ends (answered, failed, or closed early because the
+        client left), its budget hold is settled to what it cost.
         """
+        try:
+            yield from self._events()
+        finally:
+            settle(self.quota, self.cost_usd)
+
+    def _call(self, client: anthropic.Anthropic, messages: list[dict[str, Any]]) -> Iterator[str]:
+        """One model call, streamed as events; leaves the reply in ``self._message``.
+
+        A call that doesn't finish (the client left mid-stream, or an error)
+        is still billed for what the model generated, which isn't known yet:
+        it's counted at its prompt plus a full max_tokens of output.
+        """
+        self._message = None
+        started = None  # the call's usage as of message_start
+        try:
+            with client.messages.stream(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=SYSTEM_PROMPT,
+                tools=[SEARCH_TOOL],
+                messages=messages,
+                output_config={"effort": EFFORT},
+                # Caches the conversation so far; each later call in the
+                # loop re-reads it at a tenth of the input price.
+                cache_control={"type": "ephemeral"},
+            ) as stream:
+                for event in stream:
+                    if event.type == "message_start":
+                        started = event.message.usage
+                    elif event.type == "content_block_start" and event.content_block.type == "text":
+                        yield _sse("block", {})
+                    elif event.type == "citation":
+                        cite = self._cite(event.citation)
+                        if cite:
+                            yield _sse("cite", cite)
+                    elif event.type == "text":
+                        self._streamed_text = True
+                        yield _sse("text", {"text": event.text})
+                self._message = stream.get_final_message()
+        finally:
+            if self._message is None and started is not None:
+                # Without message_start the API never began (a refused or
+                # failed request), which isn't billed.
+                self.model_calls += 1
+                usd, prompt = _cost(started, output_tokens=MAX_TOKENS)
+                self.cost_usd += usd
+                self.max_prompt_tokens = max(self.max_prompt_tokens, prompt)
+
+    def _events(self) -> Iterator[str]:
         yield _sse("meta", {"hour_left": self.quota.hour_left, "day_left": self.quota.day_left})
         client = get_client()
         messages: list[dict[str, Any]] = [{"role": "user", "content": self.question}]
         try:
             for _ in range(MAX_MODEL_CALLS):
-                streamed_text = False
-                with client.messages.stream(
-                    model=MODEL,
-                    max_tokens=MAX_TOKENS,
-                    system=SYSTEM_PROMPT,
-                    tools=[SEARCH_TOOL],
-                    messages=messages,
-                    output_config={"effort": EFFORT},
-                    # Caches the conversation so far; each later call in the
-                    # loop re-reads it at a tenth of the input price.
-                    cache_control={"type": "ephemeral"},
-                ) as stream:
-                    for event in stream:
-                        if event.type == "content_block_start" and event.content_block.type == "text":
-                            yield _sse("block", {})
-                        elif event.type == "citation":
-                            cite = self._cite(event.citation)
-                            if cite:
-                                yield _sse("cite", cite)
-                        elif event.type == "text":
-                            streamed_text = True
-                            yield _sse("text", {"text": event.text})
-                    message = stream.get_final_message()
+                self._streamed_text = False
+                yield from self._call(client, messages)
+                message = self._message
+                streamed_text = self._streamed_text
 
                 self.model_calls += 1
                 usd, prompt = _cost(message.usage)
                 self.cost_usd += usd
                 self.max_prompt_tokens = max(self.max_prompt_tokens, prompt)
                 self.output_tokens += message.usage.output_tokens or 0
-                _record_spend(usd)
                 self.stop_reason = message.stop_reason
 
                 if message.stop_reason == "refusal":
                     self.error = "refusal"
                     yield _sse("error", {"message": "Ask can’t answer that question. Try asking it another way."})
                     return
+                if message.stop_reason == "max_tokens":
+                    # Cut off mid-answer (or mid-search): not an answer.
+                    self.error = "max_tokens"
+                    yield _sse("error", {"message": "That answer ran too long and was cut off. Try a narrower question."})
+                    return
                 tool_uses = [b for b in message.content if b.type == "tool_use"]
                 if message.stop_reason != "tool_use" or not tool_uses:
-                    if message.stop_reason == "max_tokens":
-                        self.error = "max_tokens"
-                    self.answered = streamed_text
                     if not streamed_text:
-                        self.error = self.error or "empty"
+                        self.error = "empty"
                         yield _sse("error", {"message": "Ask couldn’t put an answer together. Try rephrasing the question."})
                         return
+                    self.answered = True
                     yield _sse("done", {})
                     return
                 if prompt > PROMPT_TOKEN_CEILING:
@@ -705,7 +799,9 @@ class AskRun:
                     return
 
                 if streamed_text:
-                    # Text written before a search isn't the answer.
+                    # Text written before a search isn't the answer, and
+                    # neither are its citations.
+                    self.numbers.clear()
                     yield _sse("reset", {})
                 # Thinking and tool_use blocks go back exactly as received.
                 messages.append({"role": "assistant", "content": message.content})
@@ -734,6 +830,17 @@ class AskRun:
             logger.error("Ask request failed: %s", exc.message)
             if not self.model_calls:
                 refund(self.quota)
+            yield _sse("error", {"message": "Ask hit a problem answering that. Try again later."})
+        except SearchUnavailable:
+            # Our failure, not the question's: give the question back.
+            logger.exception("Ask's search failed")
+            self.error = "search_unavailable"
+            refund(self.quota)
+            yield _sse("error", {"message": "Ask couldn’t search the library just now. Try again in a minute."})
+        except Exception:
+            logger.exception("Ask failed")
+            self.error = "internal"
+            refund(self.quota)
             yield _sse("error", {"message": "Ask hit a problem answering that. Try again later."})
 
 

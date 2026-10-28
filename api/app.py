@@ -1,8 +1,12 @@
+import ipaddress
 import os
 import re
+import threading
 import time
+from collections.abc import Iterator
 from typing import Any, Literal
 
+import anyio
 from bson.binary import Binary
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -826,28 +830,35 @@ def read_root():
 
 # --- Client IP ------------------------------------------------------------
 # Headers the edge in front of the API sets to the caller's address, tried in
-# order. Render's edge is Cloudflare, which sets True-Client-IP and
-# CF-Connecting-IP itself. X-Forwarded-For comes after them: Render appends to
-# whatever the client sent, so its first entry can be forged. Set
-# CLIENT_IP_HEADERS for a host with a different edge (e.g. `fly-client-ip`).
+# order; the first that holds a valid IP wins. Render's edge is Cloudflare,
+# which sets CF-Connecting-IP on every request it forwards, replacing any value
+# the client sent. Not True-Client-IP: Cloudflare only sets that one when the
+# zone enables it, and otherwise passes a client's own value through. Nor
+# X-Forwarded-For: Render appends to whatever the client sent, so its first
+# entry can be forged. With none of them, the socket peer (local dev). Set
+# CLIENT_IP_HEADERS for a host whose edge uses another header (e.g.
+# `fly-client-ip`); list only headers the edge always overwrites.
 CLIENT_IP_HEADERS = [
     h.strip().lower()
-    for h in os.getenv("CLIENT_IP_HEADERS", "true-client-ip,cf-connecting-ip").split(
-        ","
-    )
+    for h in os.getenv("CLIENT_IP_HEADERS", "cf-connecting-ip").split(",")
     if h.strip()
 ]
+
+
+def _valid_ip(value: str) -> str | None:
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except ValueError:
+        return None
 
 
 def _client_ip_with_source(request: Request) -> tuple[str, str]:
     """The caller's IP, and the header it came from (logged with each Ask)."""
     for header in CLIENT_IP_HEADERS:
         value = request.headers.get(header)
-        if value:
-            return value.split(",")[0].strip(), header
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip(), "x-forwarded-for"
+        ip = value and _valid_ip(value.split(",")[0])
+        if ip:
+            return ip, header
     return get_remote_address(request), "peer"
 
 
@@ -881,6 +892,8 @@ def _ask_search(
         variants, _ = _speaker_filters(speaker, year_from, year_to)
     except HTTPException as exc:
         raise ask.SearchToolError(str(exc.detail)) from exc
+    except Exception as exc:  # the speaker index lives in the database
+        raise ask.SearchUnavailable(str(exc)) from exc
     try:
         return db.vector_search(
             _encode(query),
@@ -894,6 +907,13 @@ def _ask_search(
         raise ask.SearchToolError(
             "Speaker and year filters aren't available right now; search without them."
         ) from exc
+    except Exception as exc:  # database or encoder: nothing the model can fix
+        raise ask.SearchUnavailable(str(exc)) from exc
+
+
+def _ask_passage(p: dict[str, Any]) -> dict[str, Any]:
+    """A cited passage, serialized exactly as /search returns it."""
+    return SearchResult.model_validate(p).model_dump(mode="json")
 
 
 @api.get("/ask/status", include_in_schema=False)
@@ -930,7 +950,9 @@ def ask_question(request: Request, body: AskRequest):
         headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
         return JSONResponse(status_code=exc.status_code, content=exc.body(), headers=headers)
 
-    run = ask.AskRun(question=question, quota=quota, search=_ask_search)
+    run = ask.AskRun(
+        question=question, quota=quota, search=_ask_search, public=_ask_passage
+    )
     user_agent = request.headers.get("user-agent")
 
     def events():
@@ -942,11 +964,59 @@ def ask_question(request: Request, body: AskRequest):
                 run, ip_source=ip_source, user_agent=user_agent, started=started
             )
 
-    return StreamingResponse(
+    return _AskResponse(
         events(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
+
+
+class _ClosableEvents:
+    """A started event generator that another thread can close safely.
+
+    Started on creation, so it's already inside its try/finally: closing it
+    always runs that finally (closing an unstarted generator skips it). The
+    lock makes ``close`` wait for a ``next`` still running in a worker thread.
+    """
+
+    def __init__(self, events: Iterator[str]):
+        self._events = events
+        self._lock = threading.Lock()
+        self._first: list[str] = [next(events)]
+
+    def __iter__(self) -> "_ClosableEvents":
+        return self
+
+    def __next__(self) -> str:
+        with self._lock:
+            if self._first:
+                return self._first.pop()
+            return next(self._events)
+
+    def close(self) -> None:
+        with self._lock:
+            self._events.close()
+
+
+class _AskResponse(StreamingResponse):
+    """Ask's event stream; closes its generator when the response ends.
+
+    However it ends (sent, client gone, cancelled), closing runs the
+    generator's finally, which frees the answer slot, settles the run's
+    budget hold and logs it. Left to Starlette, a stream the client walked
+    away from would hold both until garbage collection got to it, if ever.
+    """
+
+    def __init__(self, events: Iterator[str], **kwargs: Any):
+        self._events = _ClosableEvents(events)
+        super().__init__(self._events, **kwargs)
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                await anyio.to_thread.run_sync(self._events.close)
 
 
 # --- Per-IP rate limiting (slowapi) --------------------------------------

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 // Below Tailwind's `md` breakpoint the app renders the mobile shell instead of
 // the desktop layout. Expressed in rem so it flips at exactly the same width
@@ -19,12 +19,17 @@ export const SIDEBAR_QUERY = "(width >= 48rem)";
 export const SPLIT_QUERY = "(width >= 64rem)";
 
 export function useMediaQuery(query: string): boolean {
-    return useSyncExternalStore(
-        (onChange) => {
+    // Stable per query, so React doesn't resubscribe on every render.
+    const subscribe = useCallback(
+        (onChange: () => void) => {
             const mql = window.matchMedia(query);
             mql.addEventListener("change", onChange);
             return () => mql.removeEventListener("change", onChange);
         },
+        [query],
+    );
+    return useSyncExternalStore(
+        subscribe,
         () => window.matchMedia(query).matches,
     );
 }
@@ -79,21 +84,23 @@ export function setLayout(next: Layout): void {
     layoutListeners.forEach((onChange) => onChange());
 }
 
+function subscribeLayout(onChange: () => void): () => void {
+    layoutListeners.add(onChange);
+    // A switch in another tab of this site applies here too.
+    const onStorage = (e: StorageEvent) => {
+        if (e.key !== LAYOUT_STORAGE_KEY) return;
+        layout = null;
+        onChange();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+        layoutListeners.delete(onChange);
+        window.removeEventListener("storage", onStorage);
+    };
+}
+
 export function useLayout(): Layout {
-    return useSyncExternalStore((onChange) => {
-        layoutListeners.add(onChange);
-        // A switch in another tab of this site applies here too.
-        const onStorage = (e: StorageEvent) => {
-            if (e.key !== LAYOUT_STORAGE_KEY) return;
-            layout = null;
-            onChange();
-        };
-        window.addEventListener("storage", onStorage);
-        return () => {
-            layoutListeners.delete(onChange);
-            window.removeEventListener("storage", onStorage);
-        };
-    }, readLayout);
+    return useSyncExternalStore(subscribeLayout, readLayout);
 }
 
 /**

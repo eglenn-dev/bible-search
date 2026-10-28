@@ -160,7 +160,7 @@ The runtime uses **onnxruntime** (no torch), so the image is small. Peak RSS mea
 
 Required at runtime:
 - `MONGODB_URI` — the Atlas connection string.
-- Optional: `ANTHROPIC_API_KEY` (turns on Ask mode; its other settings are in [docs/ask.md](./docs/ask.md)), `CLIENT_IP_HEADERS` (default `true-client-ip,cf-connecting-ip`), `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`, `EMBEDDING_VERSION` (default and only version: `v2`; see [docs/embedding-migration.md](./docs/embedding-migration.md)).
+- Optional: `ANTHROPIC_API_KEY` (turns on Ask mode; its other settings are in [docs/ask.md](./docs/ask.md)), `CLIENT_IP_HEADERS` (default `cf-connecting-ip`), `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`, `EMBEDDING_VERSION` (default and only version: `v2`; see [docs/embedding-migration.md](./docs/embedding-migration.md)).
 
 **Atlas network access:** serverless/free hosts use dynamic outbound IPs, so a single-IP allowlist won't work. Set Atlas → Network Access to `0.0.0.0/0` and rely on the DB credentials (the corpora are public content), or configure a static egress IP.
 

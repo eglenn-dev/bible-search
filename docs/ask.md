@@ -23,8 +23,8 @@ app (Ask tab) ──POST /ask──► FastAPI ──► Claude Haiku 5.5 ◄─
 | `block` | `{}` | A new run of answer text starts |
 | `cite` | `{n, passage?}` | The current run cites source `n`; `passage` (same shape as a `/search` result) comes the first time `n` appears |
 | `text` | `{text}` | Answer text for the current run |
-| `reset` | `{}` | Drop the text so far (the model wrote some before searching again) |
-| `done` / `error` | `{}` / `{message}` | Last event |
+| `reset` | `{}` | Drop the text and citations so far (the model wrote a draft before searching again); numbering restarts at 1 and each passage is sent again with its first citation |
+| `done` / `error` | `{}` / `{message}` | Last event. An answer cut off at `max_tokens` ends in `error`, not `done`, so the app says it was cut off |
 
 The client (`client/src/lib/ask.ts`, `client/src/components/mobile/ask-tab.tsx`) renders each run of text followed by its citation numbers. Tapping a number, or a card under **Sources**, opens the passage in the same sheet (or split-view pane) as a search result, with Save, Share, context and "More like this".
 
@@ -34,7 +34,7 @@ The client (`client/src/lib/ask.ts`, `client/src/components/mobile/ask-tab.tsx`)
 
 Model settings: `claude-haiku-5-5`, adaptive thinking at effort `low` (`ASK_EFFORT`), automatic prompt caching so each step of the loop re-reads the conversation at a tenth of the input price. A typical question is 2 or 3 model calls and about $0.001 to $0.002.
 
-Haiku 5.5 bills a request at 5x once its prompt (input + cache reads + cache writes) passes 100K tokens. An Ask conversation is around 10K to 20K tokens: at most 4 searches × 6 passages, each passage capped at 1,800 characters. As a backstop, the loop stops if a prompt ever passes 90K tokens. Every call's cost is computed from its `usage`, added to the day's spend, and logged.
+Haiku 5.5 bills a request at 5x once its prompt (input + cache reads + cache writes) passes 100K tokens. An Ask conversation is around 10K to 20K tokens: at most 4 searches × 6 passages, each passage capped at 1,800 characters. As a backstop, the loop stops if a prompt ever passes 90K tokens. Every call's cost is computed from its `usage` and logged. A call cut off before it finishes (the user closed the app mid-answer, or the model errored) is still billed for what it generated, which the stream never reports, so it counts as its prompt plus a full `max_tokens` of output.
 
 ## Abuse and spend controls
 
@@ -42,7 +42,7 @@ Haiku 5.5 bills a request at 5x once its prompt (input + cache reads + cache wri
 |---|---|---|
 | Questions per IP per hour | 10 | `ASK_HOURLY_LIMIT` |
 | Questions per IP per UTC day | 30 | `ASK_DAILY_LIMIT` |
-| Global spend per UTC day; Ask returns 503 once it's spent | $3.00 | `ASK_DAILY_BUDGET_USD` |
+| Global spend per UTC day; Ask returns 503 once it can't cover another question | $3.00 | `ASK_DAILY_BUDGET_USD` |
 | Answers in flight per process; extra requests get 503 | 4 | `ASK_MAX_CONCURRENT` |
 | Searches per question | 4 | `ASK_MAX_SEARCHES` |
 | Question length | 3 to 500 characters | |
@@ -50,7 +50,9 @@ Haiku 5.5 bills a request at 5x once its prompt (input + cache reads + cache wri
 | Off-topic questions are declined by the system prompt without searching | | |
 | Kill switch | on | `ASK_ENABLED=0` |
 
-The quota counters and the daily spend live in MongoDB (`ask_usage`, `MONGODB_ASK_USAGE_COLLECTION`), so a restart or a Render spin-down doesn't reset them; a TTL index removes old counters. A question counts against the quota when it starts, and is handed back if Ask fails on its side before the model answers. The REST API's general per-IP limit (`RATE_LIMIT`) applies too.
+The quota counters and the daily spend live in MongoDB (`ask_usage`, `MONGODB_ASK_USAGE_COLLECTION`), so a restart or a Render spin-down doesn't reset them; a TTL index removes old counters. A question counts against the quota when it starts, and is handed back if Ask fails on its side: the model can't be reached before its first call, the library search fails, or an unexpected error.
+
+**How the budget stays a hard cap.** Before a question starts, it atomically holds its worst case against the day's spend: every model call it may make (`ASK_MAX_SEARCHES` + 2) at a prompt at the 90K ceiling, all written to the cache, plus a full `max_tokens` of output, which is about $0.09. The hold only goes through if it fits under the budget, so concurrent questions, and questions on other workers, can't overshoot it together. When the question ends, however it ends (answered, failed, or the user left mid-answer), the hold is swapped for what it really cost. If that last write fails or the process dies, the hold stays counted, so errors close Ask early rather than late. As a result Ask closes for the day when less than about $0.09 of the budget is left, and an `ASK_DAILY_BUDGET_USD` below that turns it off. The REST API's general per-IP limit (`RATE_LIMIT`) applies too.
 
 The daily budget is the hard backstop: if quotas are dodged (many IPs, or a forged IP header), the most that can be spent is one day's budget. Also set a monthly spend limit on the Anthropic workspace whose key the API uses.
 
@@ -70,7 +72,7 @@ The app checks it each time the Ask tab opens. While a limit is in force, it dis
 
 ### Client IP
 
-Quotas are per IP, so the API reads the caller's address from a header the edge sets: `CLIENT_IP_HEADERS` (default `true-client-ip,cf-connecting-ip`, which Cloudflare sets in front of Render), then the first `X-Forwarded-For` entry, then the socket peer. Render's proxy appends to `X-Forwarded-For` rather than replacing it, so its first entry can be forged. Each Ask log records `ip_source`, the header the IP came from; check it in production (see the PR checklist).
+Quotas are per IP, so the API reads the caller's address from a header the edge sets: `CLIENT_IP_HEADERS`, tried in order; the first that holds a valid IP wins, otherwise the socket peer (local dev). The default is `cf-connecting-ip`, which Cloudflare (Render's edge) sets on every request it forwards, replacing whatever the client sent. `True-Client-IP` isn't trusted: Cloudflare only sets it when the zone turns it on, and otherwise passes a client's own value through. `X-Forwarded-For` isn't either: Render's proxy appends to it rather than replacing it, so its first entry can be forged. List only headers your edge always overwrites. Each Ask log records `ip_source`, the header the IP came from; check it in production (see the PR checklist).
 
 ## Logs
 

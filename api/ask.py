@@ -128,6 +128,10 @@ How to work:
 - Search before you answer. You have up to {MAX_SEARCHES} searches. Use them \
 when they help: a second phrasing, a specific source, or a speaker or year \
 range the question names. Simple questions often need only one or two.
+- When the question names a speaker, put their full name in `speaker` and \
+keep every name and title out of `query`. For "What did Elder Holland teach \
+about the names of Christ?", search query "names and titles of Jesus Christ" \
+with speaker "Jeffrey R. Holland".
 - Answer only from the passages the tool returned. If they don't answer the \
 question, say so in a sentence or two and suggest how to rephrase it. Never \
 fill gaps from memory, and never quote or cite anything the tool didn't return.
@@ -155,8 +159,9 @@ SEARCH_TOOL = {
         "General Conference, BYU Speeches and the General Handbook. Returns up "
         f"to {RESULTS_PER_SEARCH} of the closest passages, each at most one per "
         "talk or chapter. Write the query as the idea you want to find, e.g. "
-        "'hope in Christ during trials', not a question. Each call uses one of "
-        f"your {MAX_SEARCHES} searches."
+        "'hope in Christ during trials', not a question. Speaker names go in "
+        "`speaker`, never in `query`. Each call uses one of your "
+        f"{MAX_SEARCHES} searches."
     ),
     "strict": True,
     "input_schema": {
@@ -164,7 +169,10 @@ SEARCH_TOOL = {
         "properties": {
             "query": {
                 "type": "string",
-                "description": "What to search for, phrased as the idea itself.",
+                "description": (
+                    "What to search for, phrased as the idea itself. No speaker "
+                    "names or titles: use `speaker` for those."
+                ),
             },
             "sources": {
                 "type": "array",
@@ -174,8 +182,8 @@ SEARCH_TOOL = {
             "speaker": {
                 "type": "string",
                 "description": (
-                    "Only Conference / BYU talks by this speaker, e.g. "
-                    "'Jeffrey R. Holland' or a distinctive surname like 'Uchtdorf'."
+                    "Only Conference / BYU talks by this speaker. Use the full "
+                    "name, e.g. 'Jeffrey R. Holland', 'Russell M. Nelson'."
                 ),
             },
             "year_from": {

@@ -10,8 +10,8 @@ interface SidebarProps {
 
 /**
  * The tab bar's wide-screen form, as in iPadOS 26: a floating glass sidebar
- * inset from the window edges. Only the installed app reaches this width in
- * the shell (a browser this wide gets the desktop layout).
+ * inset from the window edges. Only the installed app, or a wide browser tab
+ * that switched to the app layout, reaches this width in the shell.
  */
 export default function Sidebar({ tab, onSelect, savedCount }: SidebarProps) {
     return (

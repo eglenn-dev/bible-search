@@ -23,6 +23,7 @@ import SourcesFilter from "./components/sources-filter";
 import Footer from "./components/footer";
 import BackendToast from "./components/backend-toast";
 import SettingsSheet from "./components/settings-sheet";
+import TryAppButton from "./components/layout-switch";
 import MobileApp from "./components/mobile/mobile-app";
 import SavedDrawer, { SavedButton } from "./components/saved-drawer";
 import SharedCollection from "./components/shared-collection";
@@ -61,7 +62,8 @@ export default function App() {
     // Phones, and the installed app at any size, get the app-style shell
     // (components/mobile) in place of the layouts below; the search state in
     // this component drives both. A browser tab on an iPad or laptop keeps the
-    // desktop layout.
+    // desktop layout unless it has switched to the app (Settings, or the home
+    // page's "Try Ask" button).
     const appShell = useAppShell();
     // When `?similar=` may load: once the backend is up, or right away when
     // its cached copy may answer instead (offline, or the app shell got no
@@ -646,7 +648,8 @@ export default function App() {
 
     return (
         <div className="flex min-h-screen flex-col">
-            <div className="flex justify-end px-5 pt-4">
+            <div className="flex justify-end gap-2 px-5 pt-4">
+                <TryAppButton />
                 <SettingsSheet />
             </div>
             <main className="gs-fade flex w-full flex-grow flex-col items-center justify-center px-6 pb-12 pt-4">

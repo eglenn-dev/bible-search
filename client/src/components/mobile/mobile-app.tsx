@@ -30,7 +30,12 @@ import type { RecentSearch } from "@/lib/recent-searches";
 import { headingFor } from "@/lib/result-display";
 import { hasFilters } from "@/lib/speakers";
 import { requestPersistentStorage } from "@/lib/storage";
-import { SIDEBAR_QUERY, SPLIT_QUERY, useMediaQuery } from "@/lib/use-is-mobile";
+import {
+    SIDEBAR_QUERY,
+    SPLIT_QUERY,
+    setLayout,
+    useMediaQuery,
+} from "@/lib/use-is-mobile";
 import { useOnline } from "@/lib/use-online";
 import { cn } from "@/lib/utils";
 import { ActiveFilters } from "../speaker-year-filter";
@@ -97,8 +102,9 @@ const SIDEBAR_PADDING = "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]";
  * The app layout: four tabs (Search, Ask, Saved, Settings), results as
  * cards, and bookmarks. On a phone
  * the tabs sit under a floating glass tab bar and a result opens in a sheet.
- * Installed on an iPad or a computer, the tab bar becomes a sidebar and, from
- * iPad-landscape width, the open result gets its own pane beside the list.
+ * Installed on an iPad or a computer (or chosen in a wide browser tab), the
+ * tab bar becomes a sidebar and, from iPad-landscape width, the open result
+ * gets its own pane beside the list.
  * App owns the search state and hands it in, so this and the desktop layout
  * are two views of one search.
  */
@@ -139,7 +145,8 @@ export default function MobileApp({
     const [toast, setToast] = useState<Toast | null>(null);
 
     const online = useOnline();
-    // Only the installed app is this wide in the shell (see useAppShell).
+    // Only the installed app, or a browser tab that chose the app layout, is
+    // this wide in the shell (see useAppShell).
     const sidebar = useMediaQuery(SIDEBAR_QUERY);
     const wide = useMediaQuery(SPLIT_QUERY);
     // Settings has nothing to show beside it, so it gets the full width.
@@ -572,6 +579,12 @@ export default function MobileApp({
                     <SettingsTab
                         savedCount={bookmarks.length}
                         onClearSaved={clearSaved}
+                        // The classic page has no tabs; drop ?tab= so a
+                        // later switch back opens on Search.
+                        onUseClassic={() => {
+                            void setTab(null);
+                            setLayout("classic");
+                        }}
                     />
                 </div>
             )}

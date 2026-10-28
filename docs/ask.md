@@ -1,6 +1,6 @@
 # Ask mode
 
-Ask answers one gospel question with a short answer whose claims cite the passages they came from. It's a fourth tab in the app layout (phones, and the installed app at any size); a desktop browser tab doesn't show it. It is a single question and answer, not a chat: each question starts fresh.
+Ask answers one gospel question with a short answer whose claims cite the passages they came from. It's a fourth tab in the app layout (phones, and the installed app at any size). A desktop browser tab starts in the classic layout, which has no Ask; its "Try Ask in the new app" button or Settings › Layout switches to the app layout, and the browser remembers that. It is a single question and answer, not a chat: each question starts fresh.
 
 ## How it works
 

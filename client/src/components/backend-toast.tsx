@@ -17,7 +17,7 @@ interface BackendToastProps {
 export default function BackendToast({ backend, appShell }: BackendToastProps) {
     const { status, error, checking, slow, retry } = backend;
     const online = useOnline();
-    // The installed app's wide layout has a sidebar instead of a tab bar.
+    // The app shell's wide layout has a sidebar instead of a tab bar.
     const sidebar = useMediaQuery(SIDEBAR_QUERY);
     const waking = status === "unknown" && slow;
     // Offline, the app shell shows its own notice in the page.

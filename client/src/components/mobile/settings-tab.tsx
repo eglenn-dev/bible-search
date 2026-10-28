@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
+    AppWindow,
     BarChart3,
     ChevronRight,
     Download,
     Monitor,
     Moon,
+    PanelsTopLeft,
     Plug,
     SquarePlus,
     Sun,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 import { promptInstall, useInstall } from "@/lib/install";
 import { useTheme } from "@/lib/theme";
+import { useCanChooseLayout, type Layout } from "@/lib/use-is-mobile";
 import { MANUAL_STEPS } from "../install-button";
 import McpDialog from "../mcp-dialog";
 import Segmented from "./segmented";
@@ -20,12 +23,19 @@ import Segmented from "./segmented";
 interface SettingsTabProps {
     savedCount: number;
     onClearSaved: () => void;
+    /** Back to the classic page (a wide browser tab only). */
+    onUseClassic: () => void;
 }
 
 const THEME_OPTIONS = [
     { value: "light", label: "Light", Icon: Sun },
     { value: "dark", label: "Dark", Icon: Moon },
     { value: "system", label: "Auto", Icon: Monitor },
+] as const;
+
+const LAYOUT_OPTIONS = [
+    { value: "classic", label: "Classic", Icon: PanelsTopLeft },
+    { value: "app", label: "App", Icon: AppWindow },
 ] as const;
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
@@ -47,8 +57,12 @@ const row =
 export default function SettingsTab({
     savedCount,
     onClearSaved,
+    onUseClassic,
 }: SettingsTabProps) {
     const { theme, setTheme } = useTheme();
+    // A wide browser tab chose this layout and can go back; phones and the
+    // installed app always use it.
+    const canChooseLayout = useCanChooseLayout();
     const { installed, canPrompt, manual } = useInstall();
     // Clearing every bookmark takes a second tap; the prompt times out.
     const [confirmingClear, setConfirmingClear] = useState(false);
@@ -77,6 +91,26 @@ export default function SettingsTab({
                         options={THEME_OPTIONS}
                     />
                 </section>
+
+                {canChooseLayout && (
+                    <section>
+                        <h2 className="mb-2 px-4 font-sans text-[13px] font-semibold text-muted-foreground">
+                            Layout
+                        </h2>
+                        <Segmented<Layout>
+                            label="Layout"
+                            value="app"
+                            onChange={(next) => {
+                                if (next === "classic") onUseClassic();
+                            }}
+                            options={LAYOUT_OPTIONS}
+                        />
+                        <p className="mt-2 px-4 text-[13px] leading-snug text-muted-foreground">
+                            Ask is only in the app layout. This browser
+                            remembers your choice.
+                        </p>
+                    </section>
+                )}
 
                 <Group label="Explore">
                     <Link to="/stats" className={row}>
@@ -146,11 +180,16 @@ export default function SettingsTab({
                                 <span className="font-semibold text-foreground">
                                     {manual === "mac-safari"
                                         ? "Add to Dock"
-                                        : "Add to Home Screen"}
+                                        : canChooseLayout
+                                          ? "Install Gospel Help"
+                                          : "Add to Home Screen"}
                                 </span>{" "}
-                                to open Gospel Help full-screen, like an app,
-                                with your saved passages and recent searches
-                                available offline.{" "}
+                                to open it{" "}
+                                {canChooseLayout
+                                    ? "in its own window"
+                                    : "full-screen"}
+                                , like an app, with your saved passages and
+                                recent searches available offline.{" "}
                                 {manual
                                     ? MANUAL_STEPS[manual]
                                     : "Look for it in your browser’s menu."}

@@ -896,13 +896,24 @@ def _ask_search(
         ) from exc
 
 
+@api.get("/ask/status", include_in_schema=False)
+def ask_status(request: Request):
+    """Whether the caller can ask now (the day's budget and their quotas).
+
+    Read-only: uses no question. Lets the app close the Ask box with a
+    "back at …" note before anyone types a question it would refuse.
+    """
+    ip, _ = _client_ip_with_source(request)
+    return JSONResponse(ask.status(ip), headers={"Cache-Control": "no-store"})
+
+
 @api.post("/ask", include_in_schema=False)
 def ask_question(request: Request, body: AskRequest):
     """Answer one question with cited passages, as server-sent events."""
     started = time.monotonic()
     try:
         if not ask.is_configured():
-            raise ask.AskRejected(503, "Ask isn't available right now.")
+            raise ask.AskRejected(503, "Ask isn't available right now.", code="unavailable")
         # Browsers always send Origin on a cross-site POST. Anything else is a
         # script, which the per-IP quotas and the daily budget still cover.
         if not _origin_allowed(request.headers.get("origin")):
@@ -917,9 +928,7 @@ def ask_question(request: Request, body: AskRequest):
             raise
     except ask.AskRejected as exc:
         headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
-        return JSONResponse(
-            status_code=exc.status_code, content={"detail": exc.detail}, headers=headers
-        )
+        return JSONResponse(status_code=exc.status_code, content=exc.body(), headers=headers)
 
     run = ask.AskRun(question=question, quota=quota, search=_ask_search)
     user_agent = request.headers.get("user-agent")

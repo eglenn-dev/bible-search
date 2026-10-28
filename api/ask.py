@@ -209,13 +209,38 @@ SearchFn = Callable[
 
 
 class AskRejected(Exception):
-    """A request refused before any model call; becomes an HTTP error."""
+    """A request refused before any model call; becomes an HTTP error.
 
-    def __init__(self, status_code: int, detail: str, retry_after: int | None = None):
+    ``code`` names a limit the client explains itself (``budget``,
+    ``hourly_limit``, ``daily_limit``), with ``reset_at`` for when it lifts,
+    so the app can say "back at 6:00 PM" in the user's own time zone.
+    """
+
+    def __init__(
+        self,
+        status_code: int,
+        detail: str,
+        retry_after: int | None = None,
+        *,
+        code: str | None = None,
+        reset_at: datetime | None = None,
+    ):
         super().__init__(detail)
         self.status_code = status_code
         self.detail = detail
+        self.code = code
+        self.reset_at = reset_at
+        if reset_at is not None and retry_after is None:
+            retry_after = _seconds_until(reset_at, datetime.now(UTC))
         self.retry_after = retry_after
+
+    def body(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"detail": self.detail}
+        if self.code:
+            out["code"] = self.code
+        if self.reset_at:
+            out["reset_at"] = self.reset_at.isoformat()
+        return out
 
 
 class SearchToolError(Exception):
@@ -290,6 +315,41 @@ def spent_today(now: datetime | None = None) -> float:
     return float(doc.get("usd", 0.0)) if doc else 0.0
 
 
+def _next_hour(now: datetime) -> datetime:
+    return now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+
+
+def _next_day(now: datetime) -> datetime:
+    return now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+
+def _budget_closed(now: datetime) -> AskRejected:
+    return AskRejected(
+        503,
+        "Ask has answered as many questions as it can today. Search still works.",
+        code="budget",
+        reset_at=_next_day(now),
+    )
+
+
+def _hourly_full(now: datetime) -> AskRejected:
+    return AskRejected(
+        429,
+        f"You've asked {HOURLY_LIMIT} questions this hour.",
+        code="hourly_limit",
+        reset_at=_next_hour(now),
+    )
+
+
+def _daily_full(now: datetime) -> AskRejected:
+    return AskRejected(
+        429,
+        f"You've asked {DAILY_LIMIT} questions today.",
+        code="daily_limit",
+        reset_at=_next_day(now),
+    )
+
+
 def reserve(ip: str) -> Quota:
     """Check the budget and take one question from ``ip``'s quotas.
 
@@ -300,30 +360,16 @@ def reserve(ip: str) -> Quota:
     """
     now = datetime.now(UTC)
     hour_id, hour_exp, day_id, day_exp = _windows(now)
-    tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
     if spent_today(now) >= DAILY_BUDGET_USD:
-        raise AskRejected(
-            503,
-            "Ask has answered all the questions it can for today. Search still "
-            "works, and Ask will be back tomorrow.",
-            retry_after=_seconds_until(tomorrow, now),
-        )
+        raise _budget_closed(now)
     coll = _usage()
     hour_key, day_key = f"ip:{ip}:h:{hour_id}", f"ip:{ip}:d:{day_id}"
-    if not _take(coll, hour_key, HOURLY_LIMIT, hour_exp):
-        next_hour = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        raise AskRejected(
-            429,
-            f"You've asked {HOURLY_LIMIT} questions this hour. Try again in a bit.",
-            retry_after=_seconds_until(next_hour, now),
-        )
+    # The day first: when both are full, the later reset is the true one.
     if not _take(coll, day_key, DAILY_LIMIT, day_exp):
-        coll.update_one({"_id": hour_key}, {"$inc": {"count": -1}})
-        raise AskRejected(
-            429,
-            f"You've asked {DAILY_LIMIT} questions today. Ask resets at midnight UTC.",
-            retry_after=_seconds_until(tomorrow, now),
-        )
+        raise _daily_full(now)
+    if not _take(coll, hour_key, HOURLY_LIMIT, hour_exp):
+        coll.update_one({"_id": day_key}, {"$inc": {"count": -1}})
+        raise _hourly_full(now)
     counts = {
         d["_id"]: d["count"] for d in coll.find({"_id": {"$in": [hour_key, day_key]}})
     }
@@ -334,6 +380,36 @@ def reserve(ip: str) -> Quota:
         hour_left=max(0, HOURLY_LIMIT - counts.get(hour_key, HOURLY_LIMIT)),
         day_left=max(0, DAILY_LIMIT - counts.get(day_key, DAILY_LIMIT)),
     )
+
+
+def status(ip: str) -> dict[str, Any]:
+    """Whether ``ip`` can ask now, without using a question (GET /ask/status).
+
+    ``available`` plus, when it's false, the same ``code`` / ``detail`` /
+    ``reset_at`` a refused question would get; ``hour_left`` / ``day_left``
+    are this IP's remaining questions.
+    """
+    if not is_configured():
+        return {"available": False, "code": "unavailable", "detail": "Ask isn't available right now."}
+    now = datetime.now(UTC)
+    hour_id, _, day_id, _ = _windows(now)
+    hour_key, day_key = f"ip:{ip}:h:{hour_id}", f"ip:{ip}:d:{day_id}"
+    counts = {
+        d["_id"]: d["count"] for d in _usage().find({"_id": {"$in": [hour_key, day_key]}})
+    }
+    hour_left = max(0, HOURLY_LIMIT - counts.get(hour_key, 0))
+    day_left = max(0, DAILY_LIMIT - counts.get(day_key, 0))
+    closed = None
+    if spent_today(now) >= DAILY_BUDGET_USD:
+        closed = _budget_closed(now)
+    elif day_left == 0:
+        closed = _daily_full(now)
+    elif hour_left == 0:
+        closed = _hourly_full(now)
+    out: dict[str, Any] = {"available": closed is None, "hour_left": hour_left, "day_left": day_left}
+    if closed:
+        out.update(closed.body())
+    return out
 
 
 def refund(quota: Quota) -> None:
@@ -385,7 +461,9 @@ _slots = threading.BoundedSemaphore(max(1, MAX_CONCURRENT))
 def acquire_slot() -> None:
     """Take one of the process's answer slots, or refuse (503) when all are busy."""
     if not _slots.acquire(blocking=False):
-        raise AskRejected(503, "Ask is busy right now. Try again in a moment.", retry_after=10)
+        raise AskRejected(
+            503, "Ask is busy right now. Try again in a moment.", retry_after=10, code="busy"
+        )
 
 
 def release_slot() -> None:

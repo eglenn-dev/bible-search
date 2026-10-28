@@ -25,10 +25,126 @@ export interface AskHandlers {
 
 export const MAX_QUESTION_CHARS = 500;
 
+/** Why Ask won't take a question from this user right now, and until when. */
+export interface AskClosed {
+    code: "budget" | "hourly_limit" | "daily_limit" | "unavailable";
+    /** When it lifts; null when the API didn't say (Ask switched off). */
+    resetAt: Date | null;
+}
+
+/** A question refused by a limit, not a failure: explain it, don't retry. */
+export class AskClosedError extends Error {
+    closed: AskClosed;
+    constructor(closed: AskClosed, message: string) {
+        super(message);
+        this.closed = closed;
+    }
+}
+
+const CLOSED_CODES = new Set<string>([
+    "budget",
+    "hourly_limit",
+    "daily_limit",
+    "unavailable",
+]);
+
+function closedFrom(body: Record<string, unknown> | null): AskClosed | null {
+    const code = body?.code;
+    if (typeof code !== "string" || !CLOSED_CODES.has(code)) return null;
+    const reset =
+        typeof body?.reset_at === "string" ? new Date(body.reset_at) : null;
+    return {
+        code: code as AskClosed["code"],
+        resetAt: reset && !Number.isNaN(reset.getTime()) ? reset : null,
+    };
+}
+
+export interface AskStatus {
+    closed: AskClosed | null;
+    quota: AskQuota;
+}
+
+/**
+ * Whether this user can ask right now, without using a question. Null when
+ * the check fails; the box then stays open and a refused question explains
+ * itself instead.
+ */
+export async function fetchAskStatus(
+    signal?: AbortSignal,
+): Promise<AskStatus | null> {
+    try {
+        const response = await fetch(
+            `${import.meta.env.VITE_API_DOMAIN}/ask/status`,
+            { signal },
+        );
+        if (!response.ok) return null;
+        const body = await response.json();
+        return {
+            closed: body.available ? null : closedFrom(body),
+            quota: {
+                hourLeft: Number(body.hour_left ?? 0),
+                dayLeft: Number(body.day_left ?? 0),
+            },
+        };
+    } catch {
+        return null;
+    }
+}
+
+const dayStart = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+/** "at 6:00 PM", "tomorrow at 9:00 AM": a reset time in the user's zone. */
+export function resetPhrase(resetAt: Date, now = new Date()): string {
+    const time = new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+    }).format(resetAt);
+    const days = Math.round((dayStart(resetAt) - dayStart(now)) / 86_400_000);
+    if (days <= 0) return `at ${time}`;
+    if (days === 1) return `tomorrow at ${time}`;
+    const weekday = new Intl.DateTimeFormat(undefined, {
+        weekday: "long",
+    }).format(resetAt);
+    return `on ${weekday} at ${time}`;
+}
+
+/** The heading and sentence the Ask tab shows while it's closed. */
+export function closedMessage(closed: AskClosed): {
+    title: string;
+    body: string;
+} {
+    const when = closed.resetAt ? resetPhrase(closed.resetAt) : null;
+    switch (closed.code) {
+        case "budget":
+            return {
+                title: "Ask is resting for today.",
+                body: `It has answered as many questions as it can for now${
+                    when ? ` and will be back ${when}` : ""
+                }. Search still works in the meantime.`,
+            };
+        case "daily_limit":
+            return {
+                title: "You’ve used today’s questions.",
+                body: `You can ask again ${when ?? "tomorrow"}. Search still works in the meantime.`,
+            };
+        case "hourly_limit":
+            return {
+                title: "That’s a lot of questions for one hour.",
+                body: `You can ask again ${when ?? "soon"}. Search still works in the meantime.`,
+            };
+        default:
+            return {
+                title: "Ask isn’t available right now.",
+                body: "Search still works in the meantime.",
+            };
+    }
+}
+
 /**
  * Ask one question and stream the answer into `handlers`. Resolves when the
- * answer is complete; rejects with a readable message otherwise (including
- * quota and budget refusals, which arrive as plain JSON errors).
+ * answer is complete; rejects with a readable message otherwise, or with an
+ * `AskClosedError` when a quota or the day's budget refused the question.
  */
 export async function streamAsk(
     question: string,
@@ -52,12 +168,19 @@ export async function streamAsk(
         );
     }
     if (!response.ok || !response.body) {
-        let detail = "";
+        let body: Record<string, unknown> | null = null;
         try {
-            detail = (await response.json())?.detail ?? "";
+            body = await response.json();
         } catch {
             // not JSON
         }
+        const closed = closedFrom(body);
+        const detail = body?.detail;
+        if (closed)
+            throw new AskClosedError(
+                closed,
+                typeof detail === "string" ? detail : "",
+            );
         throw new Error(
             typeof detail === "string" && detail
                 ? detail

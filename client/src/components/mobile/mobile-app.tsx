@@ -537,11 +537,13 @@ export default function MobileApp({
                 )}
             >
                 <AskTab
+                    active={tab === "ask"}
                     online={online}
                     savedIds={savedIds}
                     isOpen={isOpen}
                     onOpen={setOpenResult}
                     onToggleSaved={toggleSaved}
+                    onSearchInstead={() => selectTab("search")}
                 />
             </div>
 

@@ -11,7 +11,7 @@ app (Ask tab) ──POST /ask──► FastAPI ──► Claude Haiku 5.5 ◄─
                                      db.vector_search ────────┘
 ```
 
-1. `POST /ask` with `{"question": "..."}`. The route checks the Origin, the question length, the per-IP quotas and the day's budget before any model call; a refusal is an ordinary JSON error (`400`, `403`, `429` with `Retry-After`, or `503`).
+1. `POST /ask` with `{"question": "..."}`. The route checks the Origin, the question length, the per-IP quotas and the day's budget before any model call; a refusal is an ordinary JSON error (`400`, `403`, `429` with `Retry-After`, or `503`). Refusals from a limit also carry a `code` (`budget`, `daily_limit`, `hourly_limit`, `unavailable`) and a `reset_at` timestamp; see [When Ask is closed](#when-ask-is-closed).
 2. `api/ask.py` gives Claude Haiku 5.5 one tool, `search_passages` (query, plus optional `sources`, `speaker`, `year_from`, `year_to`), backed by the same `db.vector_search` as `/search`. The model may search up to `ASK_MAX_SEARCHES` times (default 4), several at once if it likes.
 3. Each search's passages go back as `search_result` blocks with citations enabled, so the API itself attaches `search_result_location` citations to the answer text. The model never writes citation markers, and a citation can only point at a passage the search returned.
 4. The answer streams back as server-sent events:
@@ -53,6 +53,20 @@ Haiku 5.5 bills a request at 5x once its prompt (input + cache reads + cache wri
 The quota counters and the daily spend live in MongoDB (`ask_usage`, `MONGODB_ASK_USAGE_COLLECTION`), so a restart or a Render spin-down doesn't reset them; a TTL index removes old counters. A question counts against the quota when it starts, and is handed back if Ask fails on its side before the model answers. The REST API's general per-IP limit (`RATE_LIMIT`) applies too.
 
 The daily budget is the hard backstop: if quotas are dodged (many IPs, or a forged IP header), the most that can be spent is one day's budget. Also set a monthly spend limit on the Anthropic workspace whose key the API uses.
+
+### When Ask is closed
+
+`GET /ask/status` (also left out of the spec) tells the app whether this caller can ask right now, without using a question:
+
+```jsonc
+{"available": true, "hour_left": 7, "day_left": 22}
+// or, once a limit is hit:
+{"available": false, "hour_left": 7, "day_left": 22, "code": "budget",
+ "detail": "Ask has answered as many questions as it can today. Search still works.",
+ "reset_at": "2026-10-29T00:00:00+00:00"}
+```
+
+The app checks it each time the Ask tab opens. While a limit is in force, it disables the question box and example questions and shows a neutral note with the reset time in the user's own time zone ("back tomorrow at 6:00 PM": the UTC-midnight reset is evening in the US). The note includes a **Search instead** button. When `reset_at` passes, the box reopens on its own. If a question is refused anyway (a limit hit since the tab opened), the app shows the same note and puts the question back in the box for later.
 
 ### Client IP
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
     ArrowUp,
+    Clock,
     MessageCircleQuestionMark,
     RotateCcw,
     Search as SearchIcon,
@@ -9,8 +10,12 @@ import {
 } from "lucide-react";
 import type { Result } from "@/lib/types";
 import {
+    AskClosedError,
     MAX_QUESTION_CHARS,
+    closedMessage,
+    fetchAskStatus,
     streamAsk,
+    type AskClosed,
     type AskQuota,
     type AskSegment,
 } from "@/lib/ask";
@@ -20,12 +25,16 @@ import { cn } from "@/lib/utils";
 import ResultCard from "./result-card";
 
 interface AskTabProps {
+    /** The Ask tab is the one showing (it stays mounted when it isn't). */
+    active: boolean;
     online: boolean;
     savedIds: Set<string>;
     /** Whether a passage is the one showing in the split view's pane. */
     isOpen: (result: Result) => boolean;
     onOpen: (result: Result) => void;
     onToggleSaved: (result: Result) => void;
+    /** Switch to the Search tab, offered while Ask is closed. */
+    onSearchInstead: () => void;
 }
 
 type Status = "idle" | "running" | "done" | "error";
@@ -43,11 +52,13 @@ const EXAMPLES = [
  * Not a chat; a new question replaces the last answer.
  */
 export default function AskTab({
+    active,
     online,
     savedIds,
     isOpen,
     onOpen,
     onToggleSaved,
+    onSearchInstead,
 }: AskTabProps) {
     const [draft, setDraft] = useState("");
     const [asked, setAsked] = useState<string | null>(null);
@@ -57,15 +68,45 @@ export default function AskTab({
     const [citations, setCitations] = useState<Record<number, Result>>({});
     const [error, setError] = useState<string | null>(null);
     const [quota, setQuota] = useState<AskQuota | null>(null);
+    // A limit (the day's budget, or this user's quota) that keeps the box
+    // closed until it lifts.
+    const [closed, setClosed] = useState<AskClosed | null>(null);
+    const [statusCheck, setStatusCheck] = useState(0);
     const abortRef = useRef<AbortController | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     // Stop a running answer if the app goes away.
     useEffect(() => () => abortRef.current?.abort(), []);
 
+    // Each time the tab opens, check the limits before anyone types.
+    useEffect(() => {
+        if (!active || !online) return;
+        const controller = new AbortController();
+        void fetchAskStatus(controller.signal).then((result) => {
+            if (!result || controller.signal.aborted) return;
+            setClosed(result.closed);
+            setQuota(result.quota);
+        });
+        return () => controller.abort();
+    }, [active, online, statusCheck]);
+
+    // Reopen when the limit lifts, then confirm with a fresh check.
+    useEffect(() => {
+        if (!closed?.resetAt) return;
+        const timer = setTimeout(
+            () => {
+                setClosed(null);
+                setStatusCheck((n) => n + 1);
+            },
+            Math.max(0, closed.resetAt.getTime() - Date.now()) + 2000,
+        );
+        return () => clearTimeout(timer);
+    }, [closed]);
+
     const running = status === "running";
     const question = draft.trim();
-    const canAsk = online && !running && question.length >= 3;
+    const canAsk = online && !closed && !running && question.length >= 3;
+    const notice = closed && closedMessage(closed);
 
     const ask = async (text: string) => {
         abortRef.current?.abort();
@@ -96,6 +137,15 @@ export default function AskTab({
             if (!controller.signal.aborted) setStatus("done");
         } catch (err) {
             if (controller.signal.aborted) return;
+            if (err instanceof AskClosedError) {
+                // Not an error: close the box, and keep the question for
+                // when Ask opens again.
+                setClosed(err.closed);
+                setAsked(null);
+                setStatus("idle");
+                setDraft(text);
+                return;
+            }
             setError(
                 err instanceof Error ? err.message : "Ask hit a problem.",
             );
@@ -163,11 +213,12 @@ export default function AskTab({
                         }
                     }}
                     rows={2}
+                    disabled={!!closed}
                     maxLength={MAX_QUESTION_CHARS}
                     enterKeyHint="send"
                     placeholder="Ask a gospel question…"
                     aria-label="Your question"
-                    className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none border-none bg-transparent py-2 text-[17px] leading-snug text-foreground outline-none [field-sizing:content]"
+                    className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none border-none bg-transparent py-2 text-[17px] leading-snug text-foreground outline-none [field-sizing:content] disabled:opacity-50"
                 />
                 {running ? (
                     <button
@@ -192,6 +243,7 @@ export default function AskTab({
             <div className="flex justify-between px-2 pt-1.5 text-[13px] text-muted-foreground">
                 <span>
                     {quota &&
+                        !closed &&
                         (quota.dayLeft === 1
                             ? "1 question left today"
                             : `${quota.dayLeft} questions left today`)}
@@ -218,6 +270,31 @@ export default function AskTab({
                 </div>
             )}
 
+            {online && notice && (
+                <div
+                    role="status"
+                    className="gs-fade mt-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5"
+                >
+                    <div className="flex items-start gap-3">
+                        <Clock className="mt-0.5 h-5 w-5 flex-none text-primary" />
+                        <p className="text-[15px] leading-snug text-muted-foreground">
+                            <span className="font-semibold text-foreground">
+                                {notice.title}
+                            </span>{" "}
+                            {notice.body}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onSearchInstead}
+                        className="ml-8 mt-2.5 flex h-10 items-center gap-1.5 rounded-full bg-foreground/[0.08] px-4 text-[15px] font-semibold text-primary transition-transform active:scale-95"
+                    >
+                        <SearchIcon className="h-4 w-4" />
+                        Search instead
+                    </button>
+                </div>
+            )}
+
             {asked === null ? (
                 <section className="gs-fade mt-4">
                     <h2 className="mb-2.5 px-1 font-sans text-[20px] font-semibold text-foreground">
@@ -228,7 +305,7 @@ export default function AskTab({
                             <button
                                 key={example}
                                 type="button"
-                                disabled={!online}
+                                disabled={!online || !!closed}
                                 onClick={() => void ask(example)}
                                 className={cn(
                                     "flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left text-[16px] text-foreground transition-colors active:bg-foreground/[0.06] disabled:opacity-50",

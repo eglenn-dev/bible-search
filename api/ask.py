@@ -500,12 +500,24 @@ class AskRun:
         else:
             args = block.input if isinstance(block.input, dict) else {}
             query = str(args.get("query") or "")
-            self.searches.append(args)
+            # Logged: the model's arguments, then what the search returned.
+            logged = {**args, "results": []}
+            self.searches.append(logged)
             try:
                 passages = self._run_search(args)
             except SearchToolError as exc:
                 content, is_error = str(exc), True
+                logged["error"] = content
             else:
+                logged["results"] = [
+                    {
+                        "id": p["_id"],
+                        "source": p.get("source"),
+                        "reference": p.get("reference"),
+                        "score": p.get("score"),
+                    }
+                    for p in passages
+                ]
                 if passages:
                     blocks = [_search_result(p) for p in passages]
                     self.indexed.extend(passages)
@@ -647,6 +659,10 @@ def log_ask(run: AskRun, *, ip_source: str, user_agent: str | None, started: flo
         db.get_client()[db.MONGODB_DB][MONGODB_ASK_LOG_COLLECTION].insert_one(
             {
                 "question": run.question,
+                # Each search: the model's arguments (query, sources, speaker,
+                # years), `results` (id, source, reference, score of each
+                # passage returned) and `error` when it couldn't run. The
+                # answer text itself isn't logged.
                 "searches": run.searches,
                 "cited_ids": sorted(run.numbers, key=run.numbers.get),
                 "answered": run.answered,

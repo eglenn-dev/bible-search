@@ -266,7 +266,10 @@ tags_metadata = [
         "name": "Passages",
         "description": "Look up passages and read them in their surrounding context.",
     },
-    {"name": "Stats", "description": "Precomputed corpus analytics for the stats page."},
+    {
+        "name": "Stats",
+        "description": "Precomputed corpus analytics for the stats page.",
+    },
     {"name": "Health", "description": "Service and database status."},
 ]
 
@@ -613,9 +616,7 @@ def list_speakers(
     entries = speakers.get_speaker_index().speakers
     if q and q.strip():
         want = set(speakers.speaker_key(q).split())
-        entries = [
-            s for s in entries if any(want <= set(k.split()) for k in s.keys)
-        ]
+        entries = [s for s in entries if any(want <= set(k.split()) for k in s.keys)]
     return {
         "count": len(entries),
         "speakers": [s.as_dict(include_variants=variants) for s in entries],
@@ -627,7 +628,7 @@ def list_speakers(
     response_model=SimilarResponse,
     tags=["Search"],
     operation_id="search_similar",
-    summary="Find passages similar to any result (\"more like this\")",
+    summary='Find passages similar to any result ("more like this")',
     responses={
         **FILTER_ERROR_RESPONSES,
         404: {"model": ErrorResponse, "description": "Unknown id."},
@@ -787,7 +788,9 @@ def get_verse(
     tags=["Stats"],
     operation_id="get_stats",
     summary="Precomputed corpus statistics",
-    responses={404: {"model": ErrorResponse, "description": "Stats not generated yet."}},
+    responses={
+        404: {"model": ErrorResponse, "description": "Stats not generated yet."}
+    },
 )
 def get_stats():
     """Return the precomputed stats-page payload.
@@ -829,7 +832,9 @@ def read_root():
 # CLIENT_IP_HEADERS for a host with a different edge (e.g. `fly-client-ip`).
 CLIENT_IP_HEADERS = [
     h.strip().lower()
-    for h in os.getenv("CLIENT_IP_HEADERS", "true-client-ip,cf-connecting-ip").split(",")
+    for h in os.getenv("CLIENT_IP_HEADERS", "true-client-ip,cf-connecting-ip").split(
+        ","
+    )
     if h.strip()
 ]
 
@@ -859,7 +864,8 @@ class AskRequest(BaseModel):
 
 def _origin_allowed(origin: str | None) -> bool:
     return bool(origin) and (
-        origin in allowed_origins or re.fullmatch(VERCEL_ORIGIN_REGEX, origin) is not None
+        origin in allowed_origins
+        or re.fullmatch(VERCEL_ORIGIN_REGEX, origin) is not None
     )
 
 
@@ -923,7 +929,9 @@ def ask_question(request: Request, body: AskRequest):
             yield from run.events()
         finally:
             ask.release_slot()
-            ask.log_ask(run, ip_source=ip_source, user_agent=user_agent, started=started)
+            ask.log_ask(
+                run, ip_source=ip_source, user_agent=user_agent, started=started
+            )
 
     return StreamingResponse(
         events(),

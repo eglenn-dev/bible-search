@@ -60,7 +60,15 @@ Quotas are per IP, so the API reads the caller's address from a header the edge 
 
 ## Logs
 
-Each question is logged to `ask_logs` (`MONGODB_ASK_LOG_COLLECTION`; disable with `LOG_ASKS=0`): the question, the searches the model ran, the cited passage ids, whether it answered, the stop reason or error, model calls, largest prompt, output tokens, cost in USD, duration, IP, `ip_source` and user agent.
+Each question is logged to `ask_logs` (`MONGODB_ASK_LOG_COLLECTION`; disable with `LOG_ASKS=0`), much like searches go to `query_logs`:
+
+- `question`: what the user asked.
+- `searches`: one entry per tool call, in order. Each has the model's arguments (`query`, and `sources`, `speaker`, `year_from`, `year_to` when set), plus `results`: the `id`, `source`, `reference` and `score` of every passage returned. Searches that couldn't run (an unknown speaker, say) have an empty `results` list and an `error`.
+- `cited_ids`: the passages the answer cited, in citation order.
+- Run details: `answered`, `stop_reason`, `error`, `model`, `model_calls`, `max_prompt_tokens`, `output_tokens`, `cost_usd`, `duration_ms`.
+- Caller details: `ip`, `ip_source`, `user_agent`, `created_at`.
+
+The answer text itself isn't logged.
 
 ## Setup
 

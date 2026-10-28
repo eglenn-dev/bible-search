@@ -34,6 +34,7 @@ import { SIDEBAR_QUERY, SPLIT_QUERY, useMediaQuery } from "@/lib/use-is-mobile";
 import { useOnline } from "@/lib/use-online";
 import { cn } from "@/lib/utils";
 import { ActiveFilters } from "../speaker-year-filter";
+import AskTab from "./ask-tab";
 import FilterSheet from "./filter-sheet";
 import RecentSearches from "./recent-searches";
 import ResultCard from "./result-card";
@@ -93,7 +94,8 @@ const TAB_PADDING = "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]";
 const SIDEBAR_PADDING = "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]";
 
 /**
- * The app layout: three tabs, results as cards, and bookmarks. On a phone
+ * The app layout: four tabs (Search, Ask, Saved, Settings), results as
+ * cards, and bookmarks. On a phone
  * the tabs sit under a floating glass tab bar and a result opens in a sheet.
  * Installed on an iPad or a computer, the tab bar becomes a sidebar and, from
  * iPad-landscape width, the open result gets its own pane beside the list.
@@ -159,6 +161,7 @@ export default function MobileApp({
     // back by hand when you return to it.
     const scrollByTab = useRef<Record<Tab, number>>({
         search: 0,
+        ask: 0,
         saved: 0,
         settings: 0,
     });
@@ -520,6 +523,26 @@ export default function MobileApp({
                         </>
                     )}
                 </div>
+            </div>
+
+            {/* Ask stays mounted too, so an answer still streaming (or
+                read a moment ago) is there when you come back to it. */}
+            <div
+                role="tabpanel"
+                aria-label="Ask"
+                className={cn(
+                    tabPadding,
+                    tab !== "ask" &&
+                        "pointer-events-none invisible fixed inset-0 overflow-hidden",
+                )}
+            >
+                <AskTab
+                    online={online}
+                    savedIds={savedIds}
+                    isOpen={isOpen}
+                    onOpen={setOpenResult}
+                    onToggleSaved={toggleSaved}
+                />
             </div>
 
             {tab === "saved" && (

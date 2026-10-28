@@ -19,6 +19,7 @@ dependencies = [
     "beautifulsoup4==4.12.3",
     "requests==2.32.3",
     "python-dotenv>=1.0.1",
+    "anthropic>=2.3.0",    # Ask mode (Claude Haiku 5.5); see ask.py
 ]
 
 # This is an application, not an installable package — uv manages only the deps.

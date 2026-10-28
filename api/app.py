@@ -1,4 +1,6 @@
 import os
+import re
+import time
 from typing import Any, Literal
 
 from bson.binary import Binary
@@ -12,9 +14,10 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Mount
 
+import ask
 import db
 import embeddings
 import passages
@@ -301,7 +304,7 @@ api.add_middleware(
     allow_origins=allowed_origins,
     allow_origin_regex=VERCEL_ORIGIN_REGEX,
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],  # POST: /ask only
     allow_headers=["*"],
 )
 
@@ -818,13 +821,118 @@ def read_root():
         raise HTTPException(status_code=503, detail=f"Database unavailable: {exc}")
 
 
-# --- Per-IP rate limiting (slowapi) --------------------------------------
-def _client_ip(request: Request) -> str:
-    """Prefer X-Forwarded-For (set by deployment proxies) over the socket peer."""
+# --- Client IP ------------------------------------------------------------
+# Headers the edge in front of the API sets to the caller's address, tried in
+# order. Render's edge is Cloudflare, which sets True-Client-IP and
+# CF-Connecting-IP itself. X-Forwarded-For comes after them: Render appends to
+# whatever the client sent, so its first entry can be forged. Set
+# CLIENT_IP_HEADERS for a host with a different edge (e.g. `fly-client-ip`).
+CLIENT_IP_HEADERS = [
+    h.strip().lower()
+    for h in os.getenv("CLIENT_IP_HEADERS", "true-client-ip,cf-connecting-ip").split(",")
+    if h.strip()
+]
+
+
+def _client_ip_with_source(request: Request) -> tuple[str, str]:
+    """The caller's IP, and the header it came from (logged with each Ask)."""
+    for header in CLIENT_IP_HEADERS:
+        value = request.headers.get(header)
+        if value:
+            return value.split(",")[0].strip(), header
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
-    return get_remote_address(request)
+        return forwarded.split(",")[0].strip(), "x-forwarded-for"
+    return get_remote_address(request), "peer"
+
+
+def _client_ip(request: Request) -> str:
+    return _client_ip_with_source(request)[0]
+
+
+# --- Ask (POST /ask) -------------------------------------------------------
+# Kept out of the OpenAPI spec, so it's neither in /docs nor an MCP tool:
+# agents bring their own model, and every answer here is paid for. See ask.py.
+class AskRequest(BaseModel):
+    question: str = Field(..., max_length=2000)
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    return bool(origin) and (
+        origin in allowed_origins or re.fullmatch(VERCEL_ORIGIN_REGEX, origin) is not None
+    )
+
+
+def _ask_search(
+    query: str,
+    sources: list[str] | None,
+    speaker: str | None,
+    year_from: int | None,
+    year_to: int | None,
+) -> list[dict[str, Any]]:
+    """Ask's search tool: /search's vector search, with errors for the model."""
+    try:
+        variants, _ = _speaker_filters(speaker, year_from, year_to)
+    except HTTPException as exc:
+        raise ask.SearchToolError(str(exc.detail)) from exc
+    try:
+        return db.vector_search(
+            _encode(query),
+            k=ask.RESULTS_PER_SEARCH,
+            sources=sources,
+            speakers=variants,
+            year_from=year_from,
+            year_to=year_to,
+        )
+    except db.FilterNotIndexedError as exc:
+        raise ask.SearchToolError(
+            "Speaker and year filters aren't available right now; search without them."
+        ) from exc
+
+
+@api.post("/ask", include_in_schema=False)
+def ask_question(request: Request, body: AskRequest):
+    """Answer one question with cited passages, as server-sent events."""
+    started = time.monotonic()
+    try:
+        if not ask.is_configured():
+            raise ask.AskRejected(503, "Ask isn't available right now.")
+        # Browsers always send Origin on a cross-site POST. Anything else is a
+        # script, which the per-IP quotas and the daily budget still cover.
+        if not _origin_allowed(request.headers.get("origin")):
+            raise ask.AskRejected(403, "Ask is only available in the Gospel Help app.")
+        question = ask.validate_question(body.question)
+        ip, ip_source = _client_ip_with_source(request)
+        ask.acquire_slot()
+        try:
+            quota = ask.reserve(ip)
+        except BaseException:
+            ask.release_slot()
+            raise
+    except ask.AskRejected as exc:
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+        return JSONResponse(
+            status_code=exc.status_code, content={"detail": exc.detail}, headers=headers
+        )
+
+    run = ask.AskRun(question=question, quota=quota, search=_ask_search)
+    user_agent = request.headers.get("user-agent")
+
+    def events():
+        try:
+            yield from run.events()
+        finally:
+            ask.release_slot()
+            ask.log_ask(run, ip_source=ip_source, user_agent=user_agent, started=started)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
+
+
+# --- Per-IP rate limiting (slowapi) --------------------------------------
 
 
 RATE_LIMIT = os.getenv("RATE_LIMIT", "100/minute")

@@ -19,6 +19,8 @@ interface ResultCardProps {
     footnote?: string;
     /** Showing in the split view's passage pane. */
     selected?: boolean;
+    /** Ask's citation number for this passage. */
+    marker?: number;
     style?: React.CSSProperties;
 }
 
@@ -30,6 +32,7 @@ export default function ResultCard({
     showScore = false,
     footnote,
     selected = false,
+    marker,
     style,
 }: ResultCardProps) {
     const heading = headingFor(result);
@@ -57,6 +60,11 @@ export default function ResultCard({
             <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] text-muted-foreground">
+                        {marker !== undefined && (
+                            <span className="mr-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary/[0.14] px-1 align-[1px] text-[11px] font-semibold leading-none text-primary">
+                                {marker}
+                            </span>
+                        )}
                         <span className="text-foreground">
                             {SOURCE_LABELS[result.source]}
                         </span>

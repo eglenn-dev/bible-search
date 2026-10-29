@@ -5,7 +5,7 @@ The API doubles as a **remote MCP server** so AI agents can search the corpora a
 - **Endpoint:** `https://<your-api-host>/mcp` (e.g. `https://api.gospel.help/mcp`)
 - **Transport:** Streamable HTTP (the current remote-MCP standard)
 - **Auth:** none (public), with per-IP rate limiting
-- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `search_similar`, `get_passage_context`, `list_speakers`, `get_verse`, `get_stats`, `health`
+- **Tools (auto-generated from the OpenAPI spec):** `search`, `search_by_reference`, `search_similar`, `get_passage_context`, `list_speakers`, `get_verse`, `get_stats`, `health`. `POST /ask` is left out of the spec on purpose, so it isn't a tool (see [ask.md](./ask.md)).
 
 ## How it's built
 

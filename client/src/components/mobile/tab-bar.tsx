@@ -1,11 +1,17 @@
-import { Bookmark, Search, Settings } from "lucide-react";
+import {
+    Bookmark,
+    MessageCircleQuestionMark,
+    Search,
+    Settings,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type Tab = "search" | "saved" | "settings";
+export type Tab = "search" | "ask" | "saved" | "settings";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const TABS: { key: Tab; label: string; Icon: typeof Search }[] = [
     { key: "search", label: "Search", Icon: Search },
+    { key: "ask", label: "Ask", Icon: MessageCircleQuestionMark },
     { key: "saved", label: "Saved", Icon: Bookmark },
     { key: "settings", label: "Settings", Icon: Settings },
 ];
@@ -28,11 +34,11 @@ export default function TabBar({ tab, onSelect, savedCount }: TabBarProps) {
         >
             <div
                 role="tablist"
-                className="glass pointer-events-auto relative grid h-[62px] w-full max-w-[21rem] grid-cols-3 rounded-full p-1"
+                className="glass pointer-events-auto relative grid h-[62px] w-full max-w-[24rem] grid-cols-4 rounded-full p-1"
             >
                 <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-full bg-[var(--glass-thumb)] transition-transform duration-[350ms] ease-[cubic-bezier(0.3,1.3,0.5,1)]"
+                    className="pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/4)] rounded-full bg-[var(--glass-thumb)] transition-transform duration-[350ms] ease-[cubic-bezier(0.3,1.3,0.5,1)]"
                     style={{ transform: `translateX(${index * 100}%)` }}
                 />
                 {TABS.map(({ key, label, Icon }) => {

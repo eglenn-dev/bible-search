@@ -16,6 +16,7 @@ Full docs live in [`docs/`](./docs/README.md):
 - [Architecture](./docs/architecture.md) — how it works (data model, embeddings, vector search, API, frontend, ingestion).
 - [API & Swagger](./docs/api.md) — OpenAPI spec, interactive Swagger UI (`/docs`), and mocking.
 - [MCP server](./docs/mcp.md) — the hosted `/mcp` connector for AI agents (auto-generated from the OpenAPI spec).
+- [Ask mode](./docs/ask.md) — cited answers to gospel questions (Claude Haiku 5.5), with its quotas and spend cap.
 - [Data sources](./docs/data-sources.md) — the seven corpora, schemas, and deep-link logic.
 - [Adding a source](./docs/adding-a-source.md) — step-by-step guide to extend it.
 - [Project history](./docs/project-history.md) — what changed and why, plus gotchas.
@@ -56,6 +57,7 @@ The Atlas Vector Search index (`vector_index_v2`) indexes `embedding_v2` (384-di
   - `GET /passage/context?id=<result id>&before=2&after=2` — a passage with its surrounding verses or paragraphs, in reading order
   - `GET /verse?reference=Alma%2032:21` — one passage's text + link by exact reference
   - `GET /stats` — precomputed corpus analytics for the `/stats` page
+  - `POST /ask` — **Ask mode**: one question in, a cited answer streamed back as server-sent events (Claude Haiku 5.5 searching the corpora; per-IP quotas and a daily spend cap; not in the OpenAPI spec or MCP). See [docs/ask.md](./docs/ask.md)
   - `GET /` — health check (also pings Atlas)
   - `/docs` — Swagger UI; `/openapi.json` — OpenAPI spec
   - `/mcp` — remote **MCP server** for AI agents (Streamable HTTP, tools auto-generated from the spec via FastMCP)
@@ -69,7 +71,7 @@ The same process hosts a remote MCP server at **`/mcp`**, so agents can use `sea
 
 [TanStack Start](https://tanstack.com/start) (React + Vite) + Tailwind CSS. A unified search box with **source filter chips** (All / Bible / Book of Mormon / D&C / Pearl of Great Price / Conference / BYU Speeches / Handbook), two modes (natural language and scripture reference — the latter works across all Standard Works), a **speaker picker and year range** for Conference / BYU Speeches results, and source-tagged result cards that deep-link back to churchofjesuschrist.org. Any result can be expanded to read its surrounding verses or paragraphs in place, or used as the starting point for a "More like this" search (kept in the URL as `?similar=<id>`, so it can be shared or reloaded). A search link (`?q=…`) opens straight on its results. Passages can be **bookmarked** on desktop and mobile (stored on the device), exported as Markdown, or shared as a link.
 
-It's also an installable **PWA**: a Workbox service worker makes the app open offline with saved passages and recent searches still readable, and announces new versions with a "Reload" toast. Installed, it uses the Liquid Glass app layout at every screen size, with a sidebar and a split view on iPad and desktop; in a browser tab, wide screens keep the desktop layout. See [Offline (PWA)](./docs/architecture.md#offline-pwa).
+It's also an installable **PWA**: a Workbox service worker makes the app open offline with saved passages and recent searches still readable, and announces new versions with a "Reload" toast. Installed, it uses the Liquid Glass app layout at every screen size, with a sidebar and a split view on iPad and desktop; in a browser tab, wide screens start in the classic desktop layout and can switch to the app layout (and Ask) from Settings. See [Offline (PWA)](./docs/architecture.md#offline-pwa).
 
 ## Getting Started Locally
 
@@ -158,7 +160,7 @@ The runtime uses **onnxruntime** (no torch), so the image is small. Peak RSS mea
 
 Required at runtime:
 - `MONGODB_URI` — the Atlas connection string.
-- Optional: `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`, `EMBEDDING_VERSION` (default and only version: `v2`; see [docs/embedding-migration.md](./docs/embedding-migration.md)).
+- Optional: `ANTHROPIC_API_KEY` (turns on Ask mode; its other settings are in [docs/ask.md](./docs/ask.md)), `CLIENT_IP_HEADERS` (default `cf-connecting-ip`), `RATE_LIMIT` (default `100/minute`), `ALLOWED_ORIGINS`, `PORT`, `EMBEDDING_VERSION` (default and only version: `v2`; see [docs/embedding-migration.md](./docs/embedding-migration.md)).
 
 **Atlas network access:** serverless/free hosts use dynamic outbound IPs, so a single-IP allowlist won't work. Set Atlas → Network Access to `0.0.0.0/0` and rely on the DB credentials (the corpora are public content), or configure a static egress IP.
 

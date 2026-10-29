@@ -1,6 +1,12 @@
+import ipaddress
 import os
+import re
+import threading
+import time
+from collections.abc import Iterator
 from typing import Any, Literal
 
+import anyio
 from bson.binary import Binary
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,9 +18,10 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Mount
 
+import ask
 import db
 import embeddings
 import passages
@@ -263,7 +270,10 @@ tags_metadata = [
         "name": "Passages",
         "description": "Look up passages and read them in their surrounding context.",
     },
-    {"name": "Stats", "description": "Precomputed corpus analytics for the stats page."},
+    {
+        "name": "Stats",
+        "description": "Precomputed corpus analytics for the stats page.",
+    },
     {"name": "Health", "description": "Service and database status."},
 ]
 
@@ -301,7 +311,7 @@ api.add_middleware(
     allow_origins=allowed_origins,
     allow_origin_regex=VERCEL_ORIGIN_REGEX,
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],  # POST: /ask only
     allow_headers=["*"],
 )
 
@@ -610,9 +620,7 @@ def list_speakers(
     entries = speakers.get_speaker_index().speakers
     if q and q.strip():
         want = set(speakers.speaker_key(q).split())
-        entries = [
-            s for s in entries if any(want <= set(k.split()) for k in s.keys)
-        ]
+        entries = [s for s in entries if any(want <= set(k.split()) for k in s.keys)]
     return {
         "count": len(entries),
         "speakers": [s.as_dict(include_variants=variants) for s in entries],
@@ -624,7 +632,7 @@ def list_speakers(
     response_model=SimilarResponse,
     tags=["Search"],
     operation_id="search_similar",
-    summary="Find passages similar to any result (\"more like this\")",
+    summary='Find passages similar to any result ("more like this")',
     responses={
         **FILTER_ERROR_RESPONSES,
         404: {"model": ErrorResponse, "description": "Unknown id."},
@@ -784,7 +792,9 @@ def get_verse(
     tags=["Stats"],
     operation_id="get_stats",
     summary="Precomputed corpus statistics",
-    responses={404: {"model": ErrorResponse, "description": "Stats not generated yet."}},
+    responses={
+        404: {"model": ErrorResponse, "description": "Stats not generated yet."}
+    },
 )
 def get_stats():
     """Return the precomputed stats-page payload.
@@ -818,13 +828,198 @@ def read_root():
         raise HTTPException(status_code=503, detail=f"Database unavailable: {exc}")
 
 
-# --- Per-IP rate limiting (slowapi) --------------------------------------
+# --- Client IP ------------------------------------------------------------
+# Headers the edge in front of the API sets to the caller's address, tried in
+# order; the first that holds a valid IP wins. Render's edge is Cloudflare,
+# which sets CF-Connecting-IP on every request it forwards, replacing any value
+# the client sent. Not True-Client-IP: Cloudflare only sets that one when the
+# zone enables it, and otherwise passes a client's own value through. Nor
+# X-Forwarded-For: Render appends to whatever the client sent, so its first
+# entry can be forged. With none of them, the socket peer (local dev). Set
+# CLIENT_IP_HEADERS for a host whose edge uses another header (e.g.
+# `fly-client-ip`); list only headers the edge always overwrites.
+CLIENT_IP_HEADERS = [
+    h.strip().lower()
+    for h in os.getenv("CLIENT_IP_HEADERS", "cf-connecting-ip").split(",")
+    if h.strip()
+]
+
+
+def _valid_ip(value: str) -> str | None:
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except ValueError:
+        return None
+
+
+def _client_ip_with_source(request: Request) -> tuple[str, str]:
+    """The caller's IP, and the header it came from (logged with each Ask)."""
+    for header in CLIENT_IP_HEADERS:
+        value = request.headers.get(header)
+        ip = value and _valid_ip(value.split(",")[0])
+        if ip:
+            return ip, header
+    return get_remote_address(request), "peer"
+
+
 def _client_ip(request: Request) -> str:
-    """Prefer X-Forwarded-For (set by deployment proxies) over the socket peer."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return get_remote_address(request)
+    return _client_ip_with_source(request)[0]
+
+
+# --- Ask (POST /ask) -------------------------------------------------------
+# Kept out of the OpenAPI spec, so it's neither in /docs nor an MCP tool:
+# agents bring their own model, and every answer here is paid for. See ask.py.
+class AskRequest(BaseModel):
+    question: str = Field(..., max_length=2000)
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    return bool(origin) and (
+        origin in allowed_origins
+        or re.fullmatch(VERCEL_ORIGIN_REGEX, origin) is not None
+    )
+
+
+def _ask_search(
+    query: str,
+    sources: list[str] | None,
+    speaker: str | None,
+    year_from: int | None,
+    year_to: int | None,
+) -> list[dict[str, Any]]:
+    """Ask's search tool: /search's vector search, with errors for the model."""
+    try:
+        variants, _ = _speaker_filters(speaker, year_from, year_to)
+    except HTTPException as exc:
+        raise ask.SearchToolError(str(exc.detail)) from exc
+    except Exception as exc:  # the speaker index lives in the database
+        raise ask.SearchUnavailable(str(exc)) from exc
+    try:
+        return db.vector_search(
+            _encode(query),
+            k=ask.RESULTS_PER_SEARCH,
+            sources=sources,
+            speakers=variants,
+            year_from=year_from,
+            year_to=year_to,
+        )
+    except db.FilterNotIndexedError as exc:
+        raise ask.SearchToolError(
+            "Speaker and year filters aren't available right now; search without them."
+        ) from exc
+    except Exception as exc:  # database or encoder: nothing the model can fix
+        raise ask.SearchUnavailable(str(exc)) from exc
+
+
+def _ask_passage(p: dict[str, Any]) -> dict[str, Any]:
+    """A cited passage, serialized exactly as /search returns it."""
+    return SearchResult.model_validate(p).model_dump(mode="json")
+
+
+@api.get("/ask/status", include_in_schema=False)
+def ask_status(request: Request):
+    """Whether the caller can ask now (the day's budget and their quotas).
+
+    Read-only: uses no question. Lets the app close the Ask box with a
+    "back at …" note before anyone types a question it would refuse.
+    """
+    ip, _ = _client_ip_with_source(request)
+    return JSONResponse(ask.status(ip), headers={"Cache-Control": "no-store"})
+
+
+@api.post("/ask", include_in_schema=False)
+def ask_question(request: Request, body: AskRequest):
+    """Answer one question with cited passages, as server-sent events."""
+    started = time.monotonic()
+    try:
+        if not ask.is_configured():
+            raise ask.AskRejected(503, "Ask isn't available right now.", code="unavailable")
+        # Browsers always send Origin on a cross-site POST. Anything else is a
+        # script, which the per-IP quotas and the daily budget still cover.
+        if not _origin_allowed(request.headers.get("origin")):
+            raise ask.AskRejected(403, "Ask is only available in the Gospel Help app.")
+        question = ask.validate_question(body.question)
+        ip, ip_source = _client_ip_with_source(request)
+        ask.acquire_slot()
+        try:
+            quota = ask.reserve(ip)
+        except BaseException:
+            ask.release_slot()
+            raise
+    except ask.AskRejected as exc:
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+        return JSONResponse(status_code=exc.status_code, content=exc.body(), headers=headers)
+
+    run = ask.AskRun(
+        question=question, quota=quota, search=_ask_search, public=_ask_passage
+    )
+    user_agent = request.headers.get("user-agent")
+
+    def events():
+        try:
+            yield from run.events()
+        finally:
+            ask.release_slot()
+            ask.log_ask(
+                run, ip_source=ip_source, user_agent=user_agent, started=started
+            )
+
+    return _AskResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
+
+
+class _ClosableEvents:
+    """A started event generator that another thread can close safely.
+
+    Started on creation, so it's already inside its try/finally: closing it
+    always runs that finally (closing an unstarted generator skips it). The
+    lock makes ``close`` wait for a ``next`` still running in a worker thread.
+    """
+
+    def __init__(self, events: Iterator[str]):
+        self._events = events
+        self._lock = threading.Lock()
+        self._first: list[str] = [next(events)]
+
+    def __iter__(self) -> "_ClosableEvents":
+        return self
+
+    def __next__(self) -> str:
+        with self._lock:
+            if self._first:
+                return self._first.pop()
+            return next(self._events)
+
+    def close(self) -> None:
+        with self._lock:
+            self._events.close()
+
+
+class _AskResponse(StreamingResponse):
+    """Ask's event stream; closes its generator when the response ends.
+
+    However it ends (sent, client gone, cancelled), closing runs the
+    generator's finally, which frees the answer slot, settles the run's
+    budget hold and logs it. Left to Starlette, a stream the client walked
+    away from would hold both until garbage collection got to it, if ever.
+    """
+
+    def __init__(self, events: Iterator[str], **kwargs: Any):
+        self._events = _ClosableEvents(events)
+        super().__init__(self._events, **kwargs)
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                await anyio.to_thread.run_sync(self._events.close)
+
+
+# --- Per-IP rate limiting (slowapi) --------------------------------------
 
 
 RATE_LIMIT = os.getenv("RATE_LIMIT", "100/minute")

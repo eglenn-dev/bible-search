@@ -1,8 +1,10 @@
 import { useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
+    AppWindow,
     Monitor,
     Moon,
+    PanelsTopLeft,
     Plug,
     Settings,
     Sun,
@@ -11,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useInstall } from "@/lib/install";
 import { useTheme, type Theme } from "@/lib/theme";
+import { setLayout, type Layout } from "@/lib/use-is-mobile";
 import { cn } from "@/lib/utils";
 import InstallButton from "./install-button";
 import McpDialog from "./mcp-dialog";
@@ -20,6 +23,53 @@ const THEME_OPTIONS: { key: Theme; label: string; Icon: typeof Sun }[] = [
     { key: "dark", label: "Dark", Icon: Moon },
     { key: "system", label: "System", Icon: Monitor },
 ];
+
+const LAYOUT_OPTIONS: { key: Layout; label: string; Icon: typeof Sun }[] = [
+    { key: "classic", label: "Classic", Icon: PanelsTopLeft },
+    { key: "app", label: "App", Icon: AppWindow },
+];
+
+function Choice<T extends string>({
+    label,
+    value,
+    onChange,
+    options,
+}: {
+    label: string;
+    value: T;
+    onChange: (next: T) => void;
+    options: { key: T; label: string; Icon: typeof Sun }[];
+}) {
+    return (
+        <div
+            role="radiogroup"
+            aria-label={label}
+            className="grid auto-cols-fr grid-flow-col rounded-md border border-input bg-card p-0.5"
+        >
+            {options.map(({ key, label, Icon }) => {
+                const active = key === value;
+                return (
+                    <button
+                        key={key}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => onChange(key)}
+                        className={cn(
+                            "inline-flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+                            active
+                                ? "bg-primary font-semibold text-primary-foreground"
+                                : "text-muted-foreground hover:text-foreground",
+                        )}
+                    >
+                        <Icon className="h-4 w-4 flex-none" />
+                        {label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
 
 function Section({
     title,
@@ -62,9 +112,9 @@ function InstallSection() {
 
 /**
  * The desktop's settings: an icon button that opens a panel from the right
- * (like Saved) holding the theme, the MCP connection, and, in a browser tab,
- * installing the app. Phones and the installed app use the app shell's
- * Settings tab instead.
+ * (like Saved) holding the theme, the switch to the app layout, the MCP
+ * connection, and, in a browser tab, installing the app. The app layout uses
+ * its own Settings tab instead.
  */
 export default function SettingsSheet() {
     const { theme, setTheme } = useTheme();
@@ -87,7 +137,7 @@ export default function SettingsSheet() {
                             Settings
                         </DialogPrimitive.Title>
                         <DialogPrimitive.Description className="sr-only">
-                            Theme, AI agents, and installing the app
+                            Theme, layout, AI agents, and installing the app
                         </DialogPrimitive.Description>
                         <DialogPrimitive.Close
                             aria-label="Close"
@@ -99,33 +149,26 @@ export default function SettingsSheet() {
 
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                         <Section title="Theme">
-                            <div
-                                role="radiogroup"
-                                aria-label="Theme"
-                                className="grid grid-cols-3 rounded-md border border-input bg-card p-0.5"
-                            >
-                                {THEME_OPTIONS.map(({ key, label, Icon }) => {
-                                    const active = key === theme;
-                                    return (
-                                        <button
-                                            key={key}
-                                            type="button"
-                                            role="radio"
-                                            aria-checked={active}
-                                            onClick={() => setTheme(key)}
-                                            className={cn(
-                                                "inline-flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
-                                                active
-                                                    ? "bg-primary font-semibold text-primary-foreground"
-                                                    : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                        >
-                                            <Icon className="h-4 w-4 flex-none" />
-                                            {label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            <Choice
+                                label="Theme"
+                                value={theme}
+                                onChange={setTheme}
+                                options={THEME_OPTIONS}
+                            />
+                        </Section>
+
+                        {/* The sheet only exists in the classic layout, so
+                            "Classic" is always the current choice. */}
+                        <Section
+                            title="Layout"
+                            description="The app layout adds Ask, where AI answers your questions from the library with sources you can open. This browser remembers your choice."
+                        >
+                            <Choice
+                                label="Layout"
+                                value="classic"
+                                onChange={setLayout}
+                                options={LAYOUT_OPTIONS}
+                            />
                         </Section>
 
                         <Section

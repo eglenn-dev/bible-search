@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, MessageCircleQuestionMark } from "lucide-react";
-import { decodeAnswer, sourcesOf, type SharedAnswer as Answer } from "@/lib/ask-share";
-import { bookmarkId, toggleBookmark, useBookmarks } from "@/lib/bookmarks";
+import { decodeAnswer, sourcesOf, type DecodedAnswer as Answer } from "@/lib/ask-share";
+import {
+    isSaved,
+    savedKeySet,
+    toggleBookmark,
+    useBookmarks,
+} from "@/lib/bookmarks";
 import { ShareError } from "@/lib/share";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,10 +40,9 @@ export default function SharedAnswer({ token, onClose }: SharedAnswerProps) {
     // The source a number was just tapped for, highlighted briefly.
     const [flashed, setFlashed] = useState<number | null>(null);
     const bookmarks = useBookmarks();
-    const savedIds = useMemo(
-        () => new Set(bookmarks.map((b) => b.id)),
-        [bookmarks],
-    );
+    // Every key a saved copy could be under, so a passage saved before ids
+    // existed shows as saved (and its toggle removes it, not a second copy).
+    const savedKeys = useMemo(() => savedKeySet(bookmarks), [bookmarks]);
 
     useEffect(() => {
         let cancelled = false;
@@ -167,7 +171,11 @@ export default function SharedAnswer({ token, onClose }: SharedAnswerProps) {
                                 </h2>
                                 <div className="mt-5 flex flex-col gap-8">
                                     {sources.map(({ n, passage }) => {
-                                        const id = bookmarkId(passage);
+                                        // Cut short to fit the link: saving
+                                        // it would keep the cut text, so it
+                                        // links to the full passage instead.
+                                        const excerpt =
+                                            state.answer.excerpts.has(n);
                                         return (
                                             <div
                                                 key={n}
@@ -184,12 +192,23 @@ export default function SharedAnswer({ token, onClose }: SharedAnswerProps) {
                                                     <PassageItem
                                                         result={passage}
                                                         action={
-                                                            <BookmarkToggle
-                                                                saved={savedIds.has(id)}
-                                                                onToggle={() =>
-                                                                    toggleBookmark(passage)
-                                                                }
-                                                            />
+                                                            !excerpt && (
+                                                                <BookmarkToggle
+                                                                    saved={isSaved(
+                                                                        savedKeys,
+                                                                        passage,
+                                                                    )}
+                                                                    onToggle={() =>
+                                                                        toggleBookmark(
+                                                                            passage,
+                                                                        )
+                                                                    }
+                                                                />
+                                                            )
+                                                        }
+                                                        footnote={
+                                                            excerpt &&
+                                                            "Shortened to fit in the link. Open the title to read the whole passage."
                                                         }
                                                     />
                                                 </div>

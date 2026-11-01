@@ -33,11 +33,23 @@ export interface SharedAnswer {
     citations: Record<number, Result>;
 }
 
-/** On the wire: `a` is [text, citation numbers] per run of text. */
+/** An answer opened from a link. */
+export interface DecodedAnswer extends SharedAnswer {
+    /**
+     * Citation numbers whose passage text was cut short to fit the link.
+     * They're not the passage as it is, so they mustn't be saved as one.
+     */
+    excerpts: Set<number>;
+}
+
+/**
+ * On the wire: `a` is [text, citation numbers] per run of text; `k: 1` marks
+ * a passage whose text was cut to fit.
+ */
 interface WireAnswer {
     q: string;
     a: [string, number[]][];
-    p: (WireEntry & { n: number })[];
+    p: (WireEntry & { n: number; k?: 1 })[];
 }
 
 // When the whole answer won't fit in a link, passages are cut to this many
@@ -67,7 +79,10 @@ function toWireAnswer(answer: SharedAnswer, passageChars?: number): WireAnswer {
         a: answer.segments.map((s) => [s.text, s.cites]),
         p: Object.entries(answer.citations).map(([n, passage]) => {
             const entry = toWire(passage);
-            if (passageChars) entry.x = trimText(entry.x, passageChars);
+            if (passageChars && entry.x.length > passageChars) {
+                entry.x = trimText(entry.x, passageChars);
+                return { n: Number(n), ...entry, k: 1 as const };
+            }
             return { n: Number(n), ...entry };
         }),
     };
@@ -102,7 +117,7 @@ const invalid = () =>
     new ShareError("invalid", "The link is incomplete or damaged.");
 
 /** Reverses buildAnswerShareUrl's token, treating it as hostile. */
-export async function decodeAnswer(token: string): Promise<SharedAnswer> {
+export async function decodeAnswer(token: string): Promise<DecodedAnswer> {
     const payload = await unpackToken(token, "answer");
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
         throw invalid();
@@ -120,6 +135,7 @@ export async function decodeAnswer(token: string): Promise<SharedAnswer> {
     }
 
     const citations: Record<number, Result> = {};
+    const excerpts = new Set<number>();
     for (const entry of p) {
         const n = (entry as { n?: unknown } | null)?.n;
         if (
@@ -132,7 +148,11 @@ export async function decodeAnswer(token: string): Promise<SharedAnswer> {
             continue;
         }
         const passage = fromWire(entry);
-        if (passage) citations[n] = passage;
+        if (!passage) continue;
+        citations[n] = passage;
+        // Anything but a clean "not cut" counts as cut: only a passage known
+        // to be whole may be saved.
+        if ((entry as { k?: unknown }).k !== undefined) excerpts.add(n);
     }
 
     let length = 0;
@@ -155,7 +175,7 @@ export async function decodeAnswer(token: string): Promise<SharedAnswer> {
     if (!segments.some((s) => s.text.trim())) {
         throw new ShareError("empty", "There's no answer in this link.");
     }
-    return { question: q.trim(), segments, citations };
+    return { question: q.trim(), segments, citations, excerpts };
 }
 
 /** The cited passages in citation order. */

@@ -3,6 +3,8 @@ import { ArrowLeft, BookmarkCheck, BookmarkPlus } from "lucide-react";
 import {
     bookmarkId,
     importBookmarks,
+    isSaved,
+    savedKeySet,
     toggleBookmark,
     useBookmarks,
 } from "@/lib/bookmarks";
@@ -34,10 +36,9 @@ export default function SharedCollection({ token, onClose }: SharedCollectionPro
     const [state, setState] = useState<State>({ status: "loading" });
     const [imported, setImported] = useState<number | null>(null);
     const bookmarks = useBookmarks();
-    const savedIds = useMemo(
-        () => new Set(bookmarks.map((b) => b.id)),
-        [bookmarks],
-    );
+    // Every key a saved copy could be under, so a passage saved before ids
+    // existed shows as saved (and its toggle removes it, not a second copy).
+    const savedKeys = useMemo(() => savedKeySet(bookmarks), [bookmarks]);
 
     useEffect(() => {
         let cancelled = false;
@@ -67,7 +68,7 @@ export default function SharedCollection({ token, onClose }: SharedCollectionPro
         () => (state.status === "ready" ? state.bookmarks.map((b) => b.result) : []),
         [state],
     );
-    const unsaved = results.filter((r) => !savedIds.has(bookmarkId(r))).length;
+    const unsaved = results.filter((r) => !isSaved(savedKeys, r)).length;
 
     useEffect(() => {
         const previous = document.title;
@@ -184,7 +185,7 @@ export default function SharedCollection({ token, onClose }: SharedCollectionPro
                                         result={result}
                                         action={
                                             <BookmarkToggle
-                                                saved={savedIds.has(id)}
+                                                saved={isSaved(savedKeys, result)}
                                                 onToggle={() =>
                                                     toggleBookmark(result)
                                                 }

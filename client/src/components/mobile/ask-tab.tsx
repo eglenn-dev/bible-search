@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ArrowUp,
     Clock,
+    Copy,
+    Link2,
     MessageCircleQuestionMark,
     RotateCcw,
     Search as SearchIcon,
+    Share as ShareIcon,
     Square,
     WifiOff,
 } from "lucide-react";
@@ -19,10 +22,18 @@ import {
     type AskQuota,
     type AskSegment,
 } from "@/lib/ask";
+import {
+    answerToText,
+    buildAnswerShareUrl,
+    sourcesOf,
+    type SharedAnswer,
+} from "@/lib/ask-share";
 import { isSaved } from "@/lib/bookmarks";
-import { headingFor } from "@/lib/result-display";
+import { usePrebuiltLink } from "@/lib/share";
 import { cn } from "@/lib/utils";
+import AnswerText from "../answer-text";
 import ResultCard from "./result-card";
+import Sheet from "./sheet";
 
 interface AskTabProps {
     /** The Ask tab is the one showing (it stays mounted when it isn't). */
@@ -35,9 +46,16 @@ interface AskTabProps {
     onToggleSaved: (result: Result) => void;
     /** Switch to the Search tab, offered while Ask is closed. */
     onSearchInstead: () => void;
+    onNotify: (message: string) => void;
 }
 
 type Status = "idle" | "running" | "done" | "error";
+
+const shareRow =
+    "flex min-h-[60px] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors active:bg-foreground/[0.06] disabled:opacity-50";
+
+const buildShareUrl = (answer: SharedAnswer) =>
+    buildAnswerShareUrl(answer, window.location.origin);
 
 const EXAMPLES = [
     "How can I keep my faith when I have doubts?",
@@ -59,6 +77,7 @@ export default function AskTab({
     onOpen,
     onToggleSaved,
     onSearchInstead,
+    onNotify,
 }: AskTabProps) {
     const [draft, setDraft] = useState("");
     const [asked, setAsked] = useState<string | null>(null);
@@ -72,6 +91,7 @@ export default function AskTab({
     // closed until it lifts.
     const [closed, setClosed] = useState<AskClosed | null>(null);
     const [statusCheck, setStatusCheck] = useState(0);
+    const [shareOpen, setShareOpen] = useState(false);
     const abortRef = useRef<AbortController | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -181,17 +201,76 @@ export default function AskTab({
         if (canAsk) void ask(question);
     };
 
-    const sources = Object.entries(citations)
-        .map(([n, passage]) => ({ n: Number(n), passage }))
-        .sort((a, b) => a.n - b.n);
+    const sources = sourcesOf(citations);
     const hasAnswer = segments.some((s) => s.text.trim());
+
+    // A finished answer (or one stopped partway) can be shared.
+    const answer = useMemo<SharedAnswer | null>(
+        () =>
+            asked !== null && status === "done" && hasAnswer
+                ? { question: asked, segments, citations }
+                : null,
+        [asked, status, hasAnswer, segments, citations],
+    );
+    // Built while the sheet is open so "Share as a link" can open the share
+    // sheet straight away (Safari won't after an await).
+    const shareLink = usePrebuiltLink(shareOpen ? answer : null, buildShareUrl);
+
+    // Each action closes the sheet first so the toast isn't hidden under it.
+    const shareAsLink = async () => {
+        if (!answer || shareLink.status !== "ready") return;
+        setShareOpen(false);
+        const url = shareLink.url;
+        try {
+            if (navigator.share) {
+                await navigator.share({ title: answer.question, url });
+                return;
+            }
+            await navigator.clipboard.writeText(url);
+            onNotify("Link copied");
+        } catch {
+            // The share sheet was dismissed, or the clipboard is unavailable.
+        }
+    };
+
+    const copyAsText = async () => {
+        if (!answer) return;
+        setShareOpen(false);
+        try {
+            await navigator.clipboard.writeText(answerToText(answer));
+            onNotify("Answer copied");
+        } catch {
+            onNotify("Couldn’t copy");
+        }
+    };
+
+    const linkHint =
+        shareLink.status === "error"
+            ? shareLink.error.code === "too-long"
+                ? "Too long to fit in a link; copy it as text"
+                : "This browser can’t make the link"
+            : shareLink.status === "pending"
+              ? "Making the link…"
+              : "Opens the question, answer and sources";
 
     return (
         <div className="px-4 pt-[env(safe-area-inset-top)]">
             <div className="gs-fade pt-5">
-                <h1 className="font-display text-[34px] font-semibold leading-tight text-foreground">
-                    Ask
-                </h1>
+                <div className="flex items-start justify-between gap-3">
+                    <h1 className="font-display text-[34px] font-semibold leading-tight text-foreground">
+                        Ask
+                    </h1>
+                    {answer && (
+                        <button
+                            type="button"
+                            onClick={() => setShareOpen(true)}
+                            aria-label="Share this answer"
+                            className="glass gs-fade mt-1 flex h-11 w-11 flex-none items-center justify-center rounded-full text-primary transition-transform active:scale-90"
+                        >
+                            <ShareIcon className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
                 <p className="mt-1 text-[15px] text-muted-foreground">
                     Answers from scripture, conference and more, with every
                     source cited
@@ -353,47 +432,14 @@ export default function AskTab({
 
                     {hasAnswer && (
                         <div className="gs-fade mt-4 rounded-[22px] border border-border/70 bg-[var(--app-card)] p-4">
-                            <p className="select-text whitespace-pre-line font-display text-[18px] leading-relaxed text-foreground">
-                                {segments.map((segment, i) => (
-                                    <span key={i}>
-                                        {i === 0
-                                            ? segment.text.trimStart()
-                                            : segment.text}
-                                        {segment.cites.map((n) => {
-                                            const passage = citations[n];
-                                            return (
-                                                <button
-                                                    key={n}
-                                                    type="button"
-                                                    disabled={!passage}
-                                                    onClick={() =>
-                                                        passage && onOpen(passage)
-                                                    }
-                                                    aria-label={
-                                                        passage
-                                                            ? `Source ${n}: ${headingFor(passage)}`
-                                                            : `Source ${n}`
-                                                    }
-                                                    className={cn(
-                                                        "mx-0.5 inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-full px-1.5 align-[3px] font-sans text-[12px] font-semibold leading-none transition-transform active:scale-90",
-                                                        passage && isOpen(passage)
-                                                            ? "bg-primary text-primary-foreground"
-                                                            : "bg-primary/[0.14] text-primary",
-                                                    )}
-                                                >
-                                                    {n}
-                                                </button>
-                                            );
-                                        })}
-                                    </span>
-                                ))}
-                                {running && (
-                                    <span
-                                        aria-hidden="true"
-                                        className="ml-0.5 inline-block h-[1em] w-[2px] animate-pulse bg-primary align-[-2px]"
-                                    />
-                                )}
-                            </p>
+                            <AnswerText
+                                segments={segments}
+                                citations={citations}
+                                running={running}
+                                isOpen={isOpen}
+                                onCite={(_, passage) => onOpen(passage)}
+                                className="text-[18px]"
+                            />
                         </div>
                     )}
 
@@ -449,7 +495,17 @@ export default function AskTab({
                     )}
 
                     {!running && (
-                        <div className="mt-5 flex justify-center">
+                        <div className="mt-5 flex flex-wrap justify-center gap-3">
+                            {answer && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShareOpen(true)}
+                                    className="glass flex h-12 items-center gap-2 rounded-full px-6 text-[15px] font-semibold text-primary transition-transform active:scale-95"
+                                >
+                                    <ShareIcon className="h-4 w-4" />
+                                    Share
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={reset}
@@ -461,6 +517,44 @@ export default function AskTab({
                     )}
                 </section>
             )}
+
+            <Sheet
+                open={shareOpen && !!answer}
+                onOpenChange={setShareOpen}
+                title="Share this answer"
+            >
+                <div className="overflow-hidden rounded-[22px] bg-foreground/[0.06]">
+                    <button
+                        type="button"
+                        onClick={shareAsLink}
+                        disabled={shareLink.status === "error"}
+                        aria-disabled={shareLink.status !== "ready"}
+                        className={shareRow}
+                    >
+                        <Link2 className="h-5 w-5 flex-none text-primary" />
+                        <span className="flex-1">
+                            <span className="block text-[16px] text-foreground">
+                                Share as a link
+                            </span>
+                            <span className="block text-[13px] text-muted-foreground">
+                                {linkHint}
+                            </span>
+                        </span>
+                    </button>
+                    <div className="ml-12 h-px bg-foreground/10" />
+                    <button type="button" onClick={copyAsText} className={shareRow}>
+                        <Copy className="h-5 w-5 flex-none text-primary" />
+                        <span className="flex-1">
+                            <span className="block text-[16px] text-foreground">
+                                Copy as text
+                            </span>
+                            <span className="block text-[13px] text-muted-foreground">
+                                The answer with its sources listed
+                            </span>
+                        </span>
+                    </button>
+                </div>
+            </Sheet>
         </div>
     );
 }

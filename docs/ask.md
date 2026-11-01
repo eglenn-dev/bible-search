@@ -30,6 +30,15 @@ The client (`client/src/lib/ask.ts`, `client/src/components/mobile/ask-tab.tsx`)
 
 `/ask` is a POST, so the service worker never caches it. It is excluded from the OpenAPI spec (`include_in_schema=False`), so it isn't in `/docs` and isn't an MCP tool: agents bring their own model, and every answer here is paid for.
 
+## Sharing
+
+A finished answer (or one stopped partway) gets a share button, top right and next to "Ask another question". It offers:
+
+- **Share as a link**: `/#ask=v1.<data>`, the question, the answer and its cited passages, deflated and base64url-encoded into the URL hash (`client/src/lib/ask-share.ts`, reusing the shared-collection encoding in `share.ts`). Answers aren't stored server-side and the hash never reaches the server, so a link costs no request and no storage, and opens while the API is cold. It goes through the share sheet where there is one, otherwise it's copied. Links are capped at 24,000 characters; if an answer won't fit, its passages are cut to 400 characters and marked as cut, and if it still won't fit, only the text option is offered. The shared page shows a cut passage with a note and a link to its full text, but no save button, so a shortened copy never lands in someone's Saved.
+- **Copy as text**: the question, the answer with `[n]` markers, then each source's heading and link, for messages and notes.
+
+Opening a link shows a read-only page (`client/src/components/shared-answer.tsx`) in either layout: the question, the answer with its numbers (each scrolls to its source), the sources with bookmark toggles (matched like everywhere else, so a passage saved before ids existed shows as saved), and "Ask your own question", which opens Ask (switching a classic desktop tab to the app layout, as "Try Ask" does). A link is untrusted, since anyone can write one: the decoder caps every size, rebuilds passages field by field, drops any whose link isn't a churchofjesuschrist.org / speeches.byu.edu page, and the page says the answer was shared with you rather than presenting it as Gospel Help's own.
+
 ## Cost
 
 Model settings: `claude-haiku-5-5`, adaptive thinking at effort `low` (`ASK_EFFORT`), automatic prompt caching so each step of the loop re-reads the conversation at a tenth of the input price. A typical question is 2 or 3 model calls and about $0.001 to $0.002.

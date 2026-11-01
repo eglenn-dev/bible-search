@@ -551,6 +551,7 @@ export default function MobileApp({
                     onOpen={setOpenResult}
                     onToggleSaved={toggleSaved}
                     onSearchInstead={() => selectTab("search")}
+                    onNotify={notify}
                 />
             </div>
 

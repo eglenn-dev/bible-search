@@ -51,7 +51,7 @@ const METADATA_KEYS = [
 ] as const;
 
 /** One passage on the wire. Short keys: they repeat for every entry. */
-interface WireEntry {
+export interface WireEntry {
     /** source */
     s: Source;
     /** reference */
@@ -158,7 +158,11 @@ async function deflate(text: string): Promise<Uint8Array> {
 }
 
 /** Inflates, giving up as soon as the output passes `limit` bytes. */
-async function inflate(bytes: Uint8Array, limit: number): Promise<string> {
+async function inflate(
+    bytes: Uint8Array,
+    limit: number,
+    what: string,
+): Promise<string> {
     const reader = new Blob([bytes as BlobPart])
         .stream()
         .pipeThrough(new DecompressionStream("deflate-raw"))
@@ -174,7 +178,7 @@ async function inflate(bytes: Uint8Array, limit: number): Promise<string> {
                 await reader.cancel();
                 throw new ShareError(
                     "too-large",
-                    "This collection is too large to open.",
+                    `This ${what} is too large to open.`,
                 );
             }
             chunks.push(value);
@@ -198,7 +202,7 @@ async function inflate(bytes: Uint8Array, limit: number): Promise<string> {
 
 // ---- encode ----------------------------------------------------------------
 
-function toWire(result: Result): WireEntry {
+export function toWire(result: Result): WireEntry {
     const entry: WireEntry = {
         s: result.source,
         r: result.reference,
@@ -223,16 +227,21 @@ function toWire(result: Result): WireEntry {
     return entry;
 }
 
-/** The `v1.…` token that goes after `#saved=`. */
-export async function encodeCollection(results: Result[]): Promise<string> {
+/** Any JSON payload as a `v1.…` token: deflated, then base64url. */
+export async function packToken(payload: unknown): Promise<string> {
     if (!hasCompressionStreams()) {
         throw new ShareError(
             "unsupported",
             "This browser can't make share links.",
         );
     }
-    const payload: WirePayload = { p: results.map(toWire) };
     return VERSION_PREFIX + toBase64Url(await deflate(JSON.stringify(payload)));
+}
+
+/** The `v1.…` token that goes after `#saved=`. */
+export async function encodeCollection(results: Result[]): Promise<string> {
+    const payload: WirePayload = { p: results.map(toWire) };
+    return packToken(payload);
 }
 
 /**
@@ -260,7 +269,8 @@ function boundedString(value: unknown, max: number): string | undefined {
     return typeof value === "string" && value.length <= max ? value : undefined;
 }
 
-function fromWire(value: unknown): Result | null {
+/** Rebuilds a passage from a link, or null when it isn't safe to show. */
+export function fromWire(value: unknown): Result | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
         return null;
     }
@@ -310,15 +320,14 @@ export interface DecodedCollection {
     skipped: number;
 }
 
-/** Reverses encodeCollection, treating `token` as hostile. */
-export async function decodeCollection(
-    token: string,
-): Promise<DecodedCollection> {
+/**
+ * Reverses packToken, treating `token` as hostile: capped before and while
+ * inflating. The JSON that comes back still needs checking field by field.
+ * `what` names the thing in error messages ("collection", "answer").
+ */
+export async function unpackToken(token: string, what: string): Promise<unknown> {
     if (token.length > MAX_ENCODED_LENGTH) {
-        throw new ShareError(
-            "too-large",
-            "This collection is too large to open.",
-        );
+        throw new ShareError("too-large", `This ${what} is too large to open.`);
     }
     if (!token.startsWith(VERSION_PREFIX)) {
         throw new ShareError(
@@ -329,20 +338,27 @@ export async function decodeCollection(
     if (!hasCompressionStreams()) {
         throw new ShareError(
             "unsupported",
-            "This browser can't open shared collections. Try an up-to-date Chrome, Edge, Firefox or Safari.",
+            `This browser can't open shared ${what}s. Try an up-to-date Chrome, Edge, Firefox or Safari.`,
         );
     }
 
     const json = await inflate(
         fromBase64Url(token.slice(VERSION_PREFIX.length)),
         MAX_DECODED_BYTES,
+        what,
     );
-    let payload: unknown;
     try {
-        payload = JSON.parse(json);
+        return JSON.parse(json);
     } catch {
         throw new ShareError("invalid", "The link is incomplete or damaged.");
     }
+}
+
+/** Reverses encodeCollection, treating `token` as hostile. */
+export async function decodeCollection(
+    token: string,
+): Promise<DecodedCollection> {
+    const payload = await unpackToken(token, "collection");
     const entries =
         payload && typeof payload === "object"
             ? (payload as { p?: unknown }).p
@@ -385,10 +401,16 @@ export async function decodeCollection(
     return { bookmarks, skipped };
 }
 
-/** The encoded token from a location hash like `#saved=v1.…`, or null. */
-export function shareTokenFromHash(hash: string): string | null {
+/**
+ * The encoded token from a location hash like `#saved=v1.…` (or `#ask=…`
+ * with `key` "ask"), or null.
+ */
+export function shareTokenFromHash(
+    hash: string,
+    key: string = SHARE_HASH_KEY,
+): string | null {
     const params = new URLSearchParams(hash.replace(/^#/, ""));
-    const token = params.get(SHARE_HASH_KEY);
+    const token = params.get(key);
     return token ? token : null;
 }
 
@@ -398,23 +420,28 @@ export type ShareLinkState =
     | { status: "error"; error: ShareError };
 
 /**
- * The share link for `results`, built ahead of time. Safari only lets the
- * clipboard and share sheet be used straight from a click, not after an
+ * A share link for `input`, built ahead of time by `build`. Safari only lets
+ * the clipboard and share sheet be used straight from a click, not after an
  * `await`, so the compression has to be done before the button is pressed.
+ * `input` should keep its identity until it changes; `build` is read when
+ * `input` changes.
  */
-export function useShareLink(results: Result[], enabled = true): ShareLinkState {
+export function usePrebuiltLink<T>(
+    input: T | null,
+    build: (input: T) => Promise<string>,
+): ShareLinkState {
     const [state, setState] = useState<{
-        for: Result[];
+        for: T;
         value: ShareLinkState;
     } | null>(null);
 
     useEffect(() => {
-        if (!enabled || results.length === 0) return;
+        if (input === null) return;
         let cancelled = false;
-        buildShareUrl(results, window.location.origin).then(
+        build(input).then(
             (url) => {
                 if (!cancelled)
-                    setState({ for: results, value: { status: "ready", url } });
+                    setState({ for: input, value: { status: "ready", url } });
             },
             (e: unknown) => {
                 if (cancelled) return;
@@ -422,14 +449,29 @@ export function useShareLink(results: Result[], enabled = true): ShareLinkState 
                     e instanceof ShareError
                         ? e
                         : new ShareError("invalid", "Couldn't make a share link.");
-                setState({ for: results, value: { status: "error", error } });
+                setState({ for: input, value: { status: "error", error } });
             },
         );
         return () => {
             cancelled = true;
         };
-    }, [results, enabled]);
+        // `build` is a plain function; only a new input calls for a new link.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [input]);
 
-    // A link built for an older list is never handed out.
-    return state && state.for === results ? state.value : { status: "pending" };
+    // A link built for an older input is never handed out.
+    return state && input !== null && state.for === input
+        ? state.value
+        : { status: "pending" };
+}
+
+const buildCollectionUrl = (results: Result[]) =>
+    buildShareUrl(results, window.location.origin);
+
+/** The share link for a list of passages (see usePrebuiltLink). */
+export function useShareLink(results: Result[], enabled = true): ShareLinkState {
+    return usePrebuiltLink(
+        enabled && results.length > 0 ? results : null,
+        buildCollectionUrl,
+    );
 }

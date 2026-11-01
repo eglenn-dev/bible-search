@@ -27,11 +27,13 @@ import TryAppButton from "./components/layout-switch";
 import MobileApp from "./components/mobile/mobile-app";
 import SavedDrawer, { SavedButton } from "./components/saved-drawer";
 import SharedCollection from "./components/shared-collection";
+import SharedAnswer from "./components/shared-answer";
 import { useBookmarks } from "./lib/bookmarks";
 import { useBackendStatus } from "./lib/backend";
 import { useOnline } from "./lib/use-online";
 import { shareTokenFromHash } from "./lib/share";
-import { useAppShell } from "./lib/use-is-mobile";
+import { ASK_SHARE_HASH_KEY } from "./lib/ask-share";
+import { setLayout, useAppShell } from "./lib/use-is-mobile";
 import { cn } from "./lib/utils";
 import { Sparkles, X } from "lucide-react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -76,11 +78,15 @@ export default function App() {
     const [savedOpen, setSavedOpen] = useState<boolean>(false);
     const savedCount = useBookmarks().length;
 
-    // A shared collection arrives as `#saved=…` in the hash, which never
-    // reaches the server. While it's there, it's shown instead of the app.
+    // A shared collection arrives as `#saved=…` in the hash, and a shared
+    // Ask answer as `#ask=…`; neither reaches the server. While one is
+    // there, it's shown instead of the app.
     const location = useLocation();
     const navigate = useNavigate();
     const shareToken = shareTokenFromHash(location.hash);
+    const answerToken = shareToken
+        ? null
+        : shareTokenFromHash(location.hash, ASK_SHARE_HASH_KEY);
 
     // Every shareable/refresh-safe setting lives in the URL via nuqs: each
     // hook returns a [value, setValue] pair backed directly by the query
@@ -259,7 +265,13 @@ export default function App() {
     useEffect(() => {
         if (!ready || openedQuery.current) return;
         openedQuery.current = true;
-        if (similar || shareToken || queryType !== "natural" || !query.trim())
+        if (
+            similar ||
+            shareToken ||
+            answerToken ||
+            queryType !== "natural" ||
+            !query.trim()
+        )
             return;
         const version = resultsVersion.current;
         runSearch({
@@ -386,21 +398,37 @@ export default function App() {
         }
     };
 
-    // Leaving a shared collection drops the hash; after "Save all" it can go
-    // straight to your own Saved list (the tab on phones, the panel here).
-    const closeShared = (toSaved: boolean) => {
+    // Leaving a shared collection or answer drops the hash. After "Save all"
+    // it can go straight to your own Saved list (the tab on phones, the panel
+    // here); "Ask your own question" opens Ask, which lives in the app
+    // layout, so a classic browser tab switches to it (as "Try Ask" does).
+    const closeShared = (to: "search" | "saved" | "ask") => {
         const params = new URLSearchParams(location.searchStr);
-        if (toSaved && appShell) params.set("tab", "saved");
+        if (to === "saved" && appShell) params.set("tab", "saved");
+        if (to === "ask") params.set("tab", "ask");
         const search = params.toString();
         // Navigating without a `hash` drops it.
         navigate({ to: location.pathname + (search ? `?${search}` : "") });
-        if (toSaved && !appShell) setSavedOpen(true);
+        if (to === "saved" && !appShell) setSavedOpen(true);
+        if (to === "ask" && !appShell) setLayout("app");
     };
 
-    // A shared collection carries its own passages, so it opens even while
-    // the API is still waking up.
+    // A shared collection or answer carries its own passages, so it opens
+    // even while the API is still waking up.
     if (shareToken)
-        return <SharedCollection token={shareToken} onClose={closeShared} />;
+        return (
+            <SharedCollection
+                token={shareToken}
+                onClose={(toSaved) => closeShared(toSaved ? "saved" : "search")}
+            />
+        );
+    if (answerToken)
+        return (
+            <SharedAnswer
+                token={answerToken}
+                onClose={(toAsk) => closeShared(toAsk ? "ask" : "search")}
+            />
+        );
 
     const savedDrawer = !appShell && (
         <SavedDrawer open={savedOpen} onOpenChange={setSavedOpen} />

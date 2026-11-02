@@ -17,7 +17,7 @@ export default function Sidebar({ tab, onSelect, savedCount }: SidebarProps) {
     return (
         <nav
             aria-label="Primary"
-            className="flex h-dvh w-56 flex-none flex-col pl-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] xl:w-64"
+            className="flex w-56 flex-none flex-col pl-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] xl:w-64"
         >
             <div className="glass flex flex-1 flex-col rounded-[30px] p-2">
                 <div className="flex items-center gap-2.5 px-3 pb-5 pt-3">

@@ -97,6 +97,16 @@ interface Toast {
 const TAB_PADDING = "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]";
 // With the sidebar there's no tab bar to clear.
 const SIDEBAR_PADDING = "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]";
+// What the browser scrolls with from the keyboard.
+const SCROLL_KEYS = new Set([
+    " ",
+    "ArrowDown",
+    "ArrowUp",
+    "End",
+    "Home",
+    "PageDown",
+    "PageUp",
+]);
 
 /**
  * The app layout: four tabs (Search, Ask, Saved, Settings), results as
@@ -175,6 +185,54 @@ export default function MobileApp({
         else window.scrollTo(options);
     };
 
+    // Crossing the sidebar width swaps scrollers, and each starts from its own
+    // offset. "resize" fires before the media query's change event, so this
+    // reads the outgoing scroller while it still has the content. It's kept as
+    // a fraction because the column's width, and so its height, changes too.
+    const placeBeforeResize = useRef<number | null>(null);
+    useEffect(() => {
+        const remember = () => {
+            const el = scrollerRef.current ?? document.documentElement;
+            const range = el.scrollHeight - el.clientHeight;
+            placeBeforeResize.current = range > 0 ? el.scrollTop / range : 0;
+        };
+        window.addEventListener("resize", remember);
+        return () => window.removeEventListener("resize", remember);
+    }, []);
+    useLayoutEffect(() => {
+        if (placeBeforeResize.current === null) return;
+        const el = scrollerRef.current ?? document.documentElement;
+        el.scrollTop =
+            placeBeforeResize.current * (el.scrollHeight - el.clientHeight);
+    }, [sidebar]);
+
+    // The document no longer scrolls with the sidebar, so a scroll key pressed
+    // with focus outside the column (nothing focused, or on the sidebar) would
+    // do nothing. Moving focus here, before the browser acts on the key, sends
+    // it to the column without taking focus from anything until it's needed.
+    useEffect(() => {
+        if (!sidebar) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            const scroller = scrollerRef.current;
+            if (!scroller || event.defaultPrevented) return;
+            if (!SCROLL_KEYS.has(event.key)) return;
+            const target = event.target instanceof Element ? event.target : null;
+            if (scroller.contains(target)) return;
+            // These use the keys themselves, or scroll on their own.
+            if (
+                target?.closest(
+                    "input, textarea, select, [contenteditable], [role=dialog], aside",
+                )
+            )
+                return;
+            // Space presses a focused control.
+            if (event.key === " " && target?.closest("button, a")) return;
+            scroller.focus({ preventScroll: true });
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [sidebar]);
+
     // The tabs share one scroller, so each one's position is put back by hand
     // when you return to it.
     const scrollByTab = useRef<Record<Tab, number>>({
@@ -209,9 +267,13 @@ export default function MobileApp({
     const headerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const [headerStuck, setHeaderStuck] = useState(false);
+    // Whether anything has slid under the status bar, for the sidebar layout's
+    // edge there.
+    const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
         const measure = () => {
+            setScrolled(scrollPosition() > 0);
             const header = headerRef.current;
             const marker = markerRef.current;
             if (!header || !marker) return;
@@ -283,7 +345,10 @@ export default function MobileApp({
     // similar passages on the Search tab.
     const moreLike = (result: Result) => {
         setOpenResult(null);
+        // To the top straight away, rather than when the passages arrive.
+        scrollByTab.current.search = 0;
         if (tab !== "search") selectTab("search");
+        else scrollColumnTo({ top: 0 });
         onMoreLike(result);
     };
 
@@ -333,7 +398,9 @@ export default function MobileApp({
         <div
             className={cn(
                 "mobile-app relative isolate",
-                sidebar ? "flex h-dvh overflow-hidden" : "min-h-dvh",
+                sidebar
+                    ? "mobile-app-sidebar flex h-dvh overflow-hidden"
+                    : "min-h-dvh",
             )}
         >
             <div aria-hidden="true" className="app-wash" />
@@ -346,274 +413,283 @@ export default function MobileApp({
                 />
             )}
 
-            {sidebar && <div aria-hidden="true" className="status-edge" />}
-
             {/* The tabs' column. With the sidebar it scrolls itself, and its
                 content is capped at a reading width. */}
             <div
                 ref={sidebar ? scrollerRef : undefined}
+                tabIndex={sidebar ? -1 : undefined}
                 className={cn(
-                    sidebar && "h-dvh min-w-0 flex-1 overflow-y-auto overscroll-contain",
+                    sidebar &&
+                        "min-w-0 flex-1 overflow-y-auto overscroll-contain outline-none",
                 )}
             >
-            <div className={cn(sidebar && "mx-auto w-full max-w-[44rem] px-2")}>
-            {/* Search stays mounted (and merely hidden) on the other tabs so
-                the query, results and any in-flight request survive. */}
-            <div
-                role="tabpanel"
-                aria-label="Search"
-                className={cn(
-                    "pt-[env(safe-area-inset-top)]",
-                    tabPadding,
-                    tab !== "search" &&
-                        "pointer-events-none invisible fixed inset-0 overflow-hidden",
-                )}
-            >
-                {!hasSearched && (
-                    <div className="gs-fade px-4 pt-5">
-                        <h1 className="font-display text-[34px] font-semibold leading-tight text-foreground">
-                            Gospel Help
-                        </h1>
-                        <p className="mt-1 text-[15px] text-muted-foreground">
-                            A Gospel Library concordance of 135,000+ indexed
-                            items
-                        </p>
-                    </div>
-                )}
-
-                <div ref={markerRef} aria-hidden="true" />
-                <div
-                    ref={headerRef}
-                    data-stuck={headerStuck}
-                    className="glass-edge-top sticky top-[env(safe-area-inset-top)] z-30 px-4 pb-3 pt-3"
-                >
-                    {searchInput}
-                    <div className="mt-2.5 flex items-center gap-2.5">
-                        <Segmented
-                            className="flex-1"
-                            label="Search mode"
-                            value={queryType}
-                            onChange={onQueryTypeChange}
-                            options={MODE_OPTIONS}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setFiltersOpen(true)}
-                            aria-label={
-                                filterCount > 0
-                                    ? `Filters, ${filterCount} active`
-                                    : "Filters"
-                            }
-                            className="glass relative flex h-11 w-11 flex-none items-center justify-center rounded-full text-foreground transition-transform active:scale-90"
-                        >
-                            <SlidersHorizontal className="h-5 w-5" />
-                            {filterCount > 0 && (
-                                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold leading-none text-primary-foreground">
-                                    {filterCount}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="px-4 pt-1">
-                    {offlineNotice}
-                    <ActiveFilters
-                        variant="sheet"
-                        filters={filters}
-                        onChange={onFiltersChange}
-                        className="px-1 pb-2"
+                {sidebar && (
+                    <div
+                        aria-hidden="true"
+                        className="status-edge"
+                        // A stuck search header has this edge of its own.
+                        data-visible={
+                            scrolled && !(tab === "search" && headerStuck)
+                        }
                     />
-                    {searchError && (
-                        <p
-                            role="alert"
-                            className="px-1 pb-2 text-[15px] text-destructive"
+                )}
+                <div className={cn(sidebar && "mx-auto w-full max-w-[44rem] px-2")}>
+                    {/* Search stays mounted (and merely hidden) on the other tabs so
+                        the query, results and any in-flight request survive. */}
+                    <div
+                        role="tabpanel"
+                        aria-label="Search"
+                        className={cn(
+                            "pt-[env(safe-area-inset-top)]",
+                            tabPadding,
+                            tab !== "search" &&
+                                "pointer-events-none invisible fixed inset-0 overflow-hidden",
+                        )}
+                    >
+                        {!hasSearched && (
+                            <div className="gs-fade px-4 pt-5">
+                                <h1 className="font-display text-[34px] font-semibold leading-tight text-foreground">
+                                    Gospel Help
+                                </h1>
+                                <p className="mt-1 text-[15px] text-muted-foreground">
+                                    A Gospel Library concordance of 135,000+ indexed
+                                    items
+                                </p>
+                            </div>
+                        )}
+
+                        <div ref={markerRef} aria-hidden="true" />
+                        <div
+                            ref={headerRef}
+                            data-stuck={headerStuck}
+                            className="glass-edge-top sticky top-[env(safe-area-inset-top)] z-30 px-4 pb-3 pt-3"
                         >
-                            {searchError}
-                        </p>
-                    )}
-                    {!hasSearched ? (
-                        <div className="gs-fade flex flex-col">
-                            <RecentSearches
-                                onRun={onRunRecent}
-                                online={online}
+                            {searchInput}
+                            <div className="mt-2.5 flex items-center gap-2.5">
+                                <Segmented
+                                    className="flex-1"
+                                    label="Search mode"
+                                    value={queryType}
+                                    onChange={onQueryTypeChange}
+                                    options={MODE_OPTIONS}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setFiltersOpen(true)}
+                                    aria-label={
+                                        filterCount > 0
+                                            ? `Filters, ${filterCount} active`
+                                            : "Filters"
+                                    }
+                                    className="glass relative flex h-11 w-11 flex-none items-center justify-center rounded-full text-foreground transition-transform active:scale-90"
+                                >
+                                    <SlidersHorizontal className="h-5 w-5" />
+                                    {filterCount > 0 && (
+                                        <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold leading-none text-primary-foreground">
+                                            {filterCount}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="px-4 pt-1">
+                            {offlineNotice}
+                            <ActiveFilters
+                                variant="sheet"
+                                filters={filters}
+                                onChange={onFiltersChange}
+                                className="px-1 pb-2"
                             />
-                            {bookmarks.length === 0 ? (
-                                // First visit: say what the Saved tab is for.
-                                <div className="mt-2 flex items-start gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5">
-                                    <BookmarkIcon className="mt-0.5 h-5 w-5 flex-none text-primary" />
-                                    <p className="text-[15px] leading-snug text-muted-foreground">
-                                        <span className="font-semibold text-foreground">
-                                            Keep what you find.
-                                        </span>{" "}
-                                        Tap the bookmark on any result and it
-                                        will be waiting for you under Saved.
-                                    </p>
+                            {searchError && (
+                                <p
+                                    role="alert"
+                                    className="px-1 pb-2 text-[15px] text-destructive"
+                                >
+                                    {searchError}
+                                </p>
+                            )}
+                            {!hasSearched ? (
+                                <div className="gs-fade flex flex-col">
+                                    <RecentSearches
+                                        onRun={onRunRecent}
+                                        online={online}
+                                    />
+                                    {bookmarks.length === 0 ? (
+                                        // First visit: say what the Saved tab is for.
+                                        <div className="mt-2 flex items-start gap-3 rounded-[22px] border border-border/70 bg-[var(--app-card)] px-4 py-3.5">
+                                            <BookmarkIcon className="mt-0.5 h-5 w-5 flex-none text-primary" />
+                                            <p className="text-[15px] leading-snug text-muted-foreground">
+                                                <span className="font-semibold text-foreground">
+                                                    Keep what you find.
+                                                </span>{" "}
+                                                Tap the bookmark on any result and it
+                                                will be waiting for you under Saved.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <section className="mt-2">
+                                            <div className="mb-2.5 flex items-baseline justify-between px-1">
+                                                <h2 className="font-sans text-[20px] font-semibold text-foreground">
+                                                    Recently saved
+                                                </h2>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => selectTab("saved")}
+                                                    className="flex items-center text-[15px] text-primary"
+                                                >
+                                                    See all
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                            <div className="flex flex-col gap-3">
+                                                {bookmarks.slice(0, 3).map((b) => (
+                                                    <ResultCard
+                                                        key={b.id}
+                                                        result={b.result}
+                                                        saved
+                                                        selected={isOpen(b.result)}
+                                                        onOpen={() =>
+                                                            setOpenResult(b.result)
+                                                        }
+                                                        onToggleSaved={() =>
+                                                            toggleSaved(b.result)
+                                                        }
+                                                    />
+                                                ))}
+                                            </div>
+                                        </section>
+                                    )}
                                 </div>
+                            ) : results.length === 0 ? (
+                                <>
+                                    {similarBanner}
+                                    {/* After a failed search the error above says why it's empty. */}
+                                    {!searchError && (
+                                        <p className="gs-fade px-1 pt-6 text-[17px] text-foreground/80">
+                                            No results
+                                            {similarSeed
+                                                ? ` like “${headingFor(similarSeed)}”`
+                                                : activeQuery
+                                                  ? ` for “${activeQuery}”`
+                                                  : ""}
+                                            .{" "}
+                                            <span className="text-muted-foreground">
+                                                {hasFilters(filters)
+                                                    ? "Speaker and year filters only match Conference and BYU Speeches; try loosening them."
+                                                    : "Try fewer or different words, or switch search mode."}
+                                            </span>
+                                        </p>
+                                    )}
+                                </>
                             ) : (
-                                <section className="mt-2">
-                                    <div className="mb-2.5 flex items-baseline justify-between px-1">
-                                        <h2 className="font-sans text-[20px] font-semibold text-foreground">
-                                            Recently saved
-                                        </h2>
-                                        <button
-                                            type="button"
-                                            onClick={() => selectTab("saved")}
-                                            className="flex items-center text-[15px] text-primary"
-                                        >
-                                            See all
-                                            <ChevronRight className="h-4 w-4" />
-                                        </button>
+                                <>
+                                    {similarBanner}
+                                    <div className="px-1 pb-2.5 pt-1 text-[13px] text-muted-foreground">
+                                        {countLabel}
                                     </div>
                                     <div className="flex flex-col gap-3">
-                                        {bookmarks.slice(0, 3).map((b) => (
+                                        {results.map((result, index) => (
                                             <ResultCard
-                                                key={b.id}
-                                                result={b.result}
-                                                saved
-                                                selected={isOpen(b.result)}
-                                                onOpen={() =>
-                                                    setOpenResult(b.result)
-                                                }
+                                                key={`${bookmarkId(result)}-${index}`}
+                                                result={result}
+                                                saved={isSaved(savedIds, result)}
+                                                selected={isOpen(result)}
+                                                onOpen={() => setOpenResult(result)}
                                                 onToggleSaved={() =>
-                                                    toggleSaved(b.result)
+                                                    toggleSaved(result)
                                                 }
+                                                showScore
+                                                style={{
+                                                    animation: `gsFade .4s ease ${Math.min(index, 8) * 45}ms both`,
+                                                }}
                                             />
                                         ))}
                                     </div>
-                                </section>
+                                    {canLoadMore && (
+                                        <div className="mt-5 flex justify-center">
+                                            <button
+                                                type="button"
+                                                onClick={onLoadMore}
+                                                disabled={loadingMore}
+                                                className="glass h-12 rounded-full px-6 text-[15px] font-semibold text-primary transition-transform active:scale-95 disabled:opacity-60"
+                                            >
+                                                {loadingMore
+                                                    ? "Loading…"
+                                                    : "Load more results"}
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
-                    ) : results.length === 0 ? (
-                        <>
-                            {similarBanner}
-                            {/* After a failed search the error above says why it's empty. */}
-                            {!searchError && (
-                                <p className="gs-fade px-1 pt-6 text-[17px] text-foreground/80">
-                                    No results
-                                    {similarSeed
-                                        ? ` like “${headingFor(similarSeed)}”`
-                                        : activeQuery
-                                          ? ` for “${activeQuery}”`
-                                          : ""}
-                                    .{" "}
-                                    <span className="text-muted-foreground">
-                                        {hasFilters(filters)
-                                            ? "Speaker and year filters only match Conference and BYU Speeches; try loosening them."
-                                            : "Try fewer or different words, or switch search mode."}
-                                    </span>
-                                </p>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            {similarBanner}
-                            <div className="px-1 pb-2.5 pt-1 text-[13px] text-muted-foreground">
-                                {countLabel}
-                            </div>
-                            <div className="flex flex-col gap-3">
-                                {results.map((result, index) => (
-                                    <ResultCard
-                                        key={`${bookmarkId(result)}-${index}`}
-                                        result={result}
-                                        saved={isSaved(savedIds, result)}
-                                        selected={isOpen(result)}
-                                        onOpen={() => setOpenResult(result)}
-                                        onToggleSaved={() =>
-                                            toggleSaved(result)
-                                        }
-                                        showScore
-                                        style={{
-                                            animation: `gsFade .4s ease ${Math.min(index, 8) * 45}ms both`,
-                                        }}
-                                    />
-                                ))}
-                            </div>
-                            {canLoadMore && (
-                                <div className="mt-5 flex justify-center">
-                                    <button
-                                        type="button"
-                                        onClick={onLoadMore}
-                                        disabled={loadingMore}
-                                        className="glass h-12 rounded-full px-6 text-[15px] font-semibold text-primary transition-transform active:scale-95 disabled:opacity-60"
-                                    >
-                                        {loadingMore
-                                            ? "Loading…"
-                                            : "Load more results"}
-                                    </button>
-                                </div>
-                            )}
-                        </>
+                    </div>
+
+                    {/* Ask stays mounted too, so an answer still streaming (or
+                        read a moment ago) is there when you come back to it. */}
+                    <div
+                        role="tabpanel"
+                        aria-label="Ask"
+                        className={cn(
+                            tabPadding,
+                            tab !== "ask" &&
+                                "pointer-events-none invisible fixed inset-0 overflow-hidden",
+                        )}
+                    >
+                        <AskTab
+                            active={tab === "ask"}
+                            online={online}
+                            savedIds={savedIds}
+                            isOpen={isOpen}
+                            onOpen={setOpenResult}
+                            onToggleSaved={toggleSaved}
+                            onScrollToTop={() =>
+                                scrollColumnTo({ top: 0, behavior: "smooth" })
+                            }
+                            onSearchInstead={() => selectTab("search")}
+                            onNotify={notify}
+                        />
+                    </div>
+
+                    {tab === "saved" && (
+                        <div
+                            role="tabpanel"
+                            aria-label="Saved"
+                            className={cn("gs-fade", tabPadding)}
+                        >
+                            <SavedTab
+                                bookmarks={bookmarks}
+                                isOpen={isOpen}
+                                onOpen={setOpenResult}
+                                onToggleSaved={toggleSaved}
+                                onNotify={notify}
+                            />
+                        </div>
+                    )}
+
+                    {tab === "settings" && (
+                        <div
+                            role="tabpanel"
+                            aria-label="Settings"
+                            className={cn("gs-fade", tabPadding)}
+                        >
+                            <SettingsTab
+                                savedCount={bookmarks.length}
+                                onClearSaved={clearSaved}
+                                // The classic page has no tabs; drop ?tab= so a
+                                // later switch back opens on Search.
+                                onUseClassic={() => {
+                                    void setTab(null);
+                                    setLayout("classic");
+                                }}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
 
-            {/* Ask stays mounted too, so an answer still streaming (or
-                read a moment ago) is there when you come back to it. */}
-            <div
-                role="tabpanel"
-                aria-label="Ask"
-                className={cn(
-                    tabPadding,
-                    tab !== "ask" &&
-                        "pointer-events-none invisible fixed inset-0 overflow-hidden",
-                )}
-            >
-                <AskTab
-                    active={tab === "ask"}
-                    online={online}
-                    savedIds={savedIds}
-                    isOpen={isOpen}
-                    onOpen={setOpenResult}
-                    onToggleSaved={toggleSaved}
-                    onScrollToTop={() =>
-                        scrollColumnTo({ top: 0, behavior: "smooth" })
-                    }
-                    onSearchInstead={() => selectTab("search")}
-                    onNotify={notify}
-                />
-            </div>
-
-            {tab === "saved" && (
-                <div
-                    role="tabpanel"
-                    aria-label="Saved"
-                    className={cn("gs-fade", tabPadding)}
-                >
-                    <SavedTab
-                        bookmarks={bookmarks}
-                        isOpen={isOpen}
-                        onOpen={setOpenResult}
-                        onToggleSaved={toggleSaved}
-                        onNotify={notify}
-                    />
-                </div>
-            )}
-
-            {tab === "settings" && (
-                <div
-                    role="tabpanel"
-                    aria-label="Settings"
-                    className={cn("gs-fade", tabPadding)}
-                >
-                    <SettingsTab
-                        savedCount={bookmarks.length}
-                        onClearSaved={clearSaved}
-                        // The classic page has no tabs; drop ?tab= so a
-                        // later switch back opens on Search.
-                        onUseClassic={() => {
-                            void setTab(null);
-                            setLayout("classic");
-                        }}
-                    />
-                </div>
-            )}
-
-            </div>
-            </div>
-
             {split && (
-                <aside className="flex h-dvh w-[min(40vw,34rem)] flex-none flex-col pr-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+                <aside className="flex w-[min(40vw,34rem)] flex-none flex-col pr-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
                     {openResult ? (
                         <ResultSheet
                             // A fresh pane (scrolled to the top, context

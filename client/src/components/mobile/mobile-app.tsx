@@ -164,8 +164,19 @@ export default function MobileApp({
     // before results carried ids still show as saved.
     const savedIds = useMemo(() => savedKeySet(bookmarks), [bookmarks]);
 
-    // The tabs share the document scroller, so each one's position is put
-    // back by hand when you return to it.
+    // With the sidebar the tabs' column is its own scroller, so the sidebar
+    // and the wash stay put by not scrolling at all: iPadOS can lose track of
+    // sticky and fixed elements against the document, and they then slide away
+    // with the page. Elsewhere the document scrolls, and this stays null.
+    const scrollerRef = useRef<HTMLDivElement>(null);
+    const scrollPosition = () => scrollerRef.current?.scrollTop ?? window.scrollY;
+    const scrollColumnTo = (options: ScrollToOptions) => {
+        if (scrollerRef.current) scrollerRef.current.scrollTo(options);
+        else window.scrollTo(options);
+    };
+
+    // The tabs share one scroller, so each one's position is put back by hand
+    // when you return to it.
     const scrollByTab = useRef<Record<Tab, number>>({
         search: 0,
         ask: 0,
@@ -175,21 +186,21 @@ export default function MobileApp({
 
     const selectTab = (next: Tab) => {
         if (next !== tab) {
-            scrollByTab.current[tab] = window.scrollY;
+            scrollByTab.current[tab] = scrollPosition();
             setTab(next);
             return;
         }
         // Tapping the tab you're on: back to the top, then (on Search) back
         // to the start screen — the iOS "pop to root".
-        if (window.scrollY > 0) {
-            window.scrollTo({ top: 0, behavior: "smooth" });
+        if (scrollPosition() > 0) {
+            scrollColumnTo({ top: 0, behavior: "smooth" });
         } else if (next === "search" && hasSearched) {
             onGoHome();
         }
     };
 
     useLayoutEffect(() => {
-        window.scrollTo(0, scrollByTab.current[tab]);
+        scrollColumnTo({ top: scrollByTab.current[tab] });
     }, [tab]);
 
     // The search header only gets its blur-and-fade edge once content is
@@ -211,13 +222,14 @@ export default function MobileApp({
             );
         };
         measure();
-        window.addEventListener("scroll", measure, { passive: true });
-        return () => window.removeEventListener("scroll", measure);
-    }, [tab, hasSearched]);
+        const scroller = scrollerRef.current ?? window;
+        scroller.addEventListener("scroll", measure, { passive: true });
+        return () => scroller.removeEventListener("scroll", measure);
+    }, [tab, hasSearched, sidebar]);
 
     // A fresh result list starts at the top, not wherever the last one was.
     useEffect(() => {
-        if (tab === "search") window.scrollTo(0, 0);
+        if (tab === "search") scrollColumnTo({ top: 0 });
         else scrollByTab.current.search = 0;
         // Only when the results themselves change.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -320,8 +332,8 @@ export default function MobileApp({
     return (
         <div
             className={cn(
-                "mobile-app relative isolate min-h-dvh",
-                sidebar && "flex items-start",
+                "mobile-app relative isolate",
+                sidebar ? "flex h-dvh overflow-hidden" : "min-h-dvh",
             )}
         >
             <div aria-hidden="true" className="app-wash" />
@@ -334,13 +346,17 @@ export default function MobileApp({
                 />
             )}
 
-            {/* The tabs' column. With the sidebar it's capped at a reading
-                width; the document still does the scrolling. */}
+            {sidebar && <div aria-hidden="true" className="status-edge" />}
+
+            {/* The tabs' column. With the sidebar it scrolls itself, and its
+                content is capped at a reading width. */}
             <div
+                ref={sidebar ? scrollerRef : undefined}
                 className={cn(
-                    sidebar && "mx-auto w-full min-w-0 max-w-[44rem] flex-1 px-2",
+                    sidebar && "h-dvh min-w-0 flex-1 overflow-y-auto overscroll-contain",
                 )}
             >
+            <div className={cn(sidebar && "mx-auto w-full max-w-[44rem] px-2")}>
             {/* Search stays mounted (and merely hidden) on the other tabs so
                 the query, results and any in-flight request survive. */}
             <div
@@ -550,6 +566,9 @@ export default function MobileApp({
                     isOpen={isOpen}
                     onOpen={setOpenResult}
                     onToggleSaved={toggleSaved}
+                    onScrollToTop={() =>
+                        scrollColumnTo({ top: 0, behavior: "smooth" })
+                    }
                     onSearchInstead={() => selectTab("search")}
                     onNotify={notify}
                 />
@@ -591,9 +610,10 @@ export default function MobileApp({
             )}
 
             </div>
+            </div>
 
             {split && (
-                <aside className="sticky top-0 flex h-dvh w-[min(40vw,34rem)] flex-none flex-col pr-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+                <aside className="flex h-dvh w-[min(40vw,34rem)] flex-none flex-col pr-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
                     {openResult ? (
                         <ResultSheet
                             // A fresh pane (scrolled to the top, context

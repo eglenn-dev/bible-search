@@ -44,6 +44,8 @@ interface AskTabProps {
     isOpen: (result: Result) => boolean;
     onOpen: (result: Result) => void;
     onToggleSaved: (result: Result) => void;
+    /** Back to the top of the tab's scroller, for a new answer. */
+    onScrollToTop: () => void;
     /** Switch to the Search tab, offered while Ask is closed. */
     onSearchInstead: () => void;
     onNotify: (message: string) => void;
@@ -76,6 +78,7 @@ export default function AskTab({
     isOpen,
     onOpen,
     onToggleSaved,
+    onScrollToTop,
     onSearchInstead,
     onNotify,
 }: AskTabProps) {
@@ -133,7 +136,7 @@ export default function AskTab({
         const controller = new AbortController();
         abortRef.current = controller;
         inputRef.current?.blur();
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        onScrollToTop();
         // The question moves from the field to the answer's heading.
         setDraft("");
         setAsked(text);

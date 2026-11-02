@@ -320,6 +320,25 @@
         opacity: 1;
     }
 
+    /* The system draws this edge under the status bar only for the document
+       scroller, so the sidebar layout's own scroller needs one of its own. */
+    .status-edge {
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: env(safe-area-inset-top);
+        z-index: 40;
+        pointer-events: none;
+        background: linear-gradient(
+            to bottom,
+            color-mix(in srgb, var(--background) 82%, transparent) 35%,
+            transparent
+        );
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+        -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+        mask-image: linear-gradient(to bottom, #000 62%, transparent);
+    }
+
     .app-wash {
         position: fixed;
         inset: 0;
@@ -382,6 +401,13 @@
             -webkit-mask-image: none;
             mask-image: none;
             bottom: 0;
+        }
+        .status-edge {
+            background: var(--background);
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            -webkit-mask-image: none;
+            mask-image: none;
         }
     }
 }

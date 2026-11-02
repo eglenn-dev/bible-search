@@ -302,6 +302,8 @@ export default function App() {
     const showSimilar = (result: Result) => {
         if (!result.id) return;
         void setSimilar(result.id, { history: "push" });
+        // With its sidebar the app shell scrolls a column of its own instead,
+        // which it resets itself.
         window.scrollTo({ top: 0 });
     };
 

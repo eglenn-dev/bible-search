@@ -320,6 +320,39 @@
         opacity: 1;
     }
 
+    /* With the sidebar only the column scrolls, so the page itself has nothing
+       to bounce: a drag outside the column would just move the whole layout. */
+    html:has(.mobile-app-sidebar),
+    html:has(.mobile-app-sidebar) body {
+        overscroll-behavior: none;
+    }
+
+    /* The system draws this edge under the status bar only for the document
+       scroller, so the sidebar layout's column needs one of its own. Pinned to
+       the column's top without taking up any room there. */
+    .status-edge {
+        position: sticky;
+        top: 0;
+        height: env(safe-area-inset-top);
+        margin-bottom: calc(-1 * env(safe-area-inset-top));
+        z-index: 40;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        background: linear-gradient(
+            to bottom,
+            color-mix(in srgb, var(--background) 82%, transparent) 35%,
+            transparent
+        );
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+        -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+        mask-image: linear-gradient(to bottom, #000 62%, transparent);
+    }
+    .status-edge[data-visible="true"] {
+        opacity: 1;
+    }
+
     .app-wash {
         position: fixed;
         inset: 0;
@@ -382,6 +415,13 @@
             -webkit-mask-image: none;
             mask-image: none;
             bottom: 0;
+        }
+        .status-edge {
+            background: var(--background);
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            -webkit-mask-image: none;
+            mask-image: none;
         }
     }
 }

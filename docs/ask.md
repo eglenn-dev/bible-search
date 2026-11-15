@@ -28,6 +28,8 @@ app (Ask tab) ──POST /ask──► FastAPI ──► Claude Haiku 5.5 ◄─
 
 The client (`client/src/lib/ask.ts`, `client/src/components/mobile/ask-tab.tsx`) renders each run of text followed by its citation numbers. Tapping a number, or a card under **Sources**, opens the passage in the same sheet (or split-view pane) as a search result, with Save, Share, context and "More like this".
 
+The iOS app (`ios/GospelHelp/Services/AskService.swift`) reads the same stream and sends `Origin: https://gospel.help`, since a native app has no origin of its own; the quotas and budget apply to it like any caller.
+
 `/ask` is a POST, so the service worker never caches it. It is excluded from the OpenAPI spec (`include_in_schema=False`), so it isn't in `/docs` and isn't an MCP tool: agents bring their own model, and every answer here is paid for.
 
 ## Sharing

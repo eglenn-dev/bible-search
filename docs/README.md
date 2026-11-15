@@ -23,6 +23,7 @@ This `docs/` directory explains what the project is, how it works, and how to ex
 - **Database:** MongoDB Atlas (free M0) with **Atlas Vector Search**. One collection, `gospel_library.documents`, ~93k documents across six sources, ~193 MB.
 - **MCP:** the same deployment hosts a remote **MCP server at `/mcp`** (Streamable HTTP, tools auto-generated from the OpenAPI spec via FastMCP) — see [mcp.md](./mcp.md).
 - **Frontend:** TanStack Start (React + Vite) + Tailwind (`client/`). Unified search box, source filter chips, source-tagged result cards. "Classic & scholarly" theme.
+- **iOS app:** native SwiftUI (`ios/`), Liquid Glass, iPhone / iPad / iPhone Duo — see [ios/README.md](../ios/README.md).
 - **Package manager:** [`uv`](https://docs.astral.sh/uv/) for the Python side.
 
 ## Quick start

@@ -73,6 +73,10 @@ The same process hosts a remote MCP server at **`/mcp`**, so agents can use `sea
 
 It's also an installable **PWA**: a Workbox service worker makes the app open offline with saved passages and recent searches still readable, and announces new versions with a "Reload" toast. Installed, it uses the Liquid Glass app layout at every screen size, with a sidebar and a split view on iPad and desktop; in a browser tab, wide screens start in the classic desktop layout and can switch to the app layout (and Ask) from Settings. See [Offline (PWA)](./docs/architecture.md#offline-pwa).
 
+### iOS App (`ios/`)
+
+A native SwiftUI app with the same four tabs as the app layout (Search, Ask, Saved, Settings), built for iOS 26's Liquid Glass and laid out for iPhone, iPad (sidebar and split view) and the foldable iPhone Duo. Share links it makes open on the web and the reverse. See [ios/README.md](./ios/README.md).
+
 ## Getting Started Locally
 
 You'll need **Node.js**, **[uv](https://docs.astral.sh/uv/)** (the Python package manager), and a **MongoDB Atlas** cluster (the free M0 tier works). uv manages Python itself, so a separate Python install isn't required.

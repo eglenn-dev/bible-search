@@ -1,0 +1,756 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04D54403BA84A32A323555F7 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C8DEE704AFC39F566B53331 /* StatsView.swift */; };
+		05053D8E20F98FA590B02E41 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5370182D14D4DB8550D7CD6 /* SettingsTab.swift */; };
+		0F33D4ECE2A5DB0991F6B9AC /* AppStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736FC37559023568148F83DF /* AppStatus.swift */; };
+		12186A7279E4709EEF197FA7 /* StatsCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A9930303333868EC4A1BF1 /* StatsCharts.swift */; };
+		168E9260C8F73DBE11FA0DC4 /* ShareCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB0D17FE03F3CCEEA1C757E7 /* ShareCodec.swift */; };
+		238444A67BA0F2848064C4DC /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53B7424997248B74D441BC9 /* APIClient.swift */; };
+		3863CFCDA37864B02E7B8FD6 /* GospelHelpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7870D7CA5712B9C91467BCB7 /* GospelHelpTests.swift */; };
+		3A383FD9CB95760B8CBCFE1D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7A9FA811847B81E83A82010D /* Assets.xcassets */; };
+		416F61FAC494F962577507EE /* ToastWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1513CE33FAD1B26896548371 /* ToastWindow.swift */; };
+		4E1120BDC7797C1ED9DCA609 /* SearchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F2049C94AF723F1D30ABD26 /* SearchModel.swift */; };
+		4FFD31E6C8888D1216EF8753 /* StatsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C0BE00BD0457DE45469246 /* StatsModels.swift */; };
+		524144D8B34B2A1CD0AB72D5 /* MarkdownExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1387B7C40A34876FF0327E14 /* MarkdownExport.swift */; };
+		6311E992C6429038CF53206C /* FilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9231CDFFF85DCF328C81B07 /* FilterSheet.swift */; };
+		6D05FDFD2F93273C03C1B689 /* AskTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E066B6BF03E08746C33E001 /* AskTab.swift */; };
+		75764525F430C97BDC753302 /* AnswerText.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E31B3C6BD708B9650C751D /* AnswerText.swift */; };
+		7745AC365AD48CE9192488F4 /* IncomingLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352126B480BE625A2356BCA9 /* IncomingLinkView.swift */; };
+		902E75B311F47355CCC4103F /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C437A5021E026B9AEA96823 /* BookmarkStore.swift */; };
+		9240933E3FC66B07F505B401 /* TourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0854F82F1D257BB98E686B8 /* TourTests.swift */; };
+		AC2A9459F195BF6AD1FBD76A /* GospelHelpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D22A843654F8B6135D055A /* GospelHelpApp.swift */; };
+		AE6E3E5466F8E4A18AFC01B9 /* PassageDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63DE41952E9DE6DA9BC97E5E /* PassageDetail.swift */; };
+		AE7A77A0EA5785BD9384C74F /* ResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB941A1A5112A3B71399826 /* ResultCard.swift */; };
+		B2CF0FF9EA71272EF899CA36 /* SearchTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FE7F4E4A92C1E134FCA0749 /* SearchTab.swift */; };
+		B90BDC8B4A1B60A7AFB6F4B0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C241D4C9E48BF73EE0ADA9 /* Models.swift */; };
+		BF5B811B15E2DE749E5AC4B1 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F09E33571129955C590CE83B /* Theme.swift */; };
+		C01F7AD752E46D0C7B5D742A /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07DC9D93089DB97D787ED6FC /* Toast.swift */; };
+		C24968B402475DCC0376468F /* AskModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53E7652B889E8A2492EC57EA /* AskModel.swift */; };
+		CCD8CF5329F671989D7366B4 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E89DB5F8D2172D55776643A /* RootView.swift */; };
+		D7670E1EA0A412EE2B282583 /* StatsLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = A258589178D7F33214ACBC70 /* StatsLists.swift */; };
+		D7E59FA1B2D14EFBCED9D8F9 /* RecentSearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76774792634E609709573AF6 /* RecentSearchStore.swift */; };
+		DF9BFF573671B28F5ABEFE77 /* SavedTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7A1D7D3FCF914783E92C58 /* SavedTab.swift */; };
+		E500FEF2FE78636CD7F04BA5 /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 025C263B3BB4CB00C1D3D1D5 /* AppRouter.swift */; };
+		F0B8C9212E51A43EEABE558B /* AskService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B390C8DB0CD6D127B491137 /* AskService.swift */; };
+		F94A3133E86F3FFA896FA9DC /* PassageDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2894D8B8C4576090FDEE9FA7 /* PassageDisplay.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D5D92316CC0428F8E93C53A4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 47281B327916EE35A4470072 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6E254888D2829C7C776ED819;
+			remoteInfo = GospelHelp;
+		};
+		DEE2E175FD6C1CBD9D431BA8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 47281B327916EE35A4470072 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6E254888D2829C7C776ED819;
+			remoteInfo = GospelHelp;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		025C263B3BB4CB00C1D3D1D5 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		07DC9D93089DB97D787ED6FC /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
+		1387B7C40A34876FF0327E14 /* MarkdownExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownExport.swift; sourceTree = "<group>"; };
+		1513CE33FAD1B26896548371 /* ToastWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastWindow.swift; sourceTree = "<group>"; };
+		1816433BA3FB209BB15726B9 /* GospelHelp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GospelHelp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1C8DEE704AFC39F566B53331 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
+		2894D8B8C4576090FDEE9FA7 /* PassageDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageDisplay.swift; sourceTree = "<group>"; };
+		352126B480BE625A2356BCA9 /* IncomingLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingLinkView.swift; sourceTree = "<group>"; };
+		49C241D4C9E48BF73EE0ADA9 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		4B390C8DB0CD6D127B491137 /* AskService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskService.swift; sourceTree = "<group>"; };
+		4C437A5021E026B9AEA96823 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
+		53E7652B889E8A2492EC57EA /* AskModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskModel.swift; sourceTree = "<group>"; };
+		5F2049C94AF723F1D30ABD26 /* SearchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchModel.swift; sourceTree = "<group>"; };
+		63DE41952E9DE6DA9BC97E5E /* PassageDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageDetail.swift; sourceTree = "<group>"; };
+		69DCC5D100FC3781F25EADFB /* GospelHelpTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GospelHelpTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6E066B6BF03E08746C33E001 /* AskTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskTab.swift; sourceTree = "<group>"; };
+		736FC37559023568148F83DF /* AppStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatus.swift; sourceTree = "<group>"; };
+		76774792634E609709573AF6 /* RecentSearchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentSearchStore.swift; sourceTree = "<group>"; };
+		7870D7CA5712B9C91467BCB7 /* GospelHelpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GospelHelpTests.swift; sourceTree = "<group>"; };
+		7A9FA811847B81E83A82010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7D7A1D7D3FCF914783E92C58 /* SavedTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedTab.swift; sourceTree = "<group>"; };
+		8FE7F4E4A92C1E134FCA0749 /* SearchTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTab.swift; sourceTree = "<group>"; };
+		91C0BE00BD0457DE45469246 /* StatsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsModels.swift; sourceTree = "<group>"; };
+		9E89DB5F8D2172D55776643A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A0854F82F1D257BB98E686B8 /* TourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TourTests.swift; sourceTree = "<group>"; };
+		A1A9930303333868EC4A1BF1 /* StatsCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsCharts.swift; sourceTree = "<group>"; };
+		A258589178D7F33214ACBC70 /* StatsLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsLists.swift; sourceTree = "<group>"; };
+		A53B7424997248B74D441BC9 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		C9E31B3C6BD708B9650C751D /* AnswerText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerText.swift; sourceTree = "<group>"; };
+		D5370182D14D4DB8550D7CD6 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
+		DF0C3755AA8F213FC90410C5 /* GospelHelpUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GospelHelpUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9231CDFFF85DCF328C81B07 /* FilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterSheet.swift; sourceTree = "<group>"; };
+		EB0D17FE03F3CCEEA1C757E7 /* ShareCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCodec.swift; sourceTree = "<group>"; };
+		F09E33571129955C590CE83B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		F9D22A843654F8B6135D055A /* GospelHelpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GospelHelpApp.swift; sourceTree = "<group>"; };
+		FDB941A1A5112A3B71399826 /* ResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultCard.swift; sourceTree = "<group>"; };
+		FFF80120AAFEFCC4E474F292 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		01150A9E8BFFA4320F0C2AC8 = {
+			isa = PBXGroup;
+			children = (
+				3CE5D5E941904D97DC6C48C7 /* GospelHelp */,
+				0969931AFC8B147BA3A11B29 /* GospelHelpTests */,
+				C88CCAEEB70E8FDB3B4872A6 /* GospelHelpUITests */,
+				C0D487ACF271AECECD7B1749 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		0969931AFC8B147BA3A11B29 /* GospelHelpTests */ = {
+			isa = PBXGroup;
+			children = (
+				7870D7CA5712B9C91467BCB7 /* GospelHelpTests.swift */,
+			);
+			path = GospelHelpTests;
+			sourceTree = "<group>";
+		};
+		16AFDFF7C3048AD3E178F522 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				1D54BC59246B45CC1A5DD54D /* Ask */,
+				35A26DD67D4DDD998DBA9556 /* Passage */,
+				FD8AB18D7A57C06237736413 /* Saved */,
+				C63A8E96505B3C4DD0260E22 /* Search */,
+				49A46A7F9BF939F5EF4BF18F /* Settings */,
+				3F446F2742B3771D80DD2499 /* Shared */,
+				C294488E47B944A241041BCB /* Stats */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		1D54BC59246B45CC1A5DD54D /* Ask */ = {
+			isa = PBXGroup;
+			children = (
+				C9E31B3C6BD708B9650C751D /* AnswerText.swift */,
+				53E7652B889E8A2492EC57EA /* AskModel.swift */,
+				6E066B6BF03E08746C33E001 /* AskTab.swift */,
+			);
+			path = Ask;
+			sourceTree = "<group>";
+		};
+		35A26DD67D4DDD998DBA9556 /* Passage */ = {
+			isa = PBXGroup;
+			children = (
+				63DE41952E9DE6DA9BC97E5E /* PassageDetail.swift */,
+				FDB941A1A5112A3B71399826 /* ResultCard.swift */,
+			);
+			path = Passage;
+			sourceTree = "<group>";
+		};
+		3CE5D5E941904D97DC6C48C7 /* GospelHelp */ = {
+			isa = PBXGroup;
+			children = (
+				7A9FA811847B81E83A82010D /* Assets.xcassets */,
+				FFF80120AAFEFCC4E474F292 /* Info.plist */,
+				FA2A47A43D0D25CD60D18EF5 /* App */,
+				16AFDFF7C3048AD3E178F522 /* Features */,
+				96A61539AA68BD8FF8902BF0 /* Models */,
+				4A0DBF3CE736FBB5C4C6962B /* Services */,
+				CBBB1F1B114BB8DAFFFDBB46 /* Stores */,
+				BBC1FF023DB0D476203A486B /* UI */,
+			);
+			path = GospelHelp;
+			sourceTree = "<group>";
+		};
+		3F446F2742B3771D80DD2499 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				352126B480BE625A2356BCA9 /* IncomingLinkView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		49A46A7F9BF939F5EF4BF18F /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				D5370182D14D4DB8550D7CD6 /* SettingsTab.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		4A0DBF3CE736FBB5C4C6962B /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A53B7424997248B74D441BC9 /* APIClient.swift */,
+				4B390C8DB0CD6D127B491137 /* AskService.swift */,
+				1387B7C40A34876FF0327E14 /* MarkdownExport.swift */,
+				EB0D17FE03F3CCEEA1C757E7 /* ShareCodec.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		96A61539AA68BD8FF8902BF0 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				49C241D4C9E48BF73EE0ADA9 /* Models.swift */,
+				2894D8B8C4576090FDEE9FA7 /* PassageDisplay.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		BBC1FF023DB0D476203A486B /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				F09E33571129955C590CE83B /* Theme.swift */,
+				07DC9D93089DB97D787ED6FC /* Toast.swift */,
+				1513CE33FAD1B26896548371 /* ToastWindow.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		C0D487ACF271AECECD7B1749 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1816433BA3FB209BB15726B9 /* GospelHelp.app */,
+				69DCC5D100FC3781F25EADFB /* GospelHelpTests.xctest */,
+				DF0C3755AA8F213FC90410C5 /* GospelHelpUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C294488E47B944A241041BCB /* Stats */ = {
+			isa = PBXGroup;
+			children = (
+				A1A9930303333868EC4A1BF1 /* StatsCharts.swift */,
+				A258589178D7F33214ACBC70 /* StatsLists.swift */,
+				91C0BE00BD0457DE45469246 /* StatsModels.swift */,
+				1C8DEE704AFC39F566B53331 /* StatsView.swift */,
+			);
+			path = Stats;
+			sourceTree = "<group>";
+		};
+		C63A8E96505B3C4DD0260E22 /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				E9231CDFFF85DCF328C81B07 /* FilterSheet.swift */,
+				5F2049C94AF723F1D30ABD26 /* SearchModel.swift */,
+				8FE7F4E4A92C1E134FCA0749 /* SearchTab.swift */,
+			);
+			path = Search;
+			sourceTree = "<group>";
+		};
+		C88CCAEEB70E8FDB3B4872A6 /* GospelHelpUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A0854F82F1D257BB98E686B8 /* TourTests.swift */,
+			);
+			path = GospelHelpUITests;
+			sourceTree = "<group>";
+		};
+		CBBB1F1B114BB8DAFFFDBB46 /* Stores */ = {
+			isa = PBXGroup;
+			children = (
+				736FC37559023568148F83DF /* AppStatus.swift */,
+				4C437A5021E026B9AEA96823 /* BookmarkStore.swift */,
+				76774792634E609709573AF6 /* RecentSearchStore.swift */,
+			);
+			path = Stores;
+			sourceTree = "<group>";
+		};
+		FA2A47A43D0D25CD60D18EF5 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				025C263B3BB4CB00C1D3D1D5 /* AppRouter.swift */,
+				F9D22A843654F8B6135D055A /* GospelHelpApp.swift */,
+				9E89DB5F8D2172D55776643A /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		FD8AB18D7A57C06237736413 /* Saved */ = {
+			isa = PBXGroup;
+			children = (
+				7D7A1D7D3FCF914783E92C58 /* SavedTab.swift */,
+			);
+			path = Saved;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6E254888D2829C7C776ED819 /* GospelHelp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A04113159302E7A491D60DA8 /* Build configuration list for PBXNativeTarget "GospelHelp" */;
+			buildPhases = (
+				BA47E722C3E94D15838AB2FF /* Sources */,
+				FEFCA8A37CF09570955E6A4E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GospelHelp;
+			packageProductDependencies = (
+			);
+			productName = GospelHelp;
+			productReference = 1816433BA3FB209BB15726B9 /* GospelHelp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		9A628BEB0B3DD8E2599872B3 /* GospelHelpUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BA6D8B7D05433F03B9EF485A /* Build configuration list for PBXNativeTarget "GospelHelpUITests" */;
+			buildPhases = (
+				73D4668515A728239828C363 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D07C984DA44E6278A2C956E9 /* PBXTargetDependency */,
+			);
+			name = GospelHelpUITests;
+			packageProductDependencies = (
+			);
+			productName = GospelHelpUITests;
+			productReference = DF0C3755AA8F213FC90410C5 /* GospelHelpUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		F0FCD26A382E5E7F4967AAE1 /* GospelHelpTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD1B839A68B36493058649EF /* Build configuration list for PBXNativeTarget "GospelHelpTests" */;
+			buildPhases = (
+				821155089765F58E022B0211 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				28116B39F5D90B2CF0FC6914 /* PBXTargetDependency */,
+			);
+			name = GospelHelpTests;
+			packageProductDependencies = (
+			);
+			productName = GospelHelpTests;
+			productReference = 69DCC5D100FC3781F25EADFB /* GospelHelpTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		47281B327916EE35A4470072 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					6E254888D2829C7C776ED819 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					9A628BEB0B3DD8E2599872B3 = {
+						DevelopmentTeam = "";
+						TestTargetID = 6E254888D2829C7C776ED819;
+					};
+					F0FCD26A382E5E7F4967AAE1 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = B8ACBF5AD0CE738541C10381 /* Build configuration list for PBXProject "GospelHelp" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 01150A9E8BFFA4320F0C2AC8;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = C0D487ACF271AECECD7B1749 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6E254888D2829C7C776ED819 /* GospelHelp */,
+				F0FCD26A382E5E7F4967AAE1 /* GospelHelpTests */,
+				9A628BEB0B3DD8E2599872B3 /* GospelHelpUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		FEFCA8A37CF09570955E6A4E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3A383FD9CB95760B8CBCFE1D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		73D4668515A728239828C363 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9240933E3FC66B07F505B401 /* TourTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		821155089765F58E022B0211 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3863CFCDA37864B02E7B8FD6 /* GospelHelpTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BA47E722C3E94D15838AB2FF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				238444A67BA0F2848064C4DC /* APIClient.swift in Sources */,
+				75764525F430C97BDC753302 /* AnswerText.swift in Sources */,
+				E500FEF2FE78636CD7F04BA5 /* AppRouter.swift in Sources */,
+				0F33D4ECE2A5DB0991F6B9AC /* AppStatus.swift in Sources */,
+				C24968B402475DCC0376468F /* AskModel.swift in Sources */,
+				F0B8C9212E51A43EEABE558B /* AskService.swift in Sources */,
+				6D05FDFD2F93273C03C1B689 /* AskTab.swift in Sources */,
+				902E75B311F47355CCC4103F /* BookmarkStore.swift in Sources */,
+				6311E992C6429038CF53206C /* FilterSheet.swift in Sources */,
+				AC2A9459F195BF6AD1FBD76A /* GospelHelpApp.swift in Sources */,
+				7745AC365AD48CE9192488F4 /* IncomingLinkView.swift in Sources */,
+				524144D8B34B2A1CD0AB72D5 /* MarkdownExport.swift in Sources */,
+				B90BDC8B4A1B60A7AFB6F4B0 /* Models.swift in Sources */,
+				AE6E3E5466F8E4A18AFC01B9 /* PassageDetail.swift in Sources */,
+				F94A3133E86F3FFA896FA9DC /* PassageDisplay.swift in Sources */,
+				D7E59FA1B2D14EFBCED9D8F9 /* RecentSearchStore.swift in Sources */,
+				AE7A77A0EA5785BD9384C74F /* ResultCard.swift in Sources */,
+				CCD8CF5329F671989D7366B4 /* RootView.swift in Sources */,
+				DF9BFF573671B28F5ABEFE77 /* SavedTab.swift in Sources */,
+				4E1120BDC7797C1ED9DCA609 /* SearchModel.swift in Sources */,
+				B2CF0FF9EA71272EF899CA36 /* SearchTab.swift in Sources */,
+				05053D8E20F98FA590B02E41 /* SettingsTab.swift in Sources */,
+				168E9260C8F73DBE11FA0DC4 /* ShareCodec.swift in Sources */,
+				12186A7279E4709EEF197FA7 /* StatsCharts.swift in Sources */,
+				D7670E1EA0A412EE2B282583 /* StatsLists.swift in Sources */,
+				4FFD31E6C8888D1216EF8753 /* StatsModels.swift in Sources */,
+				04D54403BA84A32A323555F7 /* StatsView.swift in Sources */,
+				BF5B811B15E2DE749E5AC4B1 /* Theme.swift in Sources */,
+				C01F7AD752E46D0C7B5D742A /* Toast.swift in Sources */,
+				416F61FAC494F962577507EE /* ToastWindow.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		28116B39F5D90B2CF0FC6914 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6E254888D2829C7C776ED819 /* GospelHelp */;
+			targetProxy = DEE2E175FD6C1CBD9D431BA8 /* PBXContainerItemProxy */;
+		};
+		D07C984DA44E6278A2C956E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6E254888D2829C7C776ED819 /* GospelHelp */;
+			targetProxy = D5D92316CC0428F8E93C53A4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2706C501E79D8307F6404B13 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = help.gospel.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GospelHelp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GospelHelp";
+			};
+			name = Release;
+		};
+		2B1F373C30F97A99E0512B8B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		3E26A263BE46B9F911B3B59F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = help.gospel.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GospelHelp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GospelHelp";
+			};
+			name = Debug;
+		};
+		66FC6C29493273DD7CF2CC8E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GospelHelp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Gospel Help";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.reference";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = help.gospel.app;
+				PRODUCT_NAME = GospelHelp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		89E2FAF0C6C6B416501A78DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		8B8FE7451054CFCB3F768EA7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GospelHelp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Gospel Help";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.reference";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = help.gospel.app;
+				PRODUCT_NAME = GospelHelp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8F42B93B5D460C490DE062FC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = help.gospel.app.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GospelHelp;
+			};
+			name = Release;
+		};
+		A7984C7B6FEB469B624F576A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = help.gospel.app.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GospelHelp;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A04113159302E7A491D60DA8 /* Build configuration list for PBXNativeTarget "GospelHelp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				66FC6C29493273DD7CF2CC8E /* Debug */,
+				8B8FE7451054CFCB3F768EA7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B8ACBF5AD0CE738541C10381 /* Build configuration list for PBXProject "GospelHelp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				89E2FAF0C6C6B416501A78DE /* Debug */,
+				2B1F373C30F97A99E0512B8B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BA6D8B7D05433F03B9EF485A /* Build configuration list for PBXNativeTarget "GospelHelpUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7984C7B6FEB469B624F576A /* Debug */,
+				8F42B93B5D460C490DE062FC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DD1B839A68B36493058649EF /* Build configuration list for PBXNativeTarget "GospelHelpTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3E26A263BE46B9F911B3B59F /* Debug */,
+				2706C501E79D8307F6404B13 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 47281B327916EE35A4470072 /* Project object */;
+}

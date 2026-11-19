@@ -1,0 +1,83 @@
+# XcodeGen spec for the native iOS app. Regenerate the project after
+# adding or removing files:  cd ios && xcodegen
+name: GospelHelp
+options:
+  bundleIdPrefix: help.gospel
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+targets:
+  GospelHelp:
+    type: application
+    platform: iOS
+    sources:
+      - path: GospelHelp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: help.gospel.app
+        PRODUCT_NAME: GospelHelp
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: GospelHelp/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Gospel Help
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.reference
+        CODE_SIGN_STYLE: Automatic
+  GospelHelpTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GospelHelpTests
+    dependencies:
+      - target: GospelHelp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: help.gospel.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GospelHelp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GospelHelp"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+  GospelHelpUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: GospelHelpUITests
+    dependencies:
+      - target: GospelHelp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: help.gospel.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: GospelHelp
+schemes:
+  GospelHelp:
+    build:
+      targets:
+        GospelHelp: all
+        GospelHelpTests: [test]
+    test:
+      targets:
+        - GospelHelpTests
+  # End-to-end tour against the live API, with screenshots.
+  GospelHelpTour:
+    build:
+      targets:
+        GospelHelp: all
+        GospelHelpUITests: [test]
+    test:
+      targets:
+        - GospelHelpUITests

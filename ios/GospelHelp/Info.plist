@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The search API. Override for local development with the launch
+	     argument  -GHAPIBaseURL http://localhost:10000  -->
+	<key>GHAPIBaseURL</key>
+	<string>https://api.gospel.help</string>
+	<!-- Where shared links point (the web app opens them). -->
+	<key>GHWebBaseURL</key>
+	<string>https://gospel.help</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>help.gospel.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gospelhelp</string>
+			</array>
+		</dict>
+	</array>
+	<key>UIApplicationSupportsMultipleScenes</key>
+	<true/>
+</dict>
+</plist>

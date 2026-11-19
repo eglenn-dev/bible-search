@@ -69,6 +69,9 @@ struct RootView: View {
                     IncomingLinkView(incoming: incoming)
                 }
         }
+        .onChange(of: router.closeSharedLinkRequest) { _, _ in
+            shownIncoming = nil
+        }
         .onChange(of: router.incoming) { _, incoming in
             guard let incoming else { return }
             router.incoming = nil

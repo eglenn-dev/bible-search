@@ -164,6 +164,42 @@ struct AskEventParser {
     }
 }
 
+/// The question field is multi-line only so long questions wrap: Return
+/// asks, and pasted lines are joined into one question.
+enum QuestionInput {
+    /// What the field should hold after an edit from `old` to `new`, and
+    /// whether the edit was the Return key (one newline typed, nothing else).
+    static func apply(old: String, new: String, limit: Int) -> (text: String, submit: Bool) {
+        guard new.contains(where: \.isNewline) else {
+            return (new.count > limit ? String(new.prefix(limit)) : new, false)
+        }
+        if new.count == old.count + 1, let i = new.firstIndex(where: \.isNewline) {
+            var rest = new
+            rest.remove(at: i)
+            if rest == old { return (old.count > limit ? String(old.prefix(limit)) : old, true) }
+        }
+        // Pasted text: each line break (and the spaces around it) becomes one
+        // space, then the cap applies to the joined question.
+        var joined = ""
+        var pendingBreak = false
+        for ch in new {
+            if ch.isNewline {
+                pendingBreak = true
+                continue
+            }
+            if pendingBreak {
+                if ch == " " || ch == "\t" { continue }
+                while joined.last == " " || joined.last == "\t" { joined.removeLast() }
+                if !joined.isEmpty { joined.append(" ") }
+                pendingBreak = false
+            }
+            joined.append(ch)
+        }
+        if pendingBreak, !joined.isEmpty, joined.last != " " { joined.append(" ") }
+        return (joined.count > limit ? String(joined.prefix(limit)) : joined, false)
+    }
+}
+
 enum AskService {
     static let maxQuestionChars = 500
 

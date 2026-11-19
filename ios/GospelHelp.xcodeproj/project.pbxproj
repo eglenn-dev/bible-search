@@ -20,6 +20,7 @@
 		4FFD31E6C8888D1216EF8753 /* StatsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C0BE00BD0457DE45469246 /* StatsModels.swift */; };
 		524144D8B34B2A1CD0AB72D5 /* MarkdownExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1387B7C40A34876FF0327E14 /* MarkdownExport.swift */; };
 		6311E992C6429038CF53206C /* FilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9231CDFFF85DCF328C81B07 /* FilterSheet.swift */; };
+		65C6A97E8ADFFF492163D6C3 /* ReviewFixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A02D53B2F038DD09632026 /* ReviewFixTests.swift */; };
 		6D05FDFD2F93273C03C1B689 /* AskTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E066B6BF03E08746C33E001 /* AskTab.swift */; };
 		75764525F430C97BDC753302 /* AnswerText.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E31B3C6BD708B9650C751D /* AnswerText.swift */; };
 		7745AC365AD48CE9192488F4 /* IncomingLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352126B480BE625A2356BCA9 /* IncomingLinkView.swift */; };
@@ -88,6 +89,7 @@
 		A1A9930303333868EC4A1BF1 /* StatsCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsCharts.swift; sourceTree = "<group>"; };
 		A258589178D7F33214ACBC70 /* StatsLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsLists.swift; sourceTree = "<group>"; };
 		A53B7424997248B74D441BC9 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		C1A02D53B2F038DD09632026 /* ReviewFixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewFixTests.swift; sourceTree = "<group>"; };
 		C9E31B3C6BD708B9650C751D /* AnswerText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerText.swift; sourceTree = "<group>"; };
 		D5370182D14D4DB8550D7CD6 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
 		DF0C3755AA8F213FC90410C5 /* GospelHelpUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GospelHelpUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -114,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				7870D7CA5712B9C91467BCB7 /* GospelHelpTests.swift */,
+				C1A02D53B2F038DD09632026 /* ReviewFixTests.swift */,
 			);
 			path = GospelHelpTests;
 			sourceTree = "<group>";
@@ -343,7 +346,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					6E254888D2829C7C776ED819 = {
 						DevelopmentTeam = "";
@@ -404,6 +407,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3863CFCDA37864B02E7B8FD6 /* GospelHelpTests.swift in Sources */,
+				65C6A97E8ADFFF492163D6C3 /* ReviewFixTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

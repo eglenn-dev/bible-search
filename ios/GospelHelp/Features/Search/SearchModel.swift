@@ -7,6 +7,19 @@ import Observation
 @MainActor
 @Observable
 final class SearchModel {
+    /// Where a typed reference stands, checked against `GET /verse`.
+    enum ReferenceCheck: Equatable {
+        case idle
+        /// Typed since the last answer; checked after a short pause.
+        case checking
+        case found(Verse)
+        /// The API says it isn't a reference.
+        case notFound
+        /// Couldn't check (offline, or the API down) and it isn't saved.
+        /// The search itself may still be saved, so it's allowed.
+        case unavailable
+    }
+
     var queryType: QueryType = .natural {
         didSet {
             guard queryType != oldValue else { return }
@@ -17,7 +30,7 @@ final class SearchModel {
     }
     var query = ""
     var reference = "" {
-        didSet { if reference != oldValue { scheduleVersePreview() } }
+        didSet { if reference != oldValue { referenceChanged() } }
     }
     var sources: [Source] = []
     var filters = SearchFilters.none
@@ -26,26 +39,44 @@ final class SearchModel {
 
     private(set) var results: [Passage] = []
     private(set) var hasSearched = false
-    /// Requests in flight that show the spinner. A count, not a flag, so a
-    /// request overtaken by another can't leave it spinning (or stopped).
-    private var loads = 0
-    var loading: Bool { loads > 0 }
+    /// The current request shows the spinner. Requests that were overtaken
+    /// (a newer search, or back to the start screen) don't count.
+    private(set) var loading = false
     private(set) var loadingMore = false
     /// Why the last search failed, shown above the results.
     private(set) var error: String?
+    /// Why "Load more" failed, shown by its button (the results stay).
+    private(set) var loadMoreError: String?
     /// Inline validation under the field ("Please enter …").
     private(set) var fieldError: String?
     /// The passage the results are "more like", while that view is up.
     private(set) var similarSeed: Passage?
     /// What the current results were searched for (for "No results for …").
     private(set) var activeQuery = ""
+    /// Bumped when a new set of results lands (not "Load more"): the list
+    /// scrolls back to the top.
+    private(set) var scrollGeneration = 0
 
-    /// The reference's verse, previewed under the field.
-    private(set) var versePreview: Verse?
+    private(set) var referenceCheck: ReferenceCheck = .idle
+    /// The last verse found, still shown (dimmed) while an edit is checked.
+    private(set) var shownVerse: Verse?
 
+    /// The reference's verse, once the current text has checked out.
+    var versePreview: Verse? {
+        if case .found(let verse) = referenceCheck { verse } else { nil }
+    }
+
+    @ObservationIgnored private let api: APIClient
     @ObservationIgnored private var recents: RecentSearchStore?
     @ObservationIgnored private var request = 0
+    /// What the spinning request is searching for, so pressing Return again
+    /// on the same search doesn't start it twice.
+    @ObservationIgnored private var pendingParams: APIClient.SearchParams?
     @ObservationIgnored private var previewTask: Task<Void, Never>?
+
+    init(api: APIClient = .shared) {
+        self.api = api
+    }
 
     func attach(recents: RecentSearchStore) { self.recents = recents }
 
@@ -71,12 +102,22 @@ final class SearchModel {
     }
 
     var canSubmit: Bool {
-        queryType == .natural
-            ? !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            : versePreview != nil
+        guard queryType == .scripture else {
+            return !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        switch referenceCheck {
+        case .found, .unavailable: return true
+        case .idle, .checking, .notFound: return false
+        }
     }
 
     private var currentQuery: String { queryType == .scripture ? reference : query }
+    private var trimmedReference: String { reference.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private func params(count: Int) -> APIClient.SearchParams {
+        APIClient.SearchParams(
+            queryType: queryType, query: currentQuery, count: count, sources: sources, filters: filters)
+    }
 
     // MARK: Actions
 
@@ -86,23 +127,35 @@ final class SearchModel {
             fieldError = "Please enter a search query."
             return
         }
-        if queryType == .scripture, versePreview == nil {
-            fieldError = "Please enter a valid reference."
-            return
+        if queryType == .scripture {
+            // Return during the pause after typing: check it now.
+            if referenceCheck == .checking {
+                previewTask?.cancel()
+                await checkReference(trimmedReference)
+            }
+            switch referenceCheck {
+            case .found, .unavailable: break
+            case .idle, .checking, .notFound:
+                fieldError = "Please enter a valid reference."
+                return
+            }
         }
-        guard !loading else { return }
-        loads += 1
-        defer { loads -= 1 }
-        await run(count: resultCount, endingSimilar: true, showErrorInField: true)
+        let next = params(count: resultCount)
+        // The same search is already on its way.
+        if loading, pendingParams == next { return }
+        await run(next, spinner: true, endingSimilar: true, showErrorInField: true, scroll: true)
     }
 
     /// Back to the start screen (tapping the Search tab again).
     func goHome() {
         leaveSimilar()
         request += 1
+        loading = false
         results = []
         hasSearched = false
         error = nil
+        loadMoreError = nil
+        scrollGeneration += 1
     }
 
     func runRecent(_ recent: RecentSearch) async {
@@ -111,48 +164,48 @@ final class SearchModel {
         sources = recent.sources
         filters = recent.filters
         resultCount = resultCounts.contains(recent.resultCount) ? recent.resultCount : defaultResultCount
-        loads += 1
-        defer { loads -= 1 }
-        await run(count: resultCount, endingSimilar: true, showErrorInField: false)
+        await run(params(count: resultCount), spinner: true, endingSimilar: true, showErrorInField: false, scroll: true)
     }
 
     /// A `?q=` link: search for it.
     func open(query text: String) async {
         queryType = .natural
         query = text
-        loads += 1
-        defer { loads -= 1 }
-        await run(count: resultCount, endingSimilar: true, showErrorInField: false)
+        await run(params(count: resultCount), spinner: true, endingSimilar: true, showErrorInField: false, scroll: true)
     }
 
     /// Sources or filters changed: re-run what's on screen.
     func filtersChanged() async {
         guard hasSearched, !currentQuery.isEmpty || similarSeed != nil else { return }
-        await rerun(count: resultCount)
+        await rerun(count: resultCount, scroll: true)
     }
 
+    /// The next size up, keeping the reader's place. The new size only
+    /// sticks once it has loaded, so a failure leaves the button there to
+    /// try again.
     func loadMore() async {
         guard let i = resultCounts.firstIndex(of: resultCount), i + 1 < resultCounts.count, !loadingMore else { return }
         let next = resultCounts[i + 1]
         loadingMore = true
         defer { loadingMore = false }
-        resultCount = next
-        await rerun(count: next)
+        if await rerun(count: next, scroll: false) {
+            resultCount = next
+        } else if let error {
+            loadMoreError = error
+            self.error = nil
+        }
     }
 
     func showSimilar(_ passage: Passage) async {
         guard let id = passage.apiID else { return }
-        request += 1
-        let mine = request
+        let mine = begin(spinner: true)
+        defer { end(mine) }
         similarSeed = passage
-        loads += 1
-        defer { loads -= 1 }
         do {
-            let response = try await APIClient.shared.similar(
-                id: id, count: resultCount, sources: sources, filters: filters)
+            let response = try await api.similar(id: id, count: resultCount, sources: sources, filters: filters)
             guard mine == request else { return }
             similarSeed = response.seed
-            land(response.results)
+            land(response.results, scroll: true)
         } catch is CancellationError {
         } catch {
             guard mine == request else { return }
@@ -168,7 +221,7 @@ final class SearchModel {
         if currentQuery.trimmingCharacters(in: .whitespaces).isEmpty {
             goHome()
         } else {
-            await rerun(count: resultCount)
+            await rerun(count: resultCount, scroll: true)
         }
     }
 
@@ -178,69 +231,111 @@ final class SearchModel {
         similarSeed = nil
     }
 
-    private func land(_ next: [Passage]) {
+    /// Starts a request, overtaking any before it.
+    private func begin(spinner: Bool) -> Int {
+        request += 1
+        loading = spinner
+        if !spinner { pendingParams = nil }
+        return request
+    }
+
+    private func end(_ mine: Int) {
+        guard mine == request else { return }
+        loading = false
+        pendingParams = nil
+    }
+
+    private func land(_ next: [Passage], scroll: Bool) {
         results = next
         hasSearched = true
         error = nil
+        loadMoreError = nil
+        if scroll { scrollGeneration += 1 }
     }
 
-    private func rerun(count: Int) async {
+    /// True when its results landed.
+    @discardableResult
+    private func rerun(count: Int, scroll: Bool) async -> Bool {
         if let seed = similarSeed, let id = seed.apiID {
-            request += 1
-            let mine = request
+            let mine = begin(spinner: false)
+            defer { end(mine) }
             do {
-                let response = try await APIClient.shared.similar(
-                    id: id, count: count, sources: sources, filters: filters)
-                guard mine == request else { return }
-                land(response.results)
+                let response = try await api.similar(id: id, count: count, sources: sources, filters: filters)
+                guard mine == request else { return false }
+                land(response.results, scroll: scroll)
+                return true
             } catch {
-                guard mine == request else { return }
+                guard mine == request, !(error is CancellationError) else { return false }
                 self.error = error.localizedDescription
+                return false
             }
-            return
         }
-        await run(count: count, endingSimilar: false, showErrorInField: false)
+        return await run(params(count: count), spinner: false, endingSimilar: false, showErrorInField: false, scroll: scroll)
     }
 
-    private func run(count: Int, endingSimilar: Bool, showErrorInField: Bool) async {
-        let params = APIClient.SearchParams(
-            queryType: queryType, query: currentQuery, count: count, sources: sources, filters: filters)
-        request += 1
-        let mine = request
+    /// True when its results landed.
+    @discardableResult
+    private func run(
+        _ params: APIClient.SearchParams, spinner: Bool, endingSimilar: Bool, showErrorInField: Bool, scroll: Bool
+    ) async -> Bool {
+        let mine = begin(spinner: spinner)
+        if spinner { pendingParams = params }
+        defer { end(mine) }
         do {
-            let next = try await APIClient.shared.search(params)
-            guard mine == request else { return }
+            let next = try await api.search(params)
+            guard mine == request else { return false }
             if endingSimilar { leaveSimilar() }
             activeQuery = params.query
             recents?.add(params)
-            land(next)
+            land(next, scroll: scroll)
+            return true
         } catch is CancellationError {
+            return false
         } catch {
-            guard mine == request else { return }
+            guard mine == request else { return false }
             if showErrorInField {
                 fieldError = error.localizedDescription
             } else {
                 self.error = error.localizedDescription
                 hasSearched = true
             }
+            return false
         }
     }
 
-    /// Validates and previews the typed reference, debounced.
-    private func scheduleVersePreview() {
+    /// The reference changed: it's unchecked until the API says otherwise,
+    /// so an edit can't be searched on the strength of the old text.
+    private func referenceChanged() {
         previewTask?.cancel()
-        let ref = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ref = trimmedReference
         guard !ref.isEmpty else {
-            versePreview = nil
+            referenceCheck = .idle
+            shownVerse = nil
             return
         }
+        referenceCheck = .checking
         previewTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
-            let verse = await APIClient.shared.verse(reference: ref)
-            guard !Task.isCancelled, let self else { return }
-            self.versePreview = verse
-            if verse != nil { self.fieldError = nil }
+            await self?.checkReference(ref)
+        }
+    }
+
+    private func checkReference(_ ref: String) async {
+        let result = await api.verse(reference: ref)
+        // Typed on since: that text gets its own check.
+        guard ref == trimmedReference, referenceCheck == .checking else { return }
+        switch result {
+        case .found(let verse):
+            referenceCheck = .found(verse)
+            shownVerse = verse
+            fieldError = nil
+        case .notFound:
+            referenceCheck = .notFound
+            shownVerse = nil
+        case .unavailable:
+            referenceCheck = .unavailable
+            shownVerse = nil
         }
     }
 }

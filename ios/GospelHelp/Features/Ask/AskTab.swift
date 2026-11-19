@@ -118,14 +118,12 @@ private struct QuestionBox: View {
                     .focused(focused)
                     .submitLabel(.send)
                     .disabled(model.closed != nil)
-                    .onChange(of: model.draft) { _, value in
-                        // Return sends (the field is multi-line for wrapping).
-                        if value.contains("\n") {
-                            model.draft = value.replacingOccurrences(of: "\n", with: "")
-                            send()
-                        } else if value.count > AskService.maxQuestionChars {
-                            model.draft = String(value.prefix(AskService.maxQuestionChars))
-                        }
+                    .onChange(of: model.draft) { old, value in
+                        // Return sends (the field is multi-line for wrapping);
+                        // a pasted paragraph is joined and capped, not sent.
+                        let input = QuestionInput.apply(old: old, new: value, limit: AskService.maxQuestionChars)
+                        if input.text != value { model.draft = input.text }
+                        if input.submit { send() }
                     }
                     .padding(.vertical, 12)
                     .padding(.leading, 18)

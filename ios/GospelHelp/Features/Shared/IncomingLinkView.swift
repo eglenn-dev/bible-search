@@ -16,10 +16,12 @@ struct IncomingLinkView: View {
         }
         .environment(\.splitView, false)
         .environment(\.passageOpener) { reading = $0 }
+        .environment(\.inSharedLink, true)
         .sheet(item: $reading) { passage in
             PassageDetail(passage: passage, presentation: .sheet)
                 .presentationDetents([.medium, .large])
                 .environment(\.passageOpener, nil)
+                .environment(\.inSharedLink, true)
         }
     }
 }
@@ -97,7 +99,8 @@ struct SharedCollectionView: View {
             CloseButton()
             if case .success(let collection) = decoded {
                 ToolbarItem(placement: .primaryAction) {
-                    ExportMenu(passages: collection.passages, title: "Shared collection")
+                    ExportMenu(passages: collection.passages, title: "Shared collection",
+                               filePrefix: "gospel-help-shared")
                 }
             }
         }

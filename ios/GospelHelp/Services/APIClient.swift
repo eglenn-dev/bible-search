@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// A failure worth showing as-is.
@@ -37,21 +38,40 @@ actor APIClient {
     static let shared = APIClient()
 
     private let session: URLSession
-    private let cache = ResponseCache()
+    private let cache: ResponseCache
     private let decoder = JSONDecoder()
+    private let base: URL?
+    private let isOnline: @Sendable () -> Bool
 
-    init() {
+    /// Tests pass a stub `URLProtocol`, a scratch cache and a fixed base URL.
+    init(
+        protocolClasses: [AnyClass]? = nil,
+        cache: ResponseCache = ResponseCache(),
+        base: URL? = nil,
+        isOnline: @escaping @Sendable () -> Bool = { NetworkMonitor.shared.isOnline }
+    ) {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 75 // the free-tier API cold-starts
         config.waitsForConnectivity = false
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        if let protocolClasses { config.protocolClasses = protocolClasses }
         session = URLSession(configuration: config)
+        self.cache = cache
+        self.base = base
+        self.isOnline = isOnline
+    }
+
+    /// What a failed GET says when there's no connection and nothing saved.
+    enum Offline {
+        static let search = "You’re offline. This search isn’t saved on this device yet."
+        static let generic = "You’re offline, and this isn’t saved on this device yet."
     }
 
     // MARK: Requests
 
     func search(_ params: SearchParams) async throws -> [Passage] {
-        let response: SearchResponse = try await get(Self.searchURL(params), fallback: "Failed to fetch results.")
+        let response: SearchResponse = try await get(
+            Self.searchURL(params, base: base), fallback: "Failed to fetch results.", offline: Offline.search)
         return response.results
     }
 
@@ -59,7 +79,8 @@ actor APIClient {
         var items = [URLQueryItem(name: "id", value: id), URLQueryItem(name: "k", value: String(count))]
         items += Self.commonItems(sources: sources, filters: filters)
         var response: SimilarResponse = try await get(
-            Self.url("search/similar", items), fallback: "Failed to fetch similar passages.")
+            Self.url("search/similar", items, base: base), fallback: "Failed to fetch similar passages.",
+            offline: Offline.search)
         // The seed is a passage, not a hit; it has no score of its own.
         response.seed.score = 1
         return response
@@ -71,33 +92,68 @@ actor APIClient {
                 URLQueryItem(name: "id", value: id),
                 URLQueryItem(name: "before", value: "2"),
                 URLQueryItem(name: "after", value: "2"),
-            ]),
+            ], base: base),
             fallback: "Couldn’t load the surrounding text.")
     }
 
-    /// A reference's verse, or nil when it isn't one.
-    func verse(reference: String) async -> Verse? {
-        let url = Self.url("verse", [URLQueryItem(name: "reference", value: reference)])
-        guard let (data, response) = try? await session.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return try? decoder.decode(Verse.self, from: data)
+    enum VerseLookup: Sendable, Equatable {
+        case found(Verse)
+        /// The API answered: this isn't a reference it knows.
+        case notFound
+        /// No answer (offline, or the API down) and nothing saved: can't tell.
+        case unavailable
+    }
+
+    /// A reference's verse, telling "not a reference" apart from "couldn't
+    /// check". Kept on disk like other GETs so a known reference still
+    /// checks out offline.
+    func verse(reference: String) async -> VerseLookup {
+        let url = Self.url("verse", [URLQueryItem(name: "reference", value: reference)], base: base)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(from: url)
+        } catch {
+            return await cachedVerse(url)
+        }
+        switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
+        case 200:
+            guard let verse = try? decoder.decode(Verse.self, from: data) else { return .notFound }
+            await cache.put(url, data)
+            return .found(verse)
+        case 400..<500:
+            return .notFound
+        default:
+            // A 5xx (the API waking up, say) says nothing about the reference.
+            return await cachedVerse(url)
+        }
+    }
+
+    private func cachedVerse(_ url: URL) async -> VerseLookup {
+        guard let data = await cache.get(url), let verse = try? decoder.decode(Verse.self, from: data) else {
+            return .unavailable
+        }
+        return .found(verse)
     }
 
     func speakers() async throws -> [SpeakerOption] {
         let response: SpeakersResponse = try await get(
-            Self.url("speakers", [URLQueryItem(name: "variants", value: "false")]),
+            Self.url("speakers", [URLQueryItem(name: "variants", value: "false")], base: base),
             fallback: "Failed to load speakers.")
         return response.speakers
     }
 
     func stats() async throws -> Data {
-        try await getData(Self.url("stats", []), fallback: "Failed to fetch stats.")
+        // Shown as "The stats are unavailable right now. <this>".
+        try await getData(
+            Self.url("stats", [], base: base), fallback: "Failed to fetch stats.",
+            offline: "You’re offline, and they haven’t been saved on this device yet.")
     }
 
     /// True when the health check answers.
     func health() async -> Result<Void, APIError> {
         do {
-            let (_, response) = try await session.data(from: Self.url("", []))
+            let (_, response) = try await session.data(from: Self.url("", [], base: base))
             guard (response as? HTTPURLResponse)?.statusCode == 200 else {
                 return .failure(APIError(message: "The search service is unavailable."))
             }
@@ -120,17 +176,17 @@ actor APIClient {
         var filters: SearchFilters
     }
 
-    static func searchURL(_ p: SearchParams) -> URL {
+    static func searchURL(_ p: SearchParams, base: URL? = nil) -> URL {
         if p.queryType == .scripture {
             return url("search/by-reference", [
                 URLQueryItem(name: "reference", value: p.query.trimmingCharacters(in: .whitespacesAndNewlines)),
                 URLQueryItem(name: "k", value: String(p.count)),
-            ] + commonItems(sources: p.sources, filters: p.filters))
+            ] + commonItems(sources: p.sources, filters: p.filters), base: base)
         }
         return url("search", [
             URLQueryItem(name: "query", value: p.query),
             URLQueryItem(name: "k", value: String(p.count)),
-        ] + commonItems(sources: p.sources, filters: p.filters))
+        ] + commonItems(sources: p.sources, filters: p.filters), base: base)
     }
 
     private static func commonItems(sources: [Source], filters: SearchFilters) -> [URLQueryItem] {
@@ -144,8 +200,8 @@ actor APIClient {
         return items
     }
 
-    static func url(_ path: String, _ items: [URLQueryItem]) -> URL {
-        var url = AppConfig.apiBase
+    static func url(_ path: String, _ items: [URLQueryItem], base: URL? = nil) -> URL {
+        var url = base ?? AppConfig.apiBase
         if !path.isEmpty { url.append(path: path) } else { url.append(path: "/") }
         if !items.isEmpty {
             var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
@@ -160,8 +216,10 @@ actor APIClient {
 
     // MARK: Plumbing
 
-    private func get<T: Decodable>(_ url: URL, fallback: String) async throws -> T {
-        let data = try await getData(url, fallback: fallback)
+    private func get<T: Decodable>(
+        _ url: URL, fallback: String, offline: String = Offline.generic
+    ) async throws -> T {
+        let data = try await getData(url, fallback: fallback, offline: offline)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -169,7 +227,7 @@ actor APIClient {
         }
     }
 
-    private func getData(_ url: URL, fallback: String) async throws -> Data {
+    private func getData(_ url: URL, fallback: String, offline: String = Offline.generic) async throws -> Data {
         let data: Data
         let response: URLResponse
         do {
@@ -178,9 +236,9 @@ actor APIClient {
             if let cached = await cache.get(url) { return cached }
             if (error as? URLError)?.code == .cancelled { throw CancellationError() }
             throw APIError(
-                message: NetworkMonitor.shared.isOnline
+                message: isOnline()
                     ? "Couldn’t reach the search service. Check your connection and try again."
-                    : "You’re offline. This search isn’t saved on this device yet.",
+                    : offline,
                 unreachable: true)
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -202,15 +260,30 @@ actor ResponseCache {
     private let directory: URL
     private let limit = 400
 
-    init() {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        directory = base.appending(path: "api-responses", directoryHint: .isDirectory)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    init(directory: URL? = nil) {
+        let fm = FileManager.default
+        let dir = directory ?? fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appending(path: "api-responses", directoryHint: .isDirectory)
+        self.directory = dir
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        // Files named by the old 32-bit hash could answer for the wrong URL.
+        for file in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+        where !Self.isCurrentName(file.deletingPathExtension().lastPathComponent) {
+            try? fm.removeItem(at: file)
+        }
+    }
+
+    /// The file name for a URL: its SHA-256, so two URLs never share one.
+    static func key(for url: URL) -> String {
+        SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func isCurrentName(_ name: String) -> Bool {
+        name.count == 64 && name.allSatisfy(\.isHexDigit)
     }
 
     private func file(for url: URL) -> URL {
-        let key = Passage.djb2(url.absoluteString) + "-" + String(url.absoluteString.count)
-        return directory.appending(path: key + ".json")
+        directory.appending(path: Self.key(for: url) + ".json")
     }
 
     func get(_ url: URL) -> Data? { try? Data(contentsOf: file(for: url)) }

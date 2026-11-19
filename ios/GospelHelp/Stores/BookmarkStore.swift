@@ -68,7 +68,8 @@ final class BookmarkStore {
         let now = Date.now
         var added: [Bookmark] = []
         for p in passages where !p.isExcerpt && !p.keys.contains(where: have.contains) {
-            have.insert(p.id)
+            // Every key: a later copy may only carry the legacy one.
+            have.formUnion(p.keys)
             added.append(Bookmark(id: p.id, savedAt: now.addingTimeInterval(-Double(added.count) / 1000), passage: p))
         }
         if !added.isEmpty {

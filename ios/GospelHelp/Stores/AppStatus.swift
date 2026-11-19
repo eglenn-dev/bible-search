@@ -13,9 +13,17 @@ final class NetworkMonitor: @unchecked Sendable {
     /// Called on the main actor when the connection comes back.
     @ObservationIgnored var onReconnect: (@MainActor () -> Void)?
 
+    #if DEBUG
+    /// `-GHSimulateOffline` (debug builds): report no connection, to try the
+    /// offline paths in the simulator, which shares the Mac's network.
+    private static let simulateOffline = ProcessInfo.processInfo.arguments.contains("-GHSimulateOffline")
+    #else
+    private static let simulateOffline = false
+    #endif
+
     private init() {
         monitor.pathUpdateHandler = { [weak self] path in
-            let online = path.status == .satisfied
+            let online = path.status == .satisfied && !Self.simulateOffline
             Task { @MainActor in
                 guard let self else { return }
                 let wasOffline = !self.isOnline

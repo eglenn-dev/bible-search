@@ -98,7 +98,7 @@ struct ResultCard: View {
                 UIPasteboard.general.string = "\(passage.shareText)\n\(passage.url)"
                 router.notify("Copied")
             }
-            if passage.apiID != nil, opener == nil {
+            if passage.apiID != nil {
                 Button("More Like This", systemImage: "sparkles") { moreLike() }
             }
             if let url = passage.sourceURL {
@@ -114,9 +114,7 @@ struct ResultCard: View {
     }
 
     private func moreLike() {
-        router.openPassage = nil
-        router.tab = .search
-        Task { await search.showSimilar(passage) }
+        router.showSimilar(passage, in: search)
     }
 }
 
@@ -135,6 +133,10 @@ private struct PassagePreview: View {
     }
 }
 
+private struct InSharedLinkKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 private struct PassageOpenerKey: EnvironmentKey {
     static let defaultValue: (@MainActor (Passage) -> Void)? = nil
 }
@@ -144,5 +146,11 @@ extension EnvironmentValues {
     var passageOpener: (@MainActor (Passage) -> Void)? {
         get { self[PassageOpenerKey.self] }
         set { self[PassageOpenerKey.self] = newValue }
+    }
+
+    /// Inside a shared link's sheet, which RootView closes for "More like this".
+    var inSharedLink: Bool {
+        get { self[InSharedLinkKey.self] }
+        set { self[InSharedLinkKey.self] = newValue }
     }
 }

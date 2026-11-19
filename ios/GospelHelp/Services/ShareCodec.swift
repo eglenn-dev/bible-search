@@ -203,8 +203,10 @@ enum ShareCodec {
         var passages: [Passage] = []
         var skipped = 0
         for entry in entries {
-            guard let p = fromWire(entry), !seen.contains(p.id) else { skipped += 1; continue }
-            seen.insert(p.id)
+            // A repeat may match by its legacy key alone (one copy with an id,
+            // one without), so every key counts.
+            guard let p = fromWire(entry), !p.keys.contains(where: seen.contains) else { skipped += 1; continue }
+            seen.formUnion(p.keys)
             passages.append(p)
         }
         if passages.isEmpty {

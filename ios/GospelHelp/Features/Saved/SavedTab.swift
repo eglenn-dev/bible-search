@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SavedTab: View {
     @Environment(BookmarkStore.self) private var store
@@ -33,7 +34,8 @@ struct SavedTab: View {
             .toolbar {
                 if !store.bookmarks.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
-                        ExportMenu(passages: store.bookmarks.map(\.passage), title: "Saved passages")
+                        ExportMenu(passages: store.bookmarks.map(\.passage), title: "Saved passages",
+                                   filePrefix: "gospel-help-saved")
                     }
                 }
             }
@@ -61,34 +63,68 @@ struct SavedTab: View {
 }
 
 /// Copy as Markdown, share a .md file, or share the passages as a link.
+/// Nothing is written or compressed while the list redraws: the file is
+/// written when it's shared, and the link is built off the main thread
+/// only when the passages change.
 struct ExportMenu: View {
     var passages: [Passage]
     var title: String
+    /// Names the .md file, so a shared collection doesn't overwrite your own.
+    var filePrefix: String
     @Environment(AppRouter.self) private var router
+    @State private var link: Result<URL, ShareError>?
 
     var body: some View {
+        let file = MarkdownFile(passages: passages, title: title, prefix: filePrefix)
         Menu {
             Section("\(passages.count) \(passages.count == 1 ? "passage" : "passages")") {
                 Button("Copy as Markdown", systemImage: "doc.on.doc") {
                     UIPasteboard.general.string = MarkdownExport.collection(passages, title: title)
                     router.notify("Markdown copied")
                 }
-                if let file = try? MarkdownExport.file(passages, title: title) {
-                    ShareLink(item: file) {
-                        Label("Export .md File", systemImage: "square.and.arrow.down")
-                    }
+                ShareLink(item: file, preview: SharePreview(file.filename)) {
+                    Label("Export .md File", systemImage: "square.and.arrow.down")
                 }
-                switch Result(catching: { try ShareCodec.collectionURL(passages) }) {
+                switch link {
                 case .success(let url):
                     ShareLink(item: url, subject: Text(title)) {
                         Label("Share as a Link", systemImage: "link")
                     }
                 case .failure:
                     Button("Too many to fit in a link", systemImage: "link") {}.disabled(true)
+                case nil:
+                    Button("Preparing link…", systemImage: "link") {}.disabled(true)
                 }
             }
         } label: {
             Label("Export & share", systemImage: "square.and.arrow.up")
+        }
+        .task(id: passages.map(\.id)) {
+            let passages = passages
+            link = await Task.detached(priority: .userInitiated) {
+                Result { () throws(ShareError) -> URL in
+                    do { return try ShareCodec.collectionURL(passages) }
+                    catch let error as ShareError { throw error }
+                    catch { throw ShareError(code: .tooLong, message: "These passages couldn’t be made into a link.") }
+                }
+            }.value
+        }
+    }
+}
+
+/// The Markdown export as a file, written only when the share sheet asks.
+struct MarkdownFile: Transferable, Sendable {
+    var passages: [Passage]
+    var title: String
+    var prefix: String
+
+    var filename: String { MarkdownExport.filename(prefix: prefix) }
+
+    static let markdown = UTType("net.daringfireball.markdown") ?? .plainText
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: markdown) { file in
+            SentTransferredFile(try MarkdownExport.file(file.passages, title: file.title, prefix: file.prefix))
         }
     }
 }

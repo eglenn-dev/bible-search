@@ -76,10 +76,12 @@ enum MarkdownExport {
     }
 
     /// Writes the export to a temporary file for the share sheet.
-    static func file(_ passages: [Passage], title: String = "Saved passages") throws -> URL {
+    static func file(
+        _ passages: [Passage], title: String = "Saved passages", prefix: String = "gospel-help-saved"
+    ) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appending(path: "exports", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appending(path: filename())
+        let url = dir.appending(path: filename(prefix: prefix))
         try collection(passages, title: title).write(to: url, atomically: true, encoding: .utf8)
         return url
     }

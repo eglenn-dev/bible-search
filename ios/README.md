@@ -18,11 +18,16 @@ open GospelHelp.xcodeproj    # then Run on any iPhone, iPad or iPhone Duo simula
 
 To use a local API (`uv run uvicorn app:app --port 10000` in `api/`), add the launch argument `-GHAPIBaseURL http://localhost:10000` in the scheme's Run options.
 
+The simulator shares the Mac's network, so to try the offline paths (cached searches, offline messages) add `-GHSimulateOffline` too. Debug builds then report no connection. To make requests actually fail, point `-GHAPIBaseURL` at an address where nothing is listening.
+
 ## Tests
 
 ```bash
 # Unit tests: share-link codec (byte-compatible with the web), Ask SSE
-# parsing, bookmark identity, display and sorting helpers, Markdown export.
+# parsing and question input, bookmark identity, display and sorting
+# helpers, Markdown export, the offline cache, and the search model
+# (Load more, overlapping searches, reference checks) against a stubbed
+# network.
 xcodebuild -project GospelHelp.xcodeproj -scheme GospelHelp \
   -destination 'platform=iOS Simulator,name=iPhone 18 Pro' test
 

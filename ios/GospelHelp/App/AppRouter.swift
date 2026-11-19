@@ -33,6 +33,8 @@ final class AppRouter {
     var openPassage: Passage?
     var toast: Toast?
     var incoming: ShareCodec.Incoming?
+    /// Bumped to close the shared link on screen (RootView owns its sheet).
+    private(set) var closeSharedLinkRequest = 0
 
     private var toastTask: Task<Void, Never>?
 
@@ -54,6 +56,15 @@ final class AppRouter {
     func isOpen(_ passage: Passage) -> Bool { openPassage?.id == passage.id }
 
     func open(_ passage: Passage) { openPassage = passage }
+
+    /// "More like this": closes whatever covers the Search tab (the passage
+    /// sheet, a shared link) and shows the passage's neighbours there.
+    func showSimilar(_ passage: Passage, in search: SearchModel) {
+        openPassage = nil
+        closeSharedLinkRequest += 1
+        tab = .search
+        Task { await search.showSimilar(passage) }
+    }
 
     /// Saves or removes, with the matching toast (and Undo for a removal).
     func toggleSaved(_ passage: Passage, in store: BookmarkStore) {

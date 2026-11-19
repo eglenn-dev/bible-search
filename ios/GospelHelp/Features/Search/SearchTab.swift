@@ -37,7 +37,9 @@ struct SearchTab: View {
                     .frame(maxWidth: .infinity)
                 }
                 .scrollDismissesKeyboard(.immediately)
-                .onChange(of: model.results) { _, _ in
+                // A new set of results starts at the top; "Load more" keeps
+                // the reader's place.
+                .onChange(of: model.scrollGeneration) { _, _ in
                     withAnimation(.smooth) { proxy.scrollTo("top", anchor: .top) }
                 }
             }
@@ -131,7 +133,15 @@ private struct SearchHeader: View {
                     .padding(.horizontal, 16)
             }
 
-            if model.queryType == .scripture, let verse = model.versePreview {
+            if model.queryType == .scripture, model.referenceCheck == .unavailable {
+                Text("Couldn’t check this reference right now. You can still search for it.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                    .accessibilityIdentifier("referenceUnchecked")
+            }
+
+            if model.queryType == .scripture, let verse = model.shownVerse {
                 VStack(alignment: .leading, spacing: 2) {
                     if let source = verse.source {
                         Text(source.longLabel).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
@@ -144,7 +154,10 @@ private struct SearchHeader: View {
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .card(radius: 18)
+                // The last verse found, faded while the edit is checked.
+                .opacity(model.versePreview == nil ? 0.45 : 1)
                 .transition(.opacity.combined(with: .move(edge: .top)))
+                .accessibilityIdentifier("versePreview")
             }
 
             HStack(spacing: 10) {
@@ -179,7 +192,8 @@ private struct SearchHeader: View {
         .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 10)
-        .animation(.smooth, value: model.versePreview?.text)
+        .animation(.smooth, value: model.shownVerse?.text)
+        .animation(.smooth(duration: 0.2), value: model.versePreview == nil)
     }
 
     private func submit() {
@@ -351,6 +365,14 @@ private struct ResultsList: View {
                     .disabled(model.loadingMore)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 8)
+                    if let error = model.loadMoreError, !model.loadingMore {
+                        Text("Couldn’t load more. \(error)")
+                            .font(.footnote)
+                            .foregroundStyle(Color.destructiveText)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityIdentifier("loadMoreError")
+                    }
                 }
             }
         }

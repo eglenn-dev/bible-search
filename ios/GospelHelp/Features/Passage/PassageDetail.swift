@@ -14,6 +14,7 @@ struct PassageDetail: View {
     @Environment(SearchModel.self) private var search
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.inSharedLink) private var inSharedLink
     @State private var expanded = false
 
     var body: some View {
@@ -140,10 +141,9 @@ struct PassageDetail: View {
     }
 
     private func moreLike() {
-        if presentation == .sheet { dismiss() }
-        router.openPassage = nil
-        router.tab = .search
-        Task { await search.showSimilar(passage) }
+        // Inside a shared link, closing the link's sheet closes this one too.
+        if presentation == .sheet, !inSharedLink { dismiss() }
+        router.showSimilar(passage, in: search)
     }
 }
 

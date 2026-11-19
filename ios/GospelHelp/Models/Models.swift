@@ -230,7 +230,7 @@ struct PassageContext: Decodable, Sendable {
     }
 }
 
-struct Verse: Decodable, Sendable {
+struct Verse: Decodable, Sendable, Equatable {
     var source: Source?
     var reference: String
     var text: String
